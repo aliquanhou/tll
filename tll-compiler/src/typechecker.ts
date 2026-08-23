@@ -119,8 +119,32 @@ export class TypeChecker {
 
   public check(program: AST.Program): void {
     this.errors = [];
+    // Pre-register all top-level function declarations (including exported ones)
+    // so that cross-module function calls are recognized
+    this.preRegisterDeclarations(program);
     for (const stmt of program.statements) {
       this.checkStatement(stmt);
+    }
+  }
+
+  private preRegisterDeclarations(program: AST.Program): void {
+    for (const stmt of program.statements) {
+      let fnDecl: AST.FnDeclaration | null = null;
+      if (stmt.kind === 'Fn') {
+        fnDecl = stmt;
+      } else if (stmt.kind === 'Export' && stmt.declaration.kind === 'Fn') {
+        fnDecl = stmt.declaration as AST.FnDeclaration;
+      }
+      if (fnDecl) {
+        const paramTypes = fnDecl.params.map(p => this.resolveType(p.type));
+        const returnType = fnDecl.returnType ? this.resolveType(fnDecl.returnType) : { name: 'void', kind: 'primitive' as const };
+        this.globalScope.define(fnDecl.name, {
+          name: fnDecl.name,
+          type: { name: 'fn', kind: 'function', params: paramTypes, returnType },
+          mutable: false,
+          kind: 'function',
+        });
+      }
     }
   }
 
