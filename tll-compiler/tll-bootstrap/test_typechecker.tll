@@ -1,0 +1,62 @@
+from "./lib/lexer" import tokenize
+from "./lib/parser" import parse
+from "./lib/typechecker" import check
+
+io.println("=== TLL Type Checker Self-hosting Test ===")
+io.println("")
+
+fn runTest(name: string, code: string) -> void {
+    io.println("--- " + name + " ---")
+    io.println("Code: " + code)
+    let tokens = tokenize(code)
+    let ast = parse(tokens)
+    let errors = check(ast)
+    io.println("Errors: " + convert.toString(arrays.length(errors)))
+    let i = 0
+    while i < arrays.length(errors) {
+        io.println("  " + arrays.get(errors, i))
+        i = i + 1
+    }
+    io.println("")
+}
+
+// Test 1: Valid let statement
+runTest("Test 1: valid let", "let x = 5")
+
+// Test 2: Valid arithmetic
+runTest("Test 2: valid arithmetic", "let x = 1 + 2 * 3")
+
+// Test 3: Valid string concat
+runTest("Test 3: string concat", "let s = \"hello\" + \" world\"")
+
+// Test 4: Valid function declaration
+runTest("Test 4: function", "fn add(a: int, b: int) -> int { return a + b }")
+
+// Test 5: Valid if statement
+runTest("Test 5: if statement", "if x > 0 { return 1 } else { return 0 }")
+
+// Test 6: Valid while loop
+runTest("Test 6: while loop", "while i < 10 { i = i + 1 }")
+
+// Test 7: Valid array literal
+runTest("Test 7: array", "let arr = [1, 2, 3]")
+
+// Test 8: Valid map literal
+runTest("Test 8: map", "let m = {name: \"TLL\", version: 1}")
+
+// Test 9: Undefined variable (should error)
+runTest("Test 9: undefined var", "let x = undefinedVar + 1")
+
+// Test 10: Valid function call
+runTest("Test 10: function call", "let result = add(3, 4)")
+
+// Test 11: Valid stdlib call
+runTest("Test 11: stdlib call", "io.println(\"hello\")")
+
+// Test 12: Valid comparison
+runTest("Test 12: comparison", "let r = 5 > 3 && 2 < 4")
+
+// Test 13: Nested blocks with scope
+runTest("Test 13: nested scope", "fn test() { let x = 1; if true { let y = 2; return x + y }; return x }")
+
+io.println("=== All type checker tests completed ===")
