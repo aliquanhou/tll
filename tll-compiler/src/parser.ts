@@ -98,6 +98,10 @@ export class Parser {
         return this.parseContinueStatement();
       case TokenType.Defer:
         return this.parseDeferStatement();
+      case TokenType.Try:
+        return this.parseTryStatement();
+      case TokenType.Throw:
+        return this.parseThrowStatement();
       case TokenType.Import:
         return this.parseImportStatement();
       case TokenType.Struct:
@@ -308,6 +312,48 @@ export class Parser {
     const expression = this.parseExpression();
     this.match(TokenType.Semicolon);
     return { kind: 'Defer', expression, line: start.line, column: start.column };
+  }
+
+  private parseTryStatement(): AST.TryStatement {
+    const start = this.advance(); // try
+    const body = this.parseBlockStatement();
+
+    let catchParam: string | undefined;
+    let catchBody: AST.BlockStatement | undefined;
+
+    if (this.match(TokenType.Catch)) {
+      // catch err { ... } or catch { ... }
+      if (this.check(TokenType.Ident)) {
+        catchParam = this.advance().value;
+      }
+      catchBody = this.parseBlockStatement();
+    }
+
+    let finallyBody: AST.BlockStatement | undefined;
+    if (this.match(TokenType.Finally)) {
+      finallyBody = this.parseBlockStatement();
+    }
+
+    if (!catchBody && !finallyBody) {
+      throw new ParserError('try must have catch or finally', start.line, start.column);
+    }
+
+    return {
+      kind: 'Try',
+      body,
+      catchParam,
+      catchBody,
+      finallyBody,
+      line: start.line,
+      column: start.column,
+    };
+  }
+
+  private parseThrowStatement(): AST.ThrowStatement {
+    const start = this.advance(); // throw
+    const value = this.parseExpression();
+    this.match(TokenType.Semicolon);
+    return { kind: 'Throw', value, line: start.line, column: start.column };
   }
 
   private parseImportStatement(): AST.ImportStatement {

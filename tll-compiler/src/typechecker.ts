@@ -175,6 +175,12 @@ export class TypeChecker {
       case 'Break':
       case 'Continue':
       case 'Defer':
+      case 'Try':
+        this.checkTry(stmt as AST.TryStatement);
+        break;
+      case 'Throw':
+        this.checkExpression((stmt as AST.ThrowStatement).value);
+        break;
       case 'Interface':
       case 'Impl':
       case 'TypeAlias':
@@ -281,6 +287,31 @@ export class TypeChecker {
     });
     this.checkBlock(stmt.body);
     this.popScope();
+  }
+
+  private checkTry(stmt: AST.TryStatement): void {
+    // Check try body
+    this.checkBlock(stmt.body);
+
+    // Check catch body
+    if (stmt.catchBody) {
+      this.pushScope();
+      if (stmt.catchParam) {
+        this.currentScope.define(stmt.catchParam, {
+          name: stmt.catchParam,
+          type: { name: 'str', kind: 'primitive' },
+          mutable: true,
+          kind: 'variable',
+        });
+      }
+      this.checkBlock(stmt.catchBody);
+      this.popScope();
+    }
+
+    // Check finally body
+    if (stmt.finallyBody) {
+      this.checkBlock(stmt.finallyBody);
+    }
   }
 
   private checkBlock(stmt: AST.BlockStatement): void {

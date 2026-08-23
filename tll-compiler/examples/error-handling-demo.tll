@@ -1,0 +1,61 @@
+// TLL try/catch/finally Test
+fn main() {
+    io.println("=== TLL Error Handling Test ===")
+
+    // Test 1: Basic try/catch with throw
+    io.println("--- Test 1: throw and catch ---")
+    try {
+        io.println("in try block")
+        throw "something went wrong"
+        io.println("this should not print")
+    } catch err {
+        io.println("caught: " + err)
+    }
+
+    // Test 2: try/catch/finally
+    io.println("--- Test 2: try/catch/finally ---")
+    try {
+        io.println("in try")
+        throw "error in try"
+    } catch err {
+        io.println("caught: " + err)
+    } finally {
+        io.println("finally always runs")
+    }
+
+    // Test 3: try without error (normal path)
+    io.println("--- Test 3: no error ---")
+    try {
+        io.println("try runs normally")
+    } catch err {
+        io.println("should not catch: " + err)
+    } finally {
+        io.println("finally runs on success too")
+    }
+
+    // Test 4: Catch standard library error (fs.readFile)
+    io.println("--- Test 4: catch fs error ---")
+    try {
+        let content = fs.readFile("/tmp/nonexistent-file-12345.txt")
+        io.println("should not reach here")
+    } catch err {
+        io.println("caught fs error: " + strings.substring(err, 0, 40))
+    }
+
+    // Test 5: Nested try/catch
+    io.println("--- Test 5: nested try/catch ---")
+    try {
+        try {
+            throw "inner error"
+        } catch innerErr {
+            io.println("inner caught: " + innerErr)
+            throw "re-thrown from inner"
+        }
+    } catch outerErr {
+        io.println("outer caught: " + outerErr)
+    }
+
+    io.println("=== All error handling tests passed ===")
+}
+
+main()

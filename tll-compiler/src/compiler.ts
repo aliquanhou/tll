@@ -46,6 +46,9 @@ export enum OpCode {
   PUSH = 34,         // r (push to stack for call args)
   CONCAT = 35,       // r1, r2, r3 (string concat)
   LOAD_BUILTIN = 36,  // r, builtin_index
+  THROW = 37,          // r (throw value in register)
+  TRY_START = 38,      // catch_offset (record try handler)
+  TRY_END = 39,        // (clear try handler)
 }
 
 export interface Instruction {
@@ -132,6 +135,8 @@ export class Compiler {
 
     this.emit(OpCode.HALT, []);
 
+    this.resolveFunctionLabels();
+
     return {
       constants: this.constants,
       functions: this.functions,
@@ -160,6 +165,27 @@ export class Compiler {
       this.emit(OpCode.LOAD_CONST, [voidReg, this.addConstant(null)]);
       this.emit(OpCode.RET, [voidReg]);
     }
+
+    this.resolveFunctionLabels();
+  }
+
+  private resolveFunctionLabels(): void {
+    if (!this.labelPositions || !this.currentFn) return;
+    const positions = this.labelPositions;
+    for (const inst of this.currentFn.instructions) {
+      if (inst.op === OpCode.JMP || inst.op === OpCode.TRY_START) {
+        const label = inst.operands[inst.operands.length - 1];
+        if (positions.has(label)) {
+          inst.operands[inst.operands.length - 1] = positions.get(label)!;
+        }
+      } else if (inst.op === OpCode.JMP_IF_FALSE) {
+        const label = inst.operands[1];
+        if (positions.has(label)) {
+          inst.operands[1] = positions.get(label)!;
+        }
+      }
+    }
+    this.labelPositions = new Map();
   }
 
   private compileBlock(block: AST.BlockStatement): void {
@@ -200,6 +226,12 @@ export class Compiler {
       case 'Defer':
         // Simplified: execute immediately
         this.compileExpression(stmt.expression);
+        break;
+      case 'Try':
+        this.compileTry(stmt);
+        break;
+      case 'Throw':
+        this.compileThrow(stmt);
         break;
       default:
         // Skip declarations
@@ -301,6 +333,52 @@ export class Compiler {
 
     this.emit(OpCode.JMP, [startLabel]);
     this.patchLabel(endLabel);
+  }
+
+  private compileTry(stmt: AST.TryStatement): void {
+    const catchLabel = this.newLabel();
+    const finallyLabel = this.newLabel();
+    const endLabel = this.newLabel();
+
+    // TRY_START catchLabel
+    this.emit(OpCode.TRY_START, [catchLabel]);
+
+    // Compile try body
+    this.compileBlock(stmt.body);
+
+    // TRY_END
+    this.emit(OpCode.TRY_END, []);
+
+    // Jump over catch block
+    if (stmt.finallyBody) {
+      this.emit(OpCode.JMP, [finallyLabel]);
+    } else {
+      this.emit(OpCode.JMP, [endLabel]);
+    }
+
+    // Catch block
+    this.patchLabel(catchLabel);
+    if (stmt.catchBody) {
+      // Store error value into catch param (error is in r0)
+      if (stmt.catchParam) {
+        const errVarIdx = this.getOrCreateVar(stmt.catchParam);
+        this.emit(OpCode.STORE_VAR, [errVarIdx, 0]);
+      }
+      this.compileBlock(stmt.catchBody);
+    }
+
+    // Finally block
+    if (stmt.finallyBody) {
+      this.patchLabel(finallyLabel);
+      this.compileBlock(stmt.finallyBody);
+    }
+
+    this.patchLabel(endLabel);
+  }
+
+  private compileThrow(stmt: AST.ThrowStatement): void {
+    const valueReg = this.compileExpression(stmt.value);
+    this.emit(OpCode.THROW, [valueReg]);
   }
 
   private compileExpression(expr: AST.Expression): number {

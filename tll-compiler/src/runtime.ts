@@ -12,6 +12,7 @@ interface CallFrame {
   registers: any[];
   locals: any[];
   argStack: any[];
+  tryStack: number[]; // stack of catch block pc offsets
 }
 
 export class Runtime {
@@ -31,6 +32,7 @@ export class Runtime {
       registers: new Array(256).fill(undefined),
       locals: new Array(mainFn.localCount).fill(undefined),
       argStack: [],
+      tryStack: [],
     };
     this.callStack.push(frame);
 
@@ -159,16 +161,22 @@ export class Runtime {
             registers: new Array(256).fill(undefined),
             locals: new Array(fn.localCount).fill(undefined),
             argStack: [],
+            tryStack: [],
           };
           for (let i = 0; i < argCount && i < fn.paramCount; i++) {
             newFrame.locals[i] = args[i];
           }
           this.callStack.push(newFrame);
         } else {
-          // Indirect call (function value)
+          // Indirect call (function value, e.g. builtin functions)
           const fnValue = regs[b] as Function;
           if (typeof fnValue === 'function') {
-            regs[a] = fnValue(...args);
+            try {
+              regs[a] = fnValue(...args);
+            } catch (e: any) {
+              const errMsg = e instanceof Error ? e.message : String(e);
+              this.throwException(frame, errMsg);
+            }
           }
         }
         break;
@@ -276,9 +284,51 @@ export class Runtime {
         break;
       }
 
+      case OpCode.TRY_START:
+        frame.tryStack.push(a); // a = catch label (pc offset)
+        break;
+
+      case OpCode.TRY_END:
+        frame.tryStack.pop();
+        break;
+
+      case OpCode.THROW: {
+        const errorValue = regs[a];
+        this.throwException(frame, errorValue);
+        break;
+      }
+
       default:
         throw new RuntimeError(`Unknown opcode: ${inst.op}`);
     }
+  }
+
+  private throwException(frame: CallFrame, errorValue: any): void {
+    // Search current frame's try stack first
+    while (frame.tryStack.length > 0) {
+      const catchPc = frame.tryStack.pop()!;
+      frame.pc = catchPc;
+      frame.registers[0] = errorValue; // error value goes to r0
+      return;
+    }
+
+    // Search up the call stack
+    while (this.callStack.length > 1) {
+      this.callStack.pop();
+      const parentFrame = this.callStack[this.callStack.length - 1];
+      if (parentFrame.tryStack.length > 0) {
+        const catchPc = parentFrame.tryStack.pop()!;
+        parentFrame.pc = catchPc;
+        parentFrame.registers[0] = errorValue;
+        return;
+      }
+    }
+
+    // No handler found - fatal error
+    const errMsg = typeof errorValue === 'string' ? errorValue :
+                   errorValue instanceof Error ? errorValue.message :
+                   JSON.stringify(errorValue);
+    throw new RuntimeError('Uncaught exception: ' + errMsg);
   }
 
   private add(a: any, b: any): any {

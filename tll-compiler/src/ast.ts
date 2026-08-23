@@ -23,6 +23,8 @@ export type Statement =
   | BreakStatement
   | ContinueStatement
   | DeferStatement
+  | TryStatement
+  | ThrowStatement
   | ExpressionStatement
   | BlockStatement
   | StructDeclaration
@@ -107,6 +109,19 @@ export interface ContinueStatement extends BaseNode {
 export interface DeferStatement extends BaseNode {
   kind: 'Defer';
   expression: Expression;
+}
+
+export interface TryStatement extends BaseNode {
+  kind: 'Try';
+  body: BlockStatement;
+  catchParam?: string;
+  catchBody?: BlockStatement;
+  finallyBody?: BlockStatement;
+}
+
+export interface ThrowStatement extends BaseNode {
+  kind: 'Throw';
+  value: Expression;
 }
 
 export interface ExpressionStatement extends BaseNode {
