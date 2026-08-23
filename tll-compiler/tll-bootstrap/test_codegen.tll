@@ -1,0 +1,56 @@
+from "./lib/lexer" import tokenize
+from "./lib/parser" import parse
+from "./lib/codegen" import compile
+
+io.println("=== TLL Codegen Self-hosting Test ===")
+io.println("")
+
+fn runTest(name: string, code: string) -> void {
+    io.println("--- " + name + " ---")
+    io.println("Code: " + code)
+    let tokens = tokenize(code)
+    let ast = parse(tokens)
+    let program = compile(ast)
+    let funcs = program["functions"]
+    io.println("Functions: " + convert.toString(arrays.length(funcs)))
+    let i = 0
+    while i < arrays.length(funcs) {
+        let func = arrays.get(funcs, i)
+        io.println("  [" + convert.toString(i) + "] " + func["name"] + " (params=" + convert.toString(func["paramCount"]) + ", locals=" + convert.toString(func["localCount"]) + ", instrs=" + convert.toString(arrays.length(func["instructions"])) + ")")
+        i = i + 1
+    }
+    io.println("Constants: " + convert.toString(arrays.length(program["constants"])))
+    io.println("")
+}
+
+// Test 1: Simple let
+runTest("Test 1: let statement", "let x = 5")
+
+// Test 2: Arithmetic
+runTest("Test 2: arithmetic", "let x = 1 + 2 * 3")
+
+// Test 3: Function declaration
+runTest("Test 3: function", "fn add(a, b) { return a + b }")
+
+// Test 4: If statement
+runTest("Test 4: if-else", "fn test(x) { if x > 0 { return 1 } else { return 0 } }")
+
+// Test 5: While loop
+runTest("Test 5: while", "fn sum(n) { let i = 0; let s = 0; while i < n { s = s + i; i = i + 1 }; return s }")
+
+// Test 6: Array literal
+runTest("Test 6: array", "let arr = [1, 2, 3]")
+
+// Test 7: Map literal
+runTest("Test 7: map", "let m = {a: 1, b: 2}")
+
+// Test 8: Nested expressions
+runTest("Test 8: nested", "let x = (1 + 2) * (3 - 4)")
+
+// Test 9: Comparison and logical
+runTest("Test 9: comparison", "let r = 5 > 3 && 2 < 4 || true")
+
+// Test 10: Multiple functions
+runTest("Test 10: multiple funcs", "fn a() { return 1 } fn b() { return 2 } let x = a() + b()")
+
+io.println("=== All codegen tests completed ===")

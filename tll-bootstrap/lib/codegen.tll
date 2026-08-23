@@ -1,0 +1,687 @@
+// TLL Codegen - Self-hosting Bootstrap (v1.0 Phase 4)
+// AST to bytecode compiler, rewritten from TypeScript
+// Uses global state (TLL functions cannot modify captured vars)
+
+// ============ OpCode constants (must match TypeScript compiler.ts) ============
+let OP_LOAD_CONST = 0
+let OP_LOAD_VAR = 1
+let OP_STORE_VAR = 2
+let OP_ADD = 3
+let OP_SUB = 4
+let OP_MUL = 5
+let OP_DIV = 6
+let OP_MOD = 7
+let OP_POW = 8
+let OP_EQ = 9
+let OP_NEQ = 10
+let OP_LT = 11
+let OP_GT = 12
+let OP_LE = 13
+let OP_GE = 14
+let OP_AND = 15
+let OP_OR = 16
+let OP_NOT = 17
+let OP_NEG = 18
+let OP_JMP = 19
+let OP_JMP_IF_FALSE = 20
+let OP_CALL = 21
+let OP_RET = 22
+let OP_MAKE_ARRAY = 25
+let OP_MAKE_MAP = 26
+let OP_INDEX_GET = 28
+let OP_INDEX_SET = 29
+let OP_MEMBER_GET = 30
+let OP_MEMBER_SET = 31
+let OP_HALT = 32
+let OP_NOP = 33
+let OP_PUSH = 34
+let OP_CONCAT = 35
+let OP_LOAD_BUILTIN = 36
+let OP_THROW = 37
+let OP_TRY_START = 38
+let OP_TRY_END = 39
+let OP_LOAD_GLOBAL = 40
+let OP_STORE_GLOBAL = 41
+
+// ============ Codegen state ============
+let cg_instructions: list = []    // list of {op: int, operands: list}
+let cg_constants: list = []       // constant pool
+let cg_regCount = 0
+let cg_labelCounter = 0
+let cg_labelPositions: map = {}   // label -> instruction index
+let cg_pendingJumps: map = {}     // label -> list of instruction indices
+let cg_functions: list = []       // compiled functions
+let cg_currentFn: map = null
+let cg_variableMap: map = {}       // name -> local index
+let cg_globalVariables: map = {}   // name -> global index
+let cg_functionMap: map = {}       // name -> function index
+let cg_loopContexts: list = []     // {breakLabel, continueLabel}
+let cg_mainFnIndex = 0
+let cg_allFnInstructions: list = []  // instructions for each function in order
+let cg_allFnLocalCounts: list = []   // localCount for each function in order
+
+// ============ Helper functions ============
+
+fn cg_emit(op: int, operands: list) -> void {
+    let inst = { op: op, operands: operands }
+    arrays.push(cg_instructions, inst)
+}
+
+fn cg_allocReg() -> int {
+    let r = cg_regCount
+    cg_regCount = cg_regCount + 1
+    return r
+}
+
+fn cg_addConstant(value: any) -> int {
+    arrays.push(cg_constants, value)
+    return arrays.length(cg_constants) - 1
+}
+
+fn cg_newLabel() -> int {
+    let l = cg_labelCounter
+    cg_labelCounter = cg_labelCounter + 1
+    return l
+}
+
+fn cg_patchLabel(label: int) -> void {
+    cg_labelPositions[label] = arrays.length(cg_instructions)
+    // Patch all pending jumps to this label
+    let pending = cg_pendingJumps[label]
+    if pending != null {
+        let i = 0
+        while i < arrays.length(pending) {
+            let instIdx = arrays.get(pending, i)
+            let inst = arrays.get(cg_instructions, instIdx)
+            let ops = inst["operands"]
+            // Last operand is the label placeholder, patch it
+            ops[arrays.length(ops) - 1] = arrays.length(cg_instructions)
+            i = i + 1
+        }
+    }
+    cg_pendingJumps[label] = null
+}
+
+fn cg_getOrCreateVar(name: string) -> int {
+    let idx = cg_variableMap[name]
+    if idx == null {
+        idx = cg_currentFn["localCount"]
+        cg_currentFn["localCount"] = idx + 1
+        cg_variableMap[name] = idx
+    }
+    return idx
+}
+
+fn cg_resolveVar(name: string) -> map {
+    let localIdx = cg_variableMap[name]
+    if localIdx != null {
+        return { index: localIdx, isGlobal: false }
+    }
+    let globalIdx = cg_globalVariables[name]
+    if globalIdx != null {
+        return { index: globalIdx, isGlobal: true }
+    }
+    // Not found - create as local
+    let idx = cg_currentFn["localCount"]
+    cg_currentFn["localCount"] = idx + 1
+    cg_variableMap[name] = idx
+    return { index: idx, isGlobal: false }
+}
+
+// ============ Main entry ============
+
+export fn compile(program: map) -> map {
+    cg_instructions = []
+    cg_constants = []
+    cg_regCount = 0
+    cg_labelCounter = 0
+    cg_labelPositions = {}
+    cg_pendingJumps = {}
+    cg_functions = []
+    cg_functionMap = {}
+    cg_globalVariables = {}
+    cg_loopContexts = []
+    cg_allFnInstructions = []
+    cg_allFnLocalCounts = []
+
+    let stmts = program["statements"]
+
+    // First pass: collect global variables and function declarations
+    let i = 0
+    while i < arrays.length(stmts) {
+        let stmt = arrays.get(stmts, i)
+        if stmt["kind"] == "Let" || stmt["kind"] == "Const" {
+            if cg_globalVariables[stmt["name"]] == null {
+                cg_globalVariables[stmt["name"]] = arrays.length(cg_globalVariables) - 0
+                // Actually use a counter
+            }
+        }
+        if stmt["kind"] == "Fn" {
+            let fnIdx = arrays.length(cg_functions)
+            cg_functionMap[stmt["name"]] = fnIdx
+            let fnObj = { name: stmt["name"], paramCount: arrays.length(stmt["params"]), instructions: [], localCount: 0 }
+            arrays.push(cg_functions, fnObj)
+        }
+        i = i + 1
+    }
+
+    // Fix global variable indices (use a proper counter)
+    let globalCounter = 0
+    i = 0
+    while i < arrays.length(stmts) {
+        let stmt = arrays.get(stmts, i)
+        if stmt["kind"] == "Let" || stmt["kind"] == "Const" {
+            cg_globalVariables[stmt["name"]] = globalCounter
+            globalCounter = globalCounter + 1
+        }
+        i = i + 1
+    }
+
+    // Create main function
+    cg_mainFnIndex = arrays.length(cg_functions)
+    let mainFn = { name: "__main__", paramCount: 0, instructions: [], localCount: 0 }
+    arrays.push(cg_functions, mainFn)
+
+    // Second pass: compile function bodies
+    i = 0
+    while i < arrays.length(stmts) {
+        let stmt = arrays.get(stmts, i)
+        if stmt["kind"] == "Fn" {
+            cg_compileFunction(stmt)
+            // Store immediately (cg_instructions is global, list is reference type)
+            arrays.push(cg_allFnInstructions, cg_instructions)
+            arrays.push(cg_allFnLocalCounts, cg_currentFn["localCount"])
+        }
+        i = i + 1
+    }
+
+    // Compile main (top-level statements)
+    cg_currentFn = arrays.get(cg_functions, cg_mainFnIndex)
+    cg_regCount = 0
+    cg_variableMap = {}
+    cg_labelCounter = 0
+    cg_instructions = []
+
+    i = 0
+    while i < arrays.length(stmts) {
+        let stmt = arrays.get(stmts, i)
+        let kind = stmt["kind"]
+        if kind != "Fn" && kind != "Import" {
+            cg_compileStatement(stmt)
+        }
+        i = i + 1
+    }
+
+    cg_emit(OP_HALT, [])
+
+    // Store main function instructions
+    arrays.push(cg_allFnInstructions, cg_instructions)
+    arrays.push(cg_allFnLocalCounts, cg_currentFn["localCount"])
+
+    // Rebuild functions list with actual instructions
+    let finalFunctions: list = []
+    i = 0
+    while i < arrays.length(cg_functions) {
+        let func = arrays.get(cg_functions, i)
+        let instrs = arrays.get(cg_allFnInstructions, i)
+        let localCount = arrays.get(cg_allFnLocalCounts, i)
+        let newFn = { name: func["name"], paramCount: func["paramCount"], instructions: instrs, localCount: localCount }
+        arrays.push(finalFunctions, newFn)
+        i = i + 1
+    }
+
+    return {
+        constants: cg_constants,
+        functions: finalFunctions,
+        mainFunctionIndex: cg_mainFnIndex,
+        globalCount: globalCounter
+    }
+}
+
+// ============ Function compilation ============
+
+fn cg_compileFunction(fnDecl: map) -> void {
+    let fnIdx = cg_functionMap[fnDecl["name"]]
+    cg_currentFn = arrays.get(cg_functions, fnIdx)
+    cg_regCount = 0
+    cg_variableMap = {}
+    cg_labelCounter = 0
+    cg_instructions = []
+
+    // Map parameters to local variables
+    let params = fnDecl["params"]
+    let i = 0
+    while i < arrays.length(params) {
+        cg_variableMap[arrays.get(params, i)["name"]] = i
+        i = i + 1
+    }
+    cg_currentFn["localCount"] = arrays.length(params)
+
+    cg_compileBlock(fnDecl["body"])
+
+    // Implicit return null if no return at end
+    let voidReg = cg_allocReg()
+    cg_emit(OP_LOAD_CONST, [voidReg, cg_addConstant(null)])
+    cg_emit(OP_RET, [voidReg])
+}
+
+// ============ Block compilation ============
+
+fn cg_compileBlock(block: map) -> void {
+    let stmts = block["statements"]
+    let i = 0
+    while i < arrays.length(stmts) {
+        cg_compileStatement(arrays.get(stmts, i))
+        i = i + 1
+    }
+}
+
+// ============ Statement compilation ============
+
+fn cg_compileStatement(stmt: map) -> void {
+    if stmt == null { return }
+    let kind = stmt["kind"]
+
+    if kind == "Let" || kind == "Const" {
+        let valueReg = cg_compileExpression(stmt["value"])
+        let resolved = cg_resolveVar(stmt["name"])
+        if resolved["isGlobal"] {
+            cg_emit(OP_STORE_GLOBAL, [resolved["index"], valueReg])
+        } else {
+            cg_emit(OP_STORE_VAR, [resolved["index"], valueReg])
+        }
+        return
+    }
+
+    if kind == "Return" {
+        if stmt["value"] != null {
+            let reg = cg_compileExpression(stmt["value"])
+            cg_emit(OP_RET, [reg])
+        } else {
+            let reg = cg_allocReg()
+            cg_emit(OP_LOAD_CONST, [reg, cg_addConstant(null)])
+            cg_emit(OP_RET, [reg])
+        }
+        return
+    }
+
+    if kind == "If" {
+        cg_compileIf(stmt)
+        return
+    }
+
+    if kind == "While" {
+        cg_compileWhile(stmt)
+        return
+    }
+
+    if kind == "Break" {
+        if arrays.length(cg_loopContexts) > 0 {
+            let ctx = arrays.get(cg_loopContexts, arrays.length(cg_loopContexts) - 1)
+            cg_emit(OP_JMP, [ctx["breakLabel"]])
+        } else {
+            cg_emit(OP_NOP, [])
+        }
+        return
+    }
+
+    if kind == "Continue" {
+        if arrays.length(cg_loopContexts) > 0 {
+            let ctx = arrays.get(cg_loopContexts, arrays.length(cg_loopContexts) - 1)
+            cg_emit(OP_JMP, [ctx["continueLabel"]])
+        } else {
+            cg_emit(OP_NOP, [])
+        }
+        return
+    }
+
+    if kind == "Throw" {
+        let valueReg = cg_compileExpression(stmt["value"])
+        cg_emit(OP_THROW, [valueReg])
+        return
+    }
+
+    if kind == "Block" {
+        cg_compileBlock(stmt)
+        return
+    }
+
+    if kind == "ExpressionStatement" {
+        cg_compileExpression(stmt["expression"])
+        return
+    }
+
+    if kind == "Export" {
+        cg_compileStatement(stmt["declaration"])
+        return
+    }
+}
+
+fn cg_compileIf(stmt: map) -> void {
+    let condReg = cg_compileExpression(stmt["condition"])
+    let elseLabel = cg_newLabel()
+    let endLabel = cg_newLabel()
+
+    cg_emit(OP_JMP_IF_FALSE, [condReg, elseLabel])
+    cg_compileBlock(stmt["consequent"])
+    cg_emit(OP_JMP, [endLabel])
+
+    cg_patchLabel(elseLabel)
+    if stmt["alternate"] != null {
+        let alt = stmt["alternate"]
+        if alt["kind"] == "If" {
+            cg_compileIf(alt)
+        } else {
+            cg_compileBlock(alt)
+        }
+    }
+    cg_patchLabel(endLabel)
+}
+
+fn cg_compileWhile(stmt: map) -> void {
+    let startLabel = cg_newLabel()
+    let endLabel = cg_newLabel()
+    let ctx = { breakLabel: endLabel, continueLabel: startLabel }
+    arrays.push(cg_loopContexts, ctx)
+
+    cg_patchLabel(startLabel)
+    let condReg = cg_compileExpression(stmt["condition"])
+    cg_emit(OP_JMP_IF_FALSE, [condReg, endLabel])
+    cg_compileBlock(stmt["body"])
+    cg_emit(OP_JMP, [startLabel])
+    cg_patchLabel(endLabel)
+
+    arrays.pop(cg_loopContexts)
+}
+
+// ============ Expression compilation ============
+
+fn cg_compileExpression(expr: map) -> int {
+    if expr == null {
+        let reg = cg_allocReg()
+        cg_emit(OP_LOAD_CONST, [reg, cg_addConstant(null)])
+        return reg
+    }
+    let kind = expr["kind"]
+
+    if kind == "Int" {
+        let reg = cg_allocReg()
+        cg_emit(OP_LOAD_CONST, [reg, cg_addConstant(cg_parseInt(expr["value"]))])
+        return reg
+    }
+
+    if kind == "Float" {
+        let reg = cg_allocReg()
+        cg_emit(OP_LOAD_CONST, [reg, cg_addConstant(convert.toFloat(expr["value"]))])
+        return reg
+    }
+
+    if kind == "String" {
+        let reg = cg_allocReg()
+        cg_emit(OP_LOAD_CONST, [reg, cg_addConstant(expr["value"])])
+        return reg
+    }
+
+    if kind == "Bool" {
+        let reg = cg_allocReg()
+        cg_emit(OP_LOAD_CONST, [reg, cg_addConstant(expr["value"])])
+        return reg
+    }
+
+    if kind == "Null" {
+        let reg = cg_allocReg()
+        cg_emit(OP_LOAD_CONST, [reg, cg_addConstant(null)])
+        return reg
+    }
+
+    if kind == "Ident" {
+        return cg_compileIdent(expr)
+    }
+
+    if kind == "Binary" {
+        return cg_compileBinary(expr)
+    }
+
+    if kind == "Unary" {
+        return cg_compileUnary(expr)
+    }
+
+    if kind == "Call" {
+        return cg_compileCall(expr)
+    }
+
+    if kind == "Member" {
+        let objReg = cg_compileExpression(expr["object"])
+        let reg = cg_allocReg()
+        cg_emit(OP_MEMBER_GET, [reg, objReg, cg_addConstant(expr["property"])])
+        return reg
+    }
+
+    if kind == "Index" {
+        let objReg = cg_compileExpression(expr["object"])
+        let idxReg = cg_compileExpression(expr["index"])
+        let reg = cg_allocReg()
+        cg_emit(OP_INDEX_GET, [reg, objReg, idxReg])
+        return reg
+    }
+
+    if kind == "Array" {
+        return cg_compileArray(expr)
+    }
+
+    if kind == "Map" {
+        return cg_compileMap(expr)
+    }
+
+    // Default: load null
+    let reg = cg_allocReg()
+    cg_emit(OP_LOAD_CONST, [reg, cg_addConstant(null)])
+    return reg
+}
+
+fn cg_compileIdent(expr: map) -> int {
+    let reg = cg_allocReg()
+    let resolved = cg_resolveVar(expr["name"])
+    if resolved["isGlobal"] {
+        cg_emit(OP_LOAD_GLOBAL, [reg, resolved["index"]])
+    } else {
+        cg_emit(OP_LOAD_VAR, [reg, resolved["index"]])
+    }
+    return reg
+}
+
+fn cg_compileBinary(expr: map) -> int {
+    let leftReg = cg_compileExpression(expr["left"])
+    let rightReg = cg_compileExpression(expr["right"])
+    let resultReg = cg_allocReg()
+    let op = expr["operator"]
+
+    if op == "+" {
+        // Check if string concat
+        cg_emit(OP_ADD, [resultReg, leftReg, rightReg])
+    } else if op == "-" {
+        cg_emit(OP_SUB, [resultReg, leftReg, rightReg])
+    } else if op == "*" {
+        cg_emit(OP_MUL, [resultReg, leftReg, rightReg])
+    } else if op == "/" {
+        cg_emit(OP_DIV, [resultReg, leftReg, rightReg])
+    } else if op == "%" {
+        cg_emit(OP_MOD, [resultReg, leftReg, rightReg])
+    } else if op == "**" {
+        cg_emit(OP_POW, [resultReg, leftReg, rightReg])
+    } else if op == "==" {
+        cg_emit(OP_EQ, [resultReg, leftReg, rightReg])
+    } else if op == "!=" {
+        cg_emit(OP_NEQ, [resultReg, leftReg, rightReg])
+    } else if op == "<" {
+        cg_emit(OP_LT, [resultReg, leftReg, rightReg])
+    } else if op == ">" {
+        cg_emit(OP_GT, [resultReg, leftReg, rightReg])
+    } else if op == "<=" {
+        cg_emit(OP_LE, [resultReg, leftReg, rightReg])
+    } else if op == ">=" {
+        cg_emit(OP_GE, [resultReg, leftReg, rightReg])
+    } else if op == "&&" {
+        cg_emit(OP_AND, [resultReg, leftReg, rightReg])
+    } else if op == "||" {
+        cg_emit(OP_OR, [resultReg, leftReg, rightReg])
+    } else if op == "=" {
+        // Assignment
+        if expr["left"]["kind"] == "Ident" {
+            let resolved = cg_resolveVar(expr["left"]["name"])
+            if resolved["isGlobal"] {
+                cg_emit(OP_STORE_GLOBAL, [resolved["index"], rightReg])
+            } else {
+                cg_emit(OP_STORE_VAR, [resolved["index"], rightReg])
+            }
+            return rightReg
+        }
+        if expr["left"]["kind"] == "Index" {
+            let objReg = cg_compileExpression(expr["left"]["object"])
+            let idxReg = cg_compileExpression(expr["left"]["index"])
+            cg_emit(OP_INDEX_SET, [objReg, idxReg, rightReg])
+            return rightReg
+        }
+        if expr["left"]["kind"] == "Member" {
+            let objReg = cg_compileExpression(expr["left"]["object"])
+            cg_emit(OP_MEMBER_SET, [objReg, cg_addConstant(expr["left"]["property"]), rightReg])
+            return rightReg
+        }
+    } else {
+        cg_emit(OP_LOAD_CONST, [resultReg, cg_addConstant(null)])
+    }
+
+    return resultReg
+}
+
+fn cg_compileUnary(expr: map) -> int {
+    let operandReg = cg_compileExpression(expr["operand"])
+    let resultReg = cg_allocReg()
+    let op = expr["operator"]
+    if op == "-" {
+        cg_emit(OP_NEG, [resultReg, operandReg])
+    } else if op == "!" {
+        cg_emit(OP_NOT, [resultReg, operandReg])
+    } else {
+        cg_emit(OP_LOAD_CONST, [resultReg, cg_addConstant(null)])
+    }
+    return resultReg
+}
+
+fn cg_compileCall(expr: map) -> int {
+    let resultReg = cg_allocReg()
+
+    // Check if it's a stdlib method call (e.g., io.println)
+    if expr["callee"]["kind"] == "Member" {
+        let objExpr = expr["callee"]["object"]
+        let propName = expr["callee"]["property"]
+        if objExpr["kind"] == "Ident" {
+            let modName = objExpr["name"]
+            // Check if it's a known stdlib module
+            if cg_isStdlibModule(modName) {
+                // Compile args and push
+                let args = expr["args"]
+                let i = 0
+                while i < arrays.length(args) {
+                    let argReg = cg_compileExpression(arrays.get(args, i))
+                    cg_emit(OP_PUSH, [argReg])
+                    i = i + 1
+                }
+                // Load builtin function
+                let fnReg = cg_allocReg()
+                cg_emit(OP_LOAD_BUILTIN, [fnReg, cg_getBuiltinIndex(modName, propName)])
+                // Call via register (indirect call)
+                cg_emit(OP_CALL, [resultReg, fnReg, arrays.length(args)])
+                return resultReg
+            }
+        }
+    }
+
+    // Regular function call
+    let calleeReg = cg_compileExpression(expr["callee"])
+    let args = expr["args"]
+    let i = 0
+    while i < arrays.length(args) {
+        let argReg = cg_compileExpression(arrays.get(args, i))
+        cg_emit(OP_PUSH, [argReg])
+        i = i + 1
+    }
+
+    // Check if callee is a known function (direct call)
+    if expr["callee"]["kind"] == "Ident" {
+        let fnIdx = cg_functionMap[expr["callee"]["name"]]
+        if fnIdx != null {
+            cg_emit(OP_CALL, [resultReg, fnIdx, arrays.length(args)])
+            return resultReg
+        }
+    }
+
+    // Indirect call via register
+    cg_emit(OP_CALL, [resultReg, calleeReg, arrays.length(args)])
+    return resultReg
+}
+
+fn cg_compileArray(expr: map) -> int {
+    let reg = cg_allocReg()
+    let elements = expr["elements"]
+    let i = 0
+    while i < arrays.length(elements) {
+        let elemReg = cg_compileExpression(arrays.get(elements, i))
+        cg_emit(OP_PUSH, [elemReg])
+        i = i + 1
+    }
+    cg_emit(OP_MAKE_ARRAY, [reg, arrays.length(elements)])
+    return reg
+}
+
+fn cg_compileMap(expr: map) -> int {
+    let reg = cg_allocReg()
+    let entries = expr["entries"]
+    let i = 0
+    while i < arrays.length(entries) {
+        let entry = arrays.get(entries, i)
+        let kReg = cg_compileExpression(entry["key"])
+        let vReg = cg_compileExpression(entry["value"])
+        cg_emit(OP_PUSH, [kReg])
+        cg_emit(OP_PUSH, [vReg])
+        i = i + 1
+    }
+    cg_emit(OP_MAKE_MAP, [reg, arrays.length(entries)])
+    return reg
+}
+
+// ============ Utility functions ============
+
+fn cg_parseInt(value: string) -> int {
+    // Handle hex, octal, binary
+    if strings.length(value) >= 2 {
+        let prefix = strings.charAt(value, 0) + strings.charAt(value, 1)
+        if prefix == "0x" || prefix == "0X" {
+            return convert.toInt(value, 16)
+        }
+        if prefix == "0o" || prefix == "0O" {
+            return convert.toInt(value, 8)
+        }
+        if prefix == "0b" || prefix == "0B" {
+            return convert.toInt(value, 2)
+        }
+    }
+    return convert.toInt(value, 10)
+}
+
+fn cg_isStdlibModule(name: string) -> bool {
+    return name == "io" || name == "json" || name == "math" || name == "strings" || name == "arrays" || name == "convert" || name == "fs" || name == "http" || name == "agent" || name == "workflow"
+}
+
+fn cg_getBuiltinIndex(modName: string, fnName: string) -> int {
+    // Simplified: return a hash-based index
+    // In real implementation, this would match the TypeScript stdlib index
+    let combined = modName + "." + fnName
+    let hash = 0
+    let i = 0
+    while i < strings.length(combined) {
+        hash = hash + convert.toInt(strings.charAt(combined, i))
+        i = i + 1
+    }
+    return hash % 200
+}
