@@ -334,24 +334,6 @@ fn cg_compileFunction(fnDecl: map) -> void {
     cg_emit(OP_RET, [voidReg])
 }
 
-// ============ Bootstrap Alignment Function ============
-// WORKAROUND: Bootstrap compiler (TypeScript) has a function index allocation bug.
-// When cg_compileBlock/cg_compileStatement are defined immediately after cg_compileFunction,
-// the function call index for cg_compileStatement resolves incorrectly, causing main to
-// compile to only a HALT instruction (1 instruction instead of expected 8+).
-//
-// Adding this function before cg_compileBlock shifts all subsequent function indices by 1,
-// which accidentally masks the off-by-one error in the Bootstrap compiler's function
-// registration/call resolution.
-//
-// This is NOT a TLL language bug - it's a Bootstrap compiler bug.
-// Once TLL is fully self-hosted, recompiling codegen.tll with the TLL compiler should
-// eliminate this issue. Do not remove until Bootstrap compiler is replaced.
-fn cg_bootstrap_align() -> void {
-    let x = 0
-}
-
-// ============ Block compilation ============
 fn cg_compileBlock(block: map) -> void {
     let stmts = block.statements
     let i = 0
@@ -633,7 +615,7 @@ fn cg_compileCall(expr: map) -> int {
             }
             let fnReg = cg_allocReg()
             cg_emit(OP_LOAD_BUILTIN, [fnReg, builtinIdx])
-            cg_emit(OP_CALL, [resultReg, fnReg, arrays.length(args)])
+            cg_emit(OP_CALL, [resultReg, fnReg + 100000, arrays.length(args)])
             return resultReg
         }
     }
@@ -658,7 +640,7 @@ fn cg_compileCall(expr: map) -> int {
 
     // Indirect call
     let calleeReg = cg_compileExpression(callee)
-    cg_emit(OP_CALL, [resultReg, calleeReg, arrays.length(args)])
+    cg_emit(OP_CALL, [resultReg, calleeReg + 100000, arrays.length(args)])
     return resultReg
 }
 
