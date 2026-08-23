@@ -1,0 +1,91 @@
+from "./lib/lexer" import tokenize
+
+io.println("=== TLL Lexer Self-hosting Test ===")
+io.println("")
+
+// Test 1: Simple let statement
+io.println("--- Test 1: let statement ---")
+let tokens1 = tokenize("let x = 5")
+io.println("Input: let x = 5")
+io.println("Token count: " + convert.toString(arrays.length(tokens1)))
+let i = 0
+while i < arrays.length(tokens1) {
+    let t = arrays.get(tokens1, i)
+    io.println("  [" + convert.toString(i) + "] " + t["type"] + " '" + t["value"] + "'")
+    i = i + 1
+}
+io.println("")
+
+// Test 2: String literal
+io.println("--- Test 2: string literal ---")
+let tokens2 = tokenize("\"hello world\"")
+let t2 = arrays.get(tokens2, 0)
+io.println("Type: " + t2["type"] + " Value: '" + t2["value"] + "'")
+io.println("")
+
+// Test 3: String with escapes
+io.println("--- Test 3: string with escapes ---")
+let tokens3 = tokenize("\"line1\\nline2\\ttab\"")
+let t3 = arrays.get(tokens3, 0)
+io.println("Type: " + t3["type"])
+io.println("Value length: " + convert.toString(strings.length(t3["value"])))
+io.println("")
+
+// Test 4: Numbers
+io.println("--- Test 4: numbers ---")
+let tokens4 = tokenize("42 3.14 0xFF 0b1010 1_000_000 1e10")
+let j = 0
+while j < arrays.length(tokens4) - 1 {
+    let t = arrays.get(tokens4, j)
+    io.println("  " + t["type"] + " '" + t["value"] + "'")
+    j = j + 1
+}
+io.println("")
+
+// Test 5: Operators
+io.println("--- Test 5: operators ---")
+let tokens5 = tokenize("+ - * / % == != <= >= && || -> => |> ** .. ..=")
+let k = 0
+while k < arrays.length(tokens5) - 1 {
+    let t = arrays.get(tokens5, k)
+    if t["type"] != "EOF" {
+        io.println("  '" + t["value"] + "' -> " + t["type"])
+    }
+    k = k + 1
+}
+io.println("")
+
+// Test 6: Keywords
+io.println("--- Test 6: keywords ---")
+let tokens6 = tokenize("fn if else while for return true false null import from export")
+let m = 0
+while m < arrays.length(tokens6) - 1 {
+    let t = arrays.get(tokens6, m)
+    io.println("  '" + t["value"] + "' -> " + t["type"])
+    m = m + 1
+}
+io.println("")
+
+// Test 7: Function signature
+io.println("--- Test 7: function signature ---")
+let tokens7 = tokenize("fn add(a: int, b: int) -> int { return a + b }")
+let n = 0
+while n < arrays.length(tokens7) {
+    let t = arrays.get(tokens7, n)
+    io.print(t["type"])
+    if t["value"] != "" {
+        io.print("('" + t["value"] + "')")
+    }
+    io.print(" ")
+    n = n + 1
+}
+io.println("")
+io.println("")
+
+// Test 8: Comments
+io.println("--- Test 8: comments ---")
+let tokens8 = tokenize("// this is a comment\nlet x = 1 // inline\n")
+io.println("Token count (should be 5: LET IDENT EQ INT EOF): " + convert.toString(arrays.length(tokens8)))
+io.println("")
+
+io.println("=== All tests completed ===")

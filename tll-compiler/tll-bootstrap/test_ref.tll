@@ -1,0 +1,20 @@
+let state = [0, 0]
+
+fn modifyState() -> void {
+    state[0] = 1
+    state[1] = 2
+}
+
+io.println("before: " + convert.toString(state[0]) + ", " + convert.toString(state[1]))
+modifyState()
+io.println("after: " + convert.toString(state[0]) + ", " + convert.toString(state[1]))
+
+// Test map modification
+let m = { x: 0 }
+fn modifyMap() -> void {
+    m["x"] = 1
+}
+io.println("map before: " + convert.toString(m["x"]))
+modifyMap()
+io.println("map after: " + convert.toString(m["x"]))
+io.println("done")

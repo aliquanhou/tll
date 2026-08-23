@@ -1,0 +1,21 @@
+let counter = 0
+
+fn increment() -> void {
+    counter = counter + 1
+}
+
+io.println("before: " + convert.toString(counter))
+increment()
+io.println("after: " + convert.toString(counter))
+
+let s = "hello"
+let p = 0
+fn adv() -> string {
+    let ch = strings.charAt(s, p)
+    p = p + 1
+    return ch
+}
+io.println("char1: " + adv())
+io.println("char2: " + adv())
+io.println("pos: " + convert.toString(p))
+io.println("done")
