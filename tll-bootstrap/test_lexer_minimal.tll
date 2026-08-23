@@ -1,0 +1,25 @@
+// Minimal lexer test with progress tracking
+from "./lib/lexer" import tokenize
+
+io.println("=== Lexer Minimal Test ===")
+
+let source = "fn add(a: int, b: int) -> int {\n    return a + b\n}\n\nio.println(add(2, 3))\n"
+io.println("Source length: " + convert.toString(strings.length(source)))
+io.println("Source:")
+io.println(source)
+
+io.println("Calling tokenize...")
+let tokens = tokenize(source)
+io.println("Tokenize done! Token count: " + convert.toString(arrays.length(tokens)))
+
+io.println("")
+io.println("First 10 tokens:")
+let i = 0
+while i < 10 && i < arrays.length(tokens) {
+    let t = arrays.get(tokens, i)
+    io.println("  [" + convert.toString(i) + "] " + t.tkType + " = " + convert.toString(t.tkValue))
+    i = i + 1
+}
+
+io.println("")
+io.println("=== Test Complete ===")

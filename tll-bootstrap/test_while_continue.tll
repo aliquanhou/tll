@@ -1,0 +1,9 @@
+// Test 2: while + continue
+let i = 0
+
+while i < 3 {
+    i = i + 1
+    continue
+}
+
+io.println(i)

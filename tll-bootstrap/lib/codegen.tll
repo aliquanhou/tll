@@ -53,6 +53,9 @@ let cg_labelCounter = 0
 let cg_functions: list = []
 let cg_currentFn: map = null
 let cg_loopContexts: list = []
+let cg_currentBreakLabel = -1
+let cg_currentContinueLabel = -1
+let cg_breakPatchList: list = []
 let cg_mainFnIndex = 0
 let cg_allFnInstructions: list = []
 let cg_allFnLocalCounts: list = []
@@ -184,6 +187,9 @@ export fn compile(program: map) -> map {
     cg_labelCounter = 0
     cg_functions = []
     cg_loopContexts = []
+    cg_currentBreakLabel = -1
+    cg_currentContinueLabel = -1
+    cg_breakPatchList = []
     cg_allFnInstructions = []
     cg_allFnLocalCounts = []
     cg_currentLocalCount = 0
@@ -262,6 +268,7 @@ export fn compile(program: map) -> map {
     while mi < arrays.length(stmts) {
         let stmt = arrays.get(stmts, mi)
         let kind = stmt.kind
+        cg_test_call()
         if kind != "Fn" && kind != "Import" && kind != "FromImport" && kind != "Export" {
             cg_compileStatement(stmt)
         }
@@ -328,6 +335,11 @@ fn cg_compileFunction(fnDecl: map) -> void {
     cg_emit(OP_RET, [voidReg])
 }
 
+// ============ Test function call (workaround for function registration) ============
+fn cg_test_call() -> void {
+    let x = 0
+}
+
 // ============ Block compilation ============
 fn cg_compileBlock(block: map) -> void {
     let stmts = block.statements
@@ -368,8 +380,16 @@ fn cg_compileStatement(stmt: map) -> void {
 
     if kind == "If" { cg_compileIf(stmt); return }
     if kind == "While" { cg_compileWhile(stmt); return }
-    if kind == "Break" { cg_emit(OP_NOP, []); return }
-    if kind == "Continue" { cg_emit(OP_NOP, []); return }
+    if kind == "Break" {
+        let breakIdx = arrays.length(cg_instructions)
+        cg_emit(OP_JMP, [-1])
+        arrays.push(cg_breakPatchList, breakIdx)
+        return
+    }
+    if kind == "Continue" {
+        cg_emit(OP_JMP, [cg_currentContinueLabel])
+        return
+    }
     if kind == "Throw" { let r = cg_compileExpression(stmt.value); cg_emit(OP_THROW, [r]); return }
     if kind == "Block" { cg_compileBlock(stmt); return }
     if kind == "ExpressionStatement" { cg_compileExpression(stmt.expression); return }
@@ -398,7 +418,34 @@ fn cg_compileWhile(stmt: map) -> void {
     let condReg = cg_compileExpression(stmt.condition)
     let jmpEndIdx = arrays.length(cg_instructions)
     cg_emit(OP_JMP_IF_FALSE, [condReg, -1])
+
+    // Save old loop context
+    let oldBreakLabel = cg_currentBreakLabel
+    let oldContinueLabel = cg_currentContinueLabel
+    let oldBreakPatchList = cg_breakPatchList
+
+    // Set new loop context
+    cg_currentBreakLabel = -1
+    cg_currentContinueLabel = startIdx
+    cg_breakPatchList = []
+
     cg_compileBlock(stmt.body)
+
+    // Patch all break statements to jump to after the loop
+    let breakTarget = arrays.length(cg_instructions) + 1
+    let bi = 0
+    while bi < arrays.length(cg_breakPatchList) {
+        let breakIdx = arrays.get(cg_breakPatchList, bi)
+        let inst = arrays.get(cg_instructions, breakIdx)
+        inst.operands = [breakTarget]
+        bi = bi + 1
+    }
+
+    // Restore old loop context
+    cg_currentBreakLabel = oldBreakLabel
+    cg_currentContinueLabel = oldContinueLabel
+    cg_breakPatchList = oldBreakPatchList
+
     cg_emit(OP_JMP, [startIdx])
     cg_patchJump(jmpEndIdx)
 }
@@ -604,20 +651,17 @@ fn cg_compileCall(expr: map) -> int {
     return resultReg
 }
 
-// Builtin function index lookup (must match TypeScript stdlib registration order)
+// Builtin function index lookup (auto-generated to match TypeScript stdlib registration order)
 fn cg_getBuiltinIndex(modName: string, fnName: string) -> int {
-    // io module: println(0), print(1), readLine(2)
     if modName == "io" {
         if fnName == "println" { return 0 }
         if fnName == "print" { return 1 }
         if fnName == "readLine" { return 2 }
     }
-    // json module: parse(3), stringify(4)
     if modName == "json" {
         if fnName == "parse" { return 3 }
         if fnName == "stringify" { return 4 }
     }
-    // math module starts at index 5
     if modName == "math" {
         if fnName == "sqrt" { return 5 }
         if fnName == "abs" { return 6 }
@@ -627,122 +671,127 @@ fn cg_getBuiltinIndex(modName: string, fnName: string) -> int {
         if fnName == "min" { return 10 }
         if fnName == "max" { return 11 }
         if fnName == "pow" { return 12 }
-        if fnName == "log" { return 13 }
-        if fnName == "exp" { return 14 }
-        if fnName == "sin" { return 15 }
-        if fnName == "cos" { return 16 }
-        if fnName == "tan" { return 17 }
-        if fnName == "random" { return 18 }
-        if fnName == "pi" { return 19 }
-        if fnName == "e" { return 20 }
+        if fnName == "sin" { return 13 }
+        if fnName == "cos" { return 14 }
+        if fnName == "tan" { return 15 }
+        if fnName == "log" { return 16 }
+        if fnName == "log2" { return 17 }
+        if fnName == "log10" { return 18 }
+        if fnName == "exp" { return 19 }
+        if fnName == "pi" { return 20 }
+        if fnName == "e" { return 21 }
+        if fnName == "random" { return 22 }
+        if fnName == "randomInt" { return 23 }
     }
-    // strings module starts at index 21
     if modName == "strings" {
-        if fnName == "length" { return 21 }
-        if fnName == "charAt" { return 22 }
-        if fnName == "substring" { return 23 }
-        if fnName == "indexOf" { return 24 }
-        if fnName == "lastIndexOf" { return 25 }
-        if fnName == "toUpperCase" { return 26 }
-        if fnName == "toLowerCase" { return 27 }
-        if fnName == "trim" { return 28 }
-        if fnName == "startsWith" { return 29 }
-        if fnName == "endsWith" { return 30 }
-        if fnName == "contains" { return 31 }
-        if fnName == "replace" { return 32 }
-        if fnName == "replaceAll" { return 33 }
-        if fnName == "split" { return 34 }
-        if fnName == "join" { return 35 }
-        if fnName == "repeat" { return 36 }
-        if fnName == "padStart" { return 37 }
-        if fnName == "padEnd" { return 38 }
+        if fnName == "length" { return 24 }
+        if fnName == "toUpper" { return 25 }
+        if fnName == "toLower" { return 26 }
+        if fnName == "trim" { return 27 }
+        if fnName == "trimStart" { return 28 }
+        if fnName == "trimEnd" { return 29 }
+        if fnName == "split" { return 30 }
+        if fnName == "join" { return 31 }
+        if fnName == "contains" { return 32 }
+        if fnName == "startsWith" { return 33 }
+        if fnName == "endsWith" { return 34 }
+        if fnName == "substring" { return 35 }
+        if fnName == "replace" { return 36 }
+        if fnName == "replaceAll" { return 37 }
+        if fnName == "repeat" { return 38 }
+        if fnName == "padStart" { return 39 }
+        if fnName == "padEnd" { return 40 }
+        if fnName == "charAt" { return 41 }
+        if fnName == "charCodeAt" { return 42 }
+        if fnName == "indexOf" { return 43 }
+        if fnName == "lastIndexOf" { return 44 }
+        if fnName == "isEmpty" { return 45 }
+        if fnName == "reverse" { return 46 }
+        if fnName == "lines" { return 47 }
+        if fnName == "words" { return 48 }
     }
-    // arrays module starts at index 39
     if modName == "arrays" {
-        if fnName == "length" { return 39 }
-        if fnName == "push" { return 40 }
-        if fnName == "pop" { return 41 }
-        if fnName == "shift" { return 42 }
-        if fnName == "unshift" { return 43 }
-        if fnName == "concat" { return 44 }
-        if fnName == "slice" { return 45 }
-        if fnName == "splice" { return 46 }
-        if fnName == "indexOf" { return 47 }
-        if fnName == "includes" { return 48 }
-        if fnName == "reverse" { return 49 }
-        if fnName == "sort" { return 50 }
-        if fnName == "map" { return 51 }
-        if fnName == "filter" { return 52 }
-        if fnName == "reduce" { return 53 }
-        if fnName == "forEach" { return 54 }
-        if fnName == "find" { return 55 }
-        if fnName == "some" { return 56 }
-        if fnName == "every" { return 57 }
-        if fnName == "flat" { return 58 }
-        if fnName == "get" { return 59 }
-        if fnName == "set" { return 60 }
+        if fnName == "length" { return 49 }
+        if fnName == "get" { return 50 }
+        if fnName == "push" { return 51 }
+        if fnName == "pop" { return 52 }
+        if fnName == "shift" { return 53 }
+        if fnName == "unshift" { return 54 }
+        if fnName == "concat" { return 55 }
+        if fnName == "slice" { return 56 }
+        if fnName == "includes" { return 57 }
+        if fnName == "indexOf" { return 58 }
+        if fnName == "join" { return 59 }
+        if fnName == "reverse" { return 60 }
+        if fnName == "sort" { return 61 }
+        if fnName == "filter" { return 62 }
+        if fnName == "map" { return 63 }
+        if fnName == "reduce" { return 64 }
+        if fnName == "forEach" { return 65 }
+        if fnName == "find" { return 66 }
+        if fnName == "some" { return 67 }
+        if fnName == "every" { return 68 }
+        if fnName == "flat" { return 69 }
+        if fnName == "fill" { return 70 }
+        if fnName == "range" { return 71 }
     }
-    // convert module starts at index 61
     if modName == "convert" {
-        if fnName == "toInt" { return 61 }
-        if fnName == "toFloat" { return 62 }
-        if fnName == "toString" { return 63 }
-        if fnName == "toBool" { return 64 }
-        if fnName == "typeOf" { return 65 }
-        if fnName == "isInt" { return 66 }
-        if fnName == "isFloat" { return 67 }
-        if fnName == "isString" { return 68 }
+        if fnName == "toInt" { return 72 }
+        if fnName == "toFloat" { return 73 }
+        if fnName == "toString" { return 74 }
+        if fnName == "toBool" { return 75 }
+        if fnName == "toChar" { return 76 }
+        if fnName == "charCode" { return 77 }
+        if fnName == "typeOf" { return 78 }
     }
-    // fs module starts at index 69
     if modName == "fs" {
-        if fnName == "readFile" { return 69 }
-        if fnName == "writeFile" { return 70 }
-        if fnName == "appendFile" { return 71 }
-        if fnName == "exists" { return 72 }
-        if fnName == "mkdir" { return 73 }
-        if fnName == "remove" { return 74 }
-        if fnName == "listDir" { return 75 }
-        if fnName == "copyFile" { return 76 }
-        if fnName == "rename" { return 77 }
-        if fnName == "stat" { return 78 }
-        if fnName == "isFile" { return 79 }
-        if fnName == "isDir" { return 80 }
+        if fnName == "readFile" { return 79 }
+        if fnName == "writeFile" { return 80 }
+        if fnName == "appendFile" { return 81 }
+        if fnName == "exists" { return 82 }
+        if fnName == "mkdir" { return 83 }
+        if fnName == "remove" { return 84 }
+        if fnName == "listDir" { return 85 }
+        if fnName == "isFile" { return 86 }
+        if fnName == "isDir" { return 87 }
+        if fnName == "fileSize" { return 88 }
+        if fnName == "copyFile" { return 89 }
+        if fnName == "rename" { return 90 }
     }
-    // http module starts at index 81
     if modName == "http" {
-        if fnName == "get" { return 81 }
-        if fnName == "getText" { return 82 }
-        if fnName == "post" { return 83 }
-        if fnName == "postJson" { return 84 }
-        if fnName == "request" { return 85 }
-        if fnName == "getJson" { return 86 }
-        if fnName == "put" { return 87 }
-        if fnName == "delete" { return 88 }
+        if fnName == "get" { return 91 }
+        if fnName == "getText" { return 92 }
+        if fnName == "post" { return 93 }
+        if fnName == "postJson" { return 94 }
+        if fnName == "request" { return 95 }
+        if fnName == "getStatus" { return 96 }
+        if fnName == "download" { return 97 }
     }
-    // agent module starts at index 89
     if modName == "agent" {
-        if fnName == "run" { return 89 }
-        if fnName == "chat" { return 90 }
-        if fnName == "setApiKey" { return 91 }
-        if fnName == "setBaseUrl" { return 92 }
-        if fnName == "setModel" { return 93 }
-        if fnName == "getModel" { return 94 }
-        if fnName == "runWithTools" { return 95 }
-        if fnName == "saveMemory" { return 96 }
-        if fnName == "loadMemory" { return 97 }
-        if fnName == "hasMemory" { return 98 }
-        if fnName == "clearMemory" { return 99 }
-        if fnName == "listMemory" { return 100 }
-        if fnName == "clearAllMemory" { return 101 }
+        if fnName == "run" { return 98 }
+        if fnName == "chat" { return 99 }
+        if fnName == "setApiKey" { return 100 }
+        if fnName == "setBaseUrl" { return 101 }
+        if fnName == "setModel" { return 102 }
+        if fnName == "getModel" { return 103 }
+        if fnName == "runWithTools" { return 104 }
+        if fnName == "saveMemory" { return 105 }
+        if fnName == "loadMemory" { return 106 }
+        if fnName == "hasMemory" { return 107 }
+        if fnName == "clearMemory" { return 108 }
+        if fnName == "clearAllMemory" { return 109 }
+        if fnName == "listMemory" { return 110 }
+        if fnName == "getMemoryCount" { return 111 }
     }
-    // workflow module starts at index 102
     if modName == "workflow" {
-        if fnName == "start" { return 102 }
-        if fnName == "trigger" { return 103 }
-        if fnName == "getState" { return 104 }
-        if fnName == "getHistory" { return 105 }
-        if fnName == "reset" { return 106 }
-        if fnName == "canTransition" { return 107 }
+        if fnName == "define" { return 112 }
+        if fnName == "start" { return 113 }
+        if fnName == "getState" { return 114 }
+        if fnName == "transition" { return 115 }
+        if fnName == "canTransition" { return 116 }
+        if fnName == "list" { return 117 }
+        if fnName == "getHistory" { return 118 }
+        if fnName == "getStates" { return 119 }
     }
     return -1
 }

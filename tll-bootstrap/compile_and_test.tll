@@ -1,0 +1,14 @@
+// Compile and execute test_while_break.tll with TLL compiler
+from "./lib/linker" import linkAndCompile
+
+io.println("=== Compiling test_while_break.tll ===")
+let bytecode = linkAndCompile("test_while_break.tll")
+io.println("Functions: " + convert.toString(arrays.length(bytecode.functions)))
+io.println("Constants: " + convert.toString(arrays.length(bytecode.constants)))
+
+// Save bytecode to file
+let jsonStr = json.stringify(bytecode)
+fs.writeFile("test_while_break_tll.tllbc", jsonStr)
+io.println("Saved to test_while_break_tll.tllbc")
+io.println("")
+io.println("=== Done ===")

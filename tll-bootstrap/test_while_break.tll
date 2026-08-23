@@ -1,0 +1,6 @@
+// Test 1: while true + break
+while true {
+    break
+}
+
+io.println("DONE")

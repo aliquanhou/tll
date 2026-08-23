@@ -1,0 +1,12 @@
+const bc = require('./compiler_generated.tllbc');
+const main = bc.functions[bc.mainFunctionIndex];
+console.log('Main function:', main.name);
+console.log('Params:', main.paramCount);
+console.log('Instructions:', main.instructions.length);
+console.log('First 10 instructions:');
+console.log(JSON.stringify(main.instructions.slice(0,10), null, 2));
+console.log('Last 5 instructions:');
+console.log(JSON.stringify(main.instructions.slice(-5), null, 2));
+console.log('');
+console.log('All function names:');
+bc.functions.forEach((f, i) => console.log(`  [${i}] ${f.name} (instrs=${f.instructions.length})`));

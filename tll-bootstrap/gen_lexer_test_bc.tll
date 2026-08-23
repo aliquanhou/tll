@@ -1,0 +1,19 @@
+// Generate bytecode for minimal lexer test using TLL compiler
+from "./lib/linker" import linkAndCompile
+
+io.println("=== TLL Compiler: Compile test_lexer_minimal.tll ===")
+
+let bytecode = linkAndCompile("test_lexer_minimal.tll")
+
+io.println("Compilation complete!")
+io.println("Functions: " + convert.toString(arrays.length(bytecode.functions)))
+io.println("Constants: " + convert.toString(arrays.length(bytecode.constants)))
+io.println("mainFunctionIndex: " + convert.toString(bytecode.mainFunctionIndex))
+
+// Save to JSON file
+let jsonStr = json.stringify(bytecode)
+fs.writeFile("lexer_test_tll.tllbc", jsonStr)
+io.println("Saved to lexer_test_tll.tllbc")
+io.println("File size: " + convert.toString(strings.length(jsonStr)) + " bytes")
+io.println("")
+io.println("=== Done ===")

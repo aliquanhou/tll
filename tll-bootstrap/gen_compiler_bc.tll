@@ -1,0 +1,21 @@
+// Generate TLL compiler bytecode and save to file
+from "./lib/linker" import linkAndCompile
+
+io.println("=== Generating TLL Compiler Bytecode ===")
+io.println("")
+
+let bytecode = linkAndCompile("compiler.tll")
+
+io.println("Compilation complete!")
+io.println("Functions: " + convert.toString(arrays.length(bytecode.functions)))
+io.println("Constants: " + convert.toString(arrays.length(bytecode.constants)))
+io.println("mainFunctionIndex: " + convert.toString(bytecode.mainFunctionIndex))
+
+// Save to JSON file
+let jsonStr = json.stringify(bytecode)
+fs.writeFile("compiler_generated.tllbc", jsonStr)
+io.println("")
+io.println("Saved to compiler_generated.tllbc")
+io.println("File size: " + convert.toString(strings.length(jsonStr)) + " bytes")
+io.println("")
+io.println("=== Done ===")
