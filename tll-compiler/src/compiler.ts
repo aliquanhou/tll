@@ -733,7 +733,7 @@ export class Compiler {
         }
         const fnReg = this.allocReg();
         this.emit(OpCode.LOAD_BUILTIN, [fnReg, builtinIdx]);
-        this.emit(OpCode.CALL, [resultReg, fnReg, expr.args.length]);
+        this.emit(OpCode.CALL, [resultReg, fnReg + 100000, expr.args.length]);
         return resultReg;
       }
     }
@@ -757,7 +757,7 @@ export class Compiler {
     for (const ar of argRegs) {
       this.emit(OpCode.PUSH, [ar]);
     }
-    this.emit(OpCode.CALL, [resultReg, calleeReg, expr.args.length]); // indirect call via register
+    this.emit(OpCode.CALL, [resultReg, calleeReg + 100000, expr.args.length]); // indirect call via register
     return resultReg;
   }
 

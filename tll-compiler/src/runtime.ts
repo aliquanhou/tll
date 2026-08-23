@@ -247,16 +247,21 @@ export class Runtime {
           args.unshift(frame.argStack.pop());
         }
 
-        // Check for indirect call first (register holds a function value, e.g. builtin)
-        const possibleFn = regs[b];
-        if (typeof possibleFn === 'function') {
-          try {
-            regs[a] = possibleFn(...args);
-          } catch (e: any) {
-            const errMsg = e instanceof Error ? e.message : String(e);
-            this.throwException(frame, errMsg);
+        // Indirect call: fnIdx >= 100000 means (fnIdx - 100000) is a register number
+        // holding a function value (e.g. builtin loaded via LOAD_BUILTIN)
+        if (fnIdx >= 100000) {
+          const regNum = fnIdx - 100000;
+          const possibleFn = regs[regNum];
+          if (typeof possibleFn === 'function') {
+            try {
+              regs[a] = possibleFn(...args);
+            } catch (e: any) {
+              const errMsg = e instanceof Error ? e.message : String(e);
+              this.throwException(frame, errMsg);
+            }
           }
         } else if (fnIdx >= 0 && fnIdx < this.program.functions.length) {
+          // Direct call: fnIdx is a valid function index
           const fn = this.program.functions[fnIdx];
           const newFrame: CallFrame = {
             function: fn,
