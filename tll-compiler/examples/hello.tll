@@ -1,0 +1,13 @@
+// TLL Hello World
+// TLL Programming Language v0.1 Bootstrap
+
+fn main() {
+    io.println("Hello, TLL World!")
+    io.println("The Language for AI-Native Development")
+
+    let name = "TLL"
+    let version = "0.1"
+    io.println("Language: " + name + " v" + version)
+}
+
+main()

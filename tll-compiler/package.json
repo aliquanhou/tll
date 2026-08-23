@@ -1,0 +1,21 @@
+{
+  "name": "tll-compiler",
+  "version": "0.1.0",
+  "description": "TLL Programming Language - Bootstrap Compiler (TypeScript)",
+  "main": "dist/cli.js",
+  "bin": {
+    "tll": "dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/cli.js",
+    "test": "node --test dist/tests/"
+  },
+  "keywords": ["tll", "compiler", "programming-language", "ai-native"],
+  "author": "TLL Team",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0"
+  }
+}
