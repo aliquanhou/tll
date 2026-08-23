@@ -344,6 +344,109 @@ const fs: StdLibModule = {
   },
 };
 
+// ─── http ──────────────────────────────────────────────────────────────────
+const { execSync } = require('child_process');
+
+function shellEscape(str: string): string {
+  return "'" + str.replace(/'/g, "'\\''") + "'";
+}
+
+function tryParseJson(text: string): any {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+const http: StdLibModule = {
+  get: (url: any) => {
+    try {
+      const result = execSync(`curl -s --max-time 10 ${shellEscape(String(url))}`, {
+        encoding: 'utf8',
+        maxBuffer: 10 * 1024 * 1024,
+      });
+      return tryParseJson(result);
+    } catch (e: any) {
+      throw new Error('http.get error: ' + e.message);
+    }
+  },
+  getText: (url: any) => {
+    try {
+      return execSync(`curl -s --max-time 10 ${shellEscape(String(url))}`, {
+        encoding: 'utf8',
+        maxBuffer: 10 * 1024 * 1024,
+      });
+    } catch (e: any) {
+      throw new Error('http.getText error: ' + e.message);
+    }
+  },
+  post: (url: any, body: any) => {
+    try {
+      const bodyStr = body !== undefined && body !== null ? String(body) : '';
+      const result = execSync(
+        `curl -s --max-time 10 -X POST -d ${shellEscape(bodyStr)} ${shellEscape(String(url))}`,
+        { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 }
+      );
+      return tryParseJson(result);
+    } catch (e: any) {
+      throw new Error('http.post error: ' + e.message);
+    }
+  },
+  postJson: (url: any, data: any) => {
+    try {
+      const jsonStr = typeof data === 'string' ? data : JSON.stringify(data);
+      const result = execSync(
+        `curl -s --max-time 10 -X POST -H 'Content-Type: application/json' -d ${shellEscape(jsonStr)} ${shellEscape(String(url))}`,
+        { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 }
+      );
+      return tryParseJson(result);
+    } catch (e: any) {
+      throw new Error('http.postJson error: ' + e.message);
+    }
+  },
+  request: (method: any, url: any, body: any, headers: any) => {
+    try {
+      let cmd = `curl -s --max-time 10 -X ${shellEscape(String(method).toUpperCase())}`;
+      if (headers && typeof headers === 'object') {
+        for (const [k, v] of Object.entries(headers)) {
+          cmd += ` -H ${shellEscape(`${k}: ${v}`)}`;
+        }
+      }
+      if (body !== undefined && body !== null && body !== '') {
+        cmd += ` -d ${shellEscape(String(body))}`;
+      }
+      cmd += ` ${shellEscape(String(url))}`;
+      const result = execSync(cmd, { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+      return tryParseJson(result);
+    } catch (e: any) {
+      throw new Error('http.request error: ' + e.message);
+    }
+  },
+  getStatus: (url: any) => {
+    try {
+      const result = execSync(
+        `curl -s -o /dev/null -w '%{http_code}' --max-time 10 ${shellEscape(String(url))}`,
+        { encoding: 'utf8' }
+      );
+      return parseInt(result.trim(), 10) || 0;
+    } catch (e: any) {
+      throw new Error('http.getStatus error: ' + e.message);
+    }
+  },
+  download: (url: any, destPath: any) => {
+    try {
+      execSync(
+        `curl -s --max-time 30 -o ${shellEscape(String(destPath))} ${shellEscape(String(url))}`,
+        { encoding: 'utf8' }
+      );
+      return null;
+    } catch (e: any) {
+      throw new Error('http.download error: ' + e.message);
+    }
+  },
+};
+
 // ─── Module Registry ───────────────────────────────────────────────────────
 export const stdlibModules: Record<string, StdLibModule> = {
   io,
@@ -353,6 +456,7 @@ export const stdlibModules: Record<string, StdLibModule> = {
   arrays,
   convert,
   fs,
+  http,
 };
 
 /**

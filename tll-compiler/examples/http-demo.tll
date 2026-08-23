@@ -1,0 +1,11 @@
+fn main() {
+    io.println("=== http module smoke test ===")
+    let t = http.getText("https://httpbin.org/get")
+    io.println("response length: " + convert.toString(strings.length(t)))
+    io.println("contains httpbin: " + strings.contains(t, "httpbin"))
+    let s = http.getStatus("https://httpbin.org/status/200")
+    io.println("status code: " + convert.toString(s))
+    io.println("=== http test passed ===")
+}
+
+main()
