@@ -1,0 +1,292 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>语言基础 — TLL Documentation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{--cyan:#00d4ff;--purple:#7b2ffc;--green:#00ff88;--bg:#0a0e17;--bg2:#0f1420;--bg3:#1a1f2e;--text:#e8edf5;--muted:#8892a6;--border:rgba(0,212,255,.12);--code-bg:#131722}
+  body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
+  nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:12px 32px;display:flex;justify-content:space-between;align-items:center;background:rgba(10,14,23,.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+  .nav-logo{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:2px;text-decoration:none}
+  .nav-links{display:flex;gap:24px;align-items:center}
+  .nav-links a{color:var(--muted);text-decoration:none;font-size:13px;font-weight:500;transition:color .3s}
+  .nav-links a:hover,.nav-links a.active{color:var(--cyan)}
+  .layout{display:flex;padding-top:52px;min-height:100vh}
+  .sidebar{width:260px;flex-shrink:0;position:fixed;top:52px;left:0;bottom:0;overflow-y:auto;padding:24px 20px;border-right:1px solid var(--border);background:rgba(15,20,32,.6)}
+  .sidebar::-webkit-scrollbar{width:4px}
+  .sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+  .sidebar-title{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+  .sidebar-nav{list-style:none;margin-bottom:24px}
+  .sidebar-nav li{margin-bottom:2px}
+  .sidebar-nav a{display:block;padding:7px 10px;color:var(--muted);text-decoration:none;font-size:13px;border-radius:6px;transition:all .2s;font-family:'JetBrains Mono',monospace}
+  .sidebar-nav a:hover{color:var(--cyan);background:rgba(0,212,255,.05)}
+  .sidebar-nav a.active{color:var(--cyan);background:rgba(0,212,255,.08);font-weight:600}
+  .content{flex:1;margin-left:260px;padding:40px 48px 80px;max-width:860px}
+  .content h1{font-size:32px;font-weight:700;margin-bottom:8px;background:linear-gradient(135deg,var(--text),var(--muted));-webkit-background-clip:text;-webkit-text-fill-color:transparent;padding-bottom:16px;border-bottom:2px solid var(--border)}
+  .content h2{font-size:24px;font-weight:700;margin-top:40px;margin-bottom:14px;color:var(--cyan);padding-bottom:8px;border-bottom:1px solid var(--border)}
+  .content h3{font-size:18px;font-weight:600;margin-top:28px;margin-bottom:10px;color:var(--text)}
+  .content p{margin-bottom:14px;color:var(--text);font-size:15px}
+  .content ul,.content ol{margin-bottom:14px;padding-left:24px}
+  .content li{margin-bottom:5px;font-size:14px;color:var(--text)}
+  .content code{font-family:'JetBrains Mono',monospace;font-size:13px;background:var(--code-bg);padding:2px 6px;border-radius:4px;color:var(--cyan);border:1px solid var(--border)}
+  .content pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:18px;overflow-x:auto}
+  .content pre code{background:none;border:none;padding:0;color:var(--text);font-size:13px;line-height:1.7}
+  .content blockquote{border-left:3px solid var(--purple);padding:10px 18px;margin-bottom:16px;background:rgba(123,47,252,.05);border-radius:0 8px 8px 0;color:var(--muted)}
+  .content table{width:100%;border-collapse:collapse;margin-bottom:18px;font-size:14px}
+  .content th{text-align:left;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);color:var(--cyan);font-weight:600;font-family:'JetBrains Mono',monospace;font-size:13px}
+  .content td{padding:10px 14px;border:1px solid var(--border);color:var(--text)}
+  .content tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+  .content a{color:var(--cyan);text-decoration:none;border-bottom:1px solid rgba(0,212,255,.3)}
+  .content a:hover{border-bottom-color:var(--cyan)}
+  .content strong{color:var(--green);font-weight:600}
+  .breadcrumb{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);margin-bottom:20px}
+  .breadcrumb a{color:var(--muted);text-decoration:none}
+  .breadcrumb a:hover{color:var(--cyan)}
+  .next-prev{display:flex;justify-content:space-between;margin-top:48px;padding-top:24px;border-top:1px solid var(--border)}
+  .next-prev a{display:block;padding:14px 20px;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:var(--text);transition:all .3s;max-width:45%}
+  .next-prev a:hover{border-color:var(--cyan);background:rgba(0,212,255,.05)}
+  .next-prev .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+  .next-prev .title{font-size:14px;font-weight:600;color:var(--cyan)}
+  @media(max-width:1024px){.sidebar{transform:translateX(-100%);transition:transform .3s;z-index:99}.sidebar.open{transform:translateX(0)}.content{margin-left:0;padding:24px 20px}}
+</style>
+</head>
+<body>
+<nav>
+  <a href="/" class="nav-logo">TLL</a>
+  <div class="nav-links">
+    <a href="/">首页</a>
+    <a href="/docs/" >文档</a>
+    <a href="/playground/">Playground</a>
+    <a href="https://github.com/aliquanhou/tll" target="_blank">GitHub</a>
+  </div>
+</nav>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-title">Documentation</div>
+    <ul class="sidebar-nav">
+      <li><a href="/docs/getting-started.html" >🚀 入门指南</a></li>
+      <li><a href="/docs/language.html" class="active">📖 语言基础</a></li>
+      <li><a href="/docs/first-class.html">⭐ 一等公民</a></li>
+      <li><a href="/docs/stdlib.html">📚 标准库</a></li>
+      <li><a href="/docs/compiler.html">⚙️ 编译器</a></li>
+      <li><a href="/docs/ecosystem.html">🌐 生态系统</a></li>
+    </ul>
+    <div class="sidebar-title">Reference</div>
+    <ul class="sidebar-nav">
+      <li><a href="/docs/spec/0.1.html">📄 语言规范 0.1</a></li>
+    </ul>
+  </aside>
+  <main class="content">
+    <div class="breadcrumb"><a href="/docs/">文档</a> / 语言基础</div>
+    <h1>📖 语言基础</h1>
+    <p>TLL 是一门静态类型、支持类型推断的现代编程语言。本章介绍核心语法：变量、类型、函数、控制流、错误处理。</p>
+
+    <h2>1. 变量与绑定</h2>
+    <p>TLL 中<strong>不可变是默认</strong>，可变需要显式声明。</p>
+    <pre><code>let x = 5              // 不可变，类型推断为 int
+let y: int = 10        // 不可变，显式类型
+mut z = 0              // 可变，类型推断
+mut counter: int = 0   // 可变，显式类型
+const MAX = 100        // 编译期常量
+
+// 变量遮蔽（Shadowing）允许
+let x = 5
+let x = x + 1  // 新绑定，旧 x 被遮蔽（非修改）</code></pre>
+
+    <h2>2. 类型系统</h2>
+    <h3>基本类型</h3>
+    <table>
+      <tr><th>类型</th><th>说明</th><th>默认值</th></tr>
+      <tr><td><code>bool</code></td><td>布尔</td><td><code>false</code></td></tr>
+      <tr><td><code>int</code></td><td>任意精度整数</td><td><code>0</code></td></tr>
+      <tr><td><code>i8/i16/i32/i64</code></td><td>有符号固定宽度</td><td><code>0</code></td></tr>
+      <tr><td><code>u8/u16/u32/u64</code></td><td>无符号固定宽度</td><td><code>0</code></td></tr>
+      <tr><td><code>float</code></td><td>64 位浮点数</td><td><code>0.0</code></td></tr>
+      <tr><td><code>str</code></td><td>不可变 UTF-8 字符串</td><td><code>""</code></td></tr>
+      <tr><td><code>char</code></td><td>Unicode 标量值</td><td><code>'\0'</code></td></tr>
+    </table>
+
+    <h3>复合类型</h3>
+    <pre><code>// 数组（固定大小）
+let nums: [int; 5] = [1, 2, 3, 4, 5]
+
+// 列表（动态数组）
+let items: List[int] = [1, 2, 3]
+items.push(4)
+
+// 映射
+let scores: Map[str, int] = {"alice": 95, "bob": 87}
+
+// 元组
+let point: (int, int) = (10, 20)
+let person: (str, int, bool) = ("Alice", 30, true)
+
+// 结构体
+pub struct User {
+    id: int,
+    name: str,
+    email: Option[str],
+    active: bool = true,
+}
+
+// 枚举（代数数据类型）
+pub enum Shape {
+    Circle(float),
+    Rectangle(float, float),
+    Point { x: float, y: float },
+}
+
+// 可选类型
+let nickname: Option[str] = None
+let email: str? = null  // Option[str] 的语法糖</code></pre>
+
+    <h2>3. 函数</h2>
+    <pre><code>fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+// 单表达式函数（隐式返回）
+fn multiply(a: int, b: int) -> int = a * b
+
+// 无返回值函数
+fn greet(name: str) {
+    io.println("Hello, " + name)
+}
+
+// 函数作为值（一等公民）
+let op: fn(int, int) -> int = add
+let result = op(3, 4)  // 7
+
+// 函数类型别名
+type BinaryOp = fn(int, int) -> int</code></pre>
+
+    <h2>4. 控制流</h2>
+    <h3>If / Else（也是表达式）</h3>
+    <pre><code>if x > 0 {
+    io.println("positive")
+} else if x < 0 {
+    io.println("negative")
+} else {
+    io.println("zero")
+}
+
+// If 是表达式
+let sign = if x > 0 { "positive" } else { "zero" }</code></pre>
+
+    <h3>循环</h3>
+    <pre><code>// while
+mut i = 0
+while i < 10 {
+    io.println(i)
+    i += 1
+}
+
+// for（范围）
+for i in 0..10 {       // 0 到 9
+    io.println(i)
+}
+for i in 0..=10 {      // 0 到 10（含）
+    io.println(i)
+}
+
+// for（迭代器）
+for item in items {
+    io.println(item)
+}
+
+// break / continue
+for i in 0..100 {
+    if i == 50 { break }
+    if i % 2 == 0 { continue }
+    io.println(i)
+}</code></pre>
+
+    <h3>Match 模式匹配</h3>
+    <pre><code>match shape {
+    Shape.Circle(r) => io.println("circle r={r}"),
+    Shape.Rectangle(w, h) => io.println("rect {w}x{h}"),
+    Shape.Point { x, y } => io.println("point ({x},{y})"),
+}
+
+// 穷尽性检查：遗漏分支编译错误
+// 通配符 _
+match code {
+    200 => "OK",
+    404 => "Not Found",
+    _ => "Other",
+}
+
+// Match 是表达式
+let message = match status {
+    Ok(data) => "Success: {data}",
+    Err(e) => "Error: {e}",
+}</code></pre>
+
+    <h2>5. 错误处理</h2>
+    <p>TLL 使用 <code>Result[T, E]</code> 处理可恢复错误，<code>panic</code> 处理不可恢复错误。<strong>不支持 try/catch</strong>，错误即值。</p>
+    <pre><code>fn divide(a: int, b: int) -> Result[int, DivideError] {
+    if b == 0 {
+        return Err(DivideError.ByZero)
+    }
+    return Ok(a / b)
+}
+
+// match 处理
+match divide(10, 2) {
+    Ok(result) => io.println("result: {result}"),
+    Err(e) => io.println("error: {e}"),
+}
+
+// ? 操作符（错误传播）
+fn calculate() -> Result[int, Error] {
+    let a = parse_int("42")?
+    let b = parse_int("10")?
+    return Ok(a + b)
+}
+
+// unwrap（Err 时 panic，谨慎使用）
+let value = divide(10, 2).unwrap()
+let value = divide(10, 0).unwrap_or(0)
+
+// panic（不可恢复）
+fn assert_positive(x: int) {
+    if x <= 0 {
+        panic("expected positive, got {x}")
+    }
+}</code></pre>
+
+    <h2>6. 字符串插值</h2>
+    <pre><code>let name = "Alice"
+let age = 30
+let message = "Name: {name}, Age: {age}, Next: {age + 1}"</code></pre>
+
+    <h2>7. 管道操作符</h2>
+    <pre><code>// 嵌套调用
+let result = parse(validate(transform(input)))
+
+// 管道（左值作为右函数的第一个参数）
+let result = input
+    |> transform
+    |> validate
+    |> parse
+
+// 带参数
+let result = input |> transform(mode: "fast") |> validate(strict: true)</code></pre>
+
+    <h2>8. Defer</h2>
+    <pre><code>fn process_file(path: str) -> Result<void, IoError> {
+    let file = File.open(path)?
+    defer file.close()  // 函数退出时执行，LIFO 顺序
+
+    let content = file.read_all()?
+    io.println(content)
+    return Ok(void)
+}</code></pre>
+    </main>
+</div>
+</body>
+</html>
+
