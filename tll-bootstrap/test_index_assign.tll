@@ -1,0 +1,25 @@
+from "./lib/lexer" import tokenize
+from "./lib/parser" import parse
+from "./lib/codegen" import compile
+from "./lib/vm" import run
+
+io.println("=== List Index Assignment Test ===")
+let code = "let arr = [1, 2, 3]; arr[0] = 10; let r = arr[0]"
+io.println("Code: " + code)
+let tokens = tokenize(code)
+let ast = parse(tokens)
+let program = compile(ast)
+let result = run(program)
+io.println("Result: " + convert.toString(result))
+io.println("Expected: 10")
+io.println("")
+
+io.println("=== Map Field Assignment Test ===")
+let code2 = "let m = {a: 1}; m[\"a\"] = 20; let r = m[\"a\"]"
+io.println("Code: " + code2)
+let tokens2 = tokenize(code2)
+let ast2 = parse(tokens2)
+let program2 = compile(ast2)
+let result2 = run(program2)
+io.println("Result: " + convert.toString(result2))
+io.println("Expected: 20")

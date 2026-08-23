@@ -1,0 +1,438 @@
+// TLL VM - Self-hosting Bootstrap (v1.0 Phase 5)
+// Bytecode virtual machine, rewritten from TypeScript
+// Uses vm_setReg/vm_setLocal/vm_setGlobal helpers (TLL list index assignment is unreliable)
+
+// ============ OpCode constants ============
+let OP_LOAD_CONST = 0
+let OP_LOAD_VAR = 1
+let OP_STORE_VAR = 2
+let OP_ADD = 3
+let OP_SUB = 4
+let OP_MUL = 5
+let OP_DIV = 6
+let OP_MOD = 7
+let OP_POW = 8
+let OP_EQ = 9
+let OP_NEQ = 10
+let OP_LT = 11
+let OP_GT = 12
+let OP_LE = 13
+let OP_GE = 14
+let OP_AND = 15
+let OP_OR = 16
+let OP_NOT = 17
+let OP_NEG = 18
+let OP_JMP = 19
+let OP_JMP_IF_FALSE = 20
+let OP_CALL = 21
+let OP_RET = 22
+let OP_MAKE_ARRAY = 25
+let OP_MAKE_MAP = 26
+let OP_INDEX_GET = 28
+let OP_INDEX_SET = 29
+let OP_MEMBER_GET = 30
+let OP_MEMBER_SET = 31
+let OP_HALT = 32
+let OP_NOP = 33
+let OP_PUSH = 34
+let OP_CONCAT = 35
+let OP_LOAD_BUILTIN = 36
+let OP_THROW = 37
+let OP_TRY_START = 38
+let OP_TRY_END = 39
+let OP_LOAD_GLOBAL = 40
+let OP_STORE_GLOBAL = 41
+
+// ============ VM state ============
+let vm_constants: list = []
+let vm_functions: list = []
+let vm_globals: list = []
+let vm_callStack: list = []
+let vm_result: any = null
+let vm_halted = false
+let vm_lastResultReg = 0  // track last expression result register for HALT
+
+// Current frame state (global vars)
+let vm_pc = 0
+let vm_registers: list = []
+let vm_locals: list = []
+let vm_argStack: list = []
+let vm_returnReg = 0
+let vm_fnIdx = 0
+
+// ============ Helper: init registers ============
+fn vm_initRegisters() -> list {
+    let regs: list = []
+    let i = 0
+    while i < 256 {
+        arrays.push(regs, null)
+        i = i + 1
+    }
+    return regs
+}
+
+// ============ Set register (works around TLL list index assignment) ============
+fn vm_setReg(idx: int, value: any) -> void {
+    let newRegs: list = []
+    let i = 0
+    while i < arrays.length(vm_registers) {
+        if i == idx {
+            arrays.push(newRegs, value)
+        } else {
+            arrays.push(newRegs, arrays.get(vm_registers, i))
+        }
+        i = i + 1
+    }
+    vm_registers = newRegs
+    vm_lastResultReg = idx
+}
+
+fn vm_getReg(idx: int) -> any {
+    return arrays.get(vm_registers, idx)
+}
+
+// ============ Set local ============
+fn vm_setLocal(idx: int, value: any) -> void {
+    let newLocals: list = []
+    let i = 0
+    while i < arrays.length(vm_locals) {
+        if i == idx {
+            arrays.push(newLocals, value)
+        } else {
+            arrays.push(newLocals, arrays.get(vm_locals, i))
+        }
+        i = i + 1
+    }
+    vm_locals = newLocals
+}
+
+// ============ Set global ============
+fn vm_setGlobal(idx: int, value: any) -> void {
+    let newGlobals: list = []
+    let i = 0
+    while i < arrays.length(vm_globals) {
+        if i == idx {
+            arrays.push(newGlobals, value)
+        } else {
+            arrays.push(newGlobals, arrays.get(vm_globals, i))
+        }
+        i = i + 1
+    }
+    vm_globals = newGlobals
+}
+
+// ============ Save/restore frame ============
+fn vm_saveFrame() -> void {
+    let frame = {
+        pc: vm_pc,
+        registers: vm_registers,
+        locals: vm_locals,
+        argStack: vm_argStack,
+        returnReg: vm_returnReg,
+        fnIdx: vm_fnIdx
+    }
+    arrays.push(vm_callStack, frame)
+}
+
+fn vm_restoreFrame() -> bool {
+    if arrays.length(vm_callStack) == 0 {
+        return false
+    }
+    let frame = arrays.get(vm_callStack, arrays.length(vm_callStack) - 1)
+    arrays.pop(vm_callStack)
+    vm_pc = frame["pc"]
+    vm_registers = frame["registers"]
+    vm_locals = frame["locals"]
+    vm_argStack = frame["argStack"]
+    vm_returnReg = frame["returnReg"]
+    vm_fnIdx = frame["fnIdx"]
+    return true
+}
+
+// ============ Main entry ============
+export fn run(program: map) -> any {
+    vm_constants = program["constants"]
+    vm_functions = program["functions"]
+    vm_globals = []
+    vm_callStack = []
+    vm_result = null
+    vm_halted = false
+    vm_lastResultReg = 0
+
+    let globalCount = program["globalCount"]
+    if globalCount == null { globalCount = 0 }
+    let gi = 0
+    while gi < globalCount {
+        arrays.push(vm_globals, null)
+        gi = gi + 1
+    }
+
+    let mainIdx = program["mainFunctionIndex"]
+    if mainIdx == null { mainIdx = arrays.length(vm_functions) - 1 }
+    vm_fnIdx = mainIdx
+    vm_pc = 0
+    vm_registers = vm_initRegisters()
+    let mainFn = arrays.get(vm_functions, mainIdx)
+    let localCount = mainFn["localCount"]
+    if localCount == null { localCount = 0 }
+    vm_locals = []
+    let li = 0
+    while li < localCount {
+        arrays.push(vm_locals, null)
+        li = li + 1
+    }
+    vm_argStack = []
+    vm_returnReg = -1
+
+    vm_runLoop()
+    return vm_result
+}
+
+// ============ Instruction loop ============
+fn vm_runLoop() -> void {
+    let safety = 100000
+    while safety > 0 && !vm_halted {
+        safety = safety - 1
+        let func = arrays.get(vm_functions, vm_fnIdx)
+        let instructions = func["instructions"]
+        if vm_pc >= arrays.length(instructions) {
+            if arrays.length(vm_callStack) == 0 {
+                vm_halted = true
+                vm_result = vm_getReg(vm_lastResultReg)
+                break
+            }
+            let returnValue = null
+            let retReg = vm_returnReg
+            vm_restoreFrame()
+            if retReg >= 0 {
+                vm_setReg(retReg, returnValue)
+            }
+            continue
+        }
+        let inst = arrays.get(instructions, vm_pc)
+        vm_pc = vm_pc + 1
+        vm_executeInstruction(inst)
+    }
+}
+
+// ============ Execute instruction ============
+fn vm_executeInstruction(inst: map) -> void {
+    let op = inst["op"]
+    let operands = inst["operands"]
+    let a = 0
+    let b = 0
+    let c = 0
+    if arrays.length(operands) > 0 { a = arrays.get(operands, 0) }
+    if arrays.length(operands) > 1 { b = arrays.get(operands, 1) }
+    if arrays.length(operands) > 2 { c = arrays.get(operands, 2) }
+
+    if op == OP_LOAD_CONST { vm_setReg(a, arrays.get(vm_constants, b)); return }
+    if op == OP_LOAD_VAR { vm_setReg(a, arrays.get(vm_locals, b)); return }
+    if op == OP_STORE_VAR { vm_setLocal(a, vm_getReg(b)); vm_lastResultReg = b; return }
+    if op == OP_LOAD_GLOBAL { vm_setReg(a, arrays.get(vm_globals, b)); return }
+    if op == OP_STORE_GLOBAL { vm_setGlobal(a, vm_getReg(b)); vm_lastResultReg = b; return }
+    if op == OP_ADD {
+        let rv = vm_getReg(b)
+        let lv = vm_getReg(c)
+        if convert.typeOf(rv) == "string" || convert.typeOf(lv) == "string" {
+            vm_setReg(a, convert.toString(rv) + convert.toString(lv))
+        } else {
+            vm_setReg(a, rv + lv)
+        }
+        return
+    }
+    if op == OP_SUB { vm_setReg(a, vm_getReg(b) - vm_getReg(c)); return }
+    if op == OP_MUL { vm_setReg(a, vm_getReg(b) * vm_getReg(c)); return }
+    if op == OP_DIV { vm_setReg(a, vm_getReg(b) / vm_getReg(c)); return }
+    if op == OP_MOD { vm_setReg(a, vm_getReg(b) % vm_getReg(c)); return }
+    if op == OP_POW { vm_setReg(a, math.pow(vm_getReg(b), vm_getReg(c))); return }
+    if op == OP_EQ { vm_setReg(a, vm_getReg(b) == vm_getReg(c)); return }
+    if op == OP_NEQ { vm_setReg(a, vm_getReg(b) != vm_getReg(c)); return }
+    if op == OP_LT { vm_setReg(a, vm_getReg(b) < vm_getReg(c)); return }
+    if op == OP_GT { vm_setReg(a, vm_getReg(b) > vm_getReg(c)); return }
+    if op == OP_LE { vm_setReg(a, vm_getReg(b) <= vm_getReg(c)); return }
+    if op == OP_GE { vm_setReg(a, vm_getReg(b) >= vm_getReg(c)); return }
+    if op == OP_AND { vm_setReg(a, vm_getReg(b) && vm_getReg(c)); return }
+    if op == OP_OR { vm_setReg(a, vm_getReg(b) || vm_getReg(c)); return }
+    if op == OP_NOT { vm_setReg(a, !vm_getReg(b)); return }
+    if op == OP_NEG { vm_setReg(a, -vm_getReg(b)); return }
+    if op == OP_JMP { vm_pc = a; return }
+    if op == OP_JMP_IF_FALSE { if !vm_getReg(a) { vm_pc = b }; return }
+    if op == OP_CALL { vm_executeCall(a, b, c); return }
+    if op == OP_RET { vm_executeRet(a); return }
+    if op == OP_PUSH { arrays.push(vm_argStack, vm_getReg(a)); return }
+    if op == OP_HALT { vm_halted = true; vm_result = vm_getReg(vm_lastResultReg); return }
+    if op == OP_NOP { return }
+    if op == OP_MAKE_ARRAY { vm_executeMakeArray(a, b); return }
+    if op == OP_MAKE_MAP { vm_executeMakeMap(a, b); return }
+    if op == OP_INDEX_GET { vm_executeIndexGet(a, b, c); return }
+    if op == OP_INDEX_SET { vm_executeIndexSet(a, b, c); return }
+    if op == OP_MEMBER_GET { vm_executeMemberGet(a, b, c); return }
+    if op == OP_MEMBER_SET { vm_executeMemberSet(a, b, c); return }
+    if op == OP_LOAD_BUILTIN { vm_setReg(a, { __builtin: true, idx: b }); return }
+    if op == OP_CONCAT { vm_setReg(a, convert.toString(vm_getReg(b)) + convert.toString(vm_getReg(c))); return }
+    if op == OP_THROW { vm_halted = true; io.println("Runtime error: " + convert.toString(vm_getReg(a))); return }
+    if op == OP_TRY_START { return }
+    if op == OP_TRY_END { return }
+}
+
+// ============ CALL ============
+fn vm_executeCall(resultReg: int, fnIdxOrReg: int, argCount: int) -> void {
+    let args: list = []
+    let i = 0
+    while i < argCount {
+        let val = arrays.get(vm_argStack, arrays.length(vm_argStack) - 1)
+        arrays.pop(vm_argStack)
+        let newArgs: list = [val]
+        let j = 0
+        while j < arrays.length(args) {
+            arrays.push(newArgs, arrays.get(args, j))
+            j = j + 1
+        }
+        args = newArgs
+        i = i + 1
+    }
+
+    let possibleFn = vm_getReg(fnIdxOrReg)
+    if convert.typeOf(possibleFn) == "map" && possibleFn["__builtin"] == true {
+        vm_setReg(resultReg, vm_callBuiltin(possibleFn, args))
+        return
+    }
+
+    if fnIdxOrReg >= 0 && fnIdxOrReg < arrays.length(vm_functions) {
+        vm_saveFrame()
+        let func = arrays.get(vm_functions, fnIdxOrReg)
+        vm_fnIdx = fnIdxOrReg
+        vm_pc = 0
+        vm_registers = vm_initRegisters()
+        let localCount = func["localCount"]
+        if localCount == null { localCount = 0 }
+        vm_locals = []
+        let li = 0
+        while li < localCount {
+            arrays.push(vm_locals, null)
+            li = li + 1
+        }
+        let paramCount = func["paramCount"]
+        if paramCount == null { paramCount = 0 }
+        let pi = 0
+        while pi < argCount && pi < paramCount {
+            vm_setLocal(pi, arrays.get(args, pi))
+            pi = pi + 1
+        }
+        vm_argStack = []
+        vm_returnReg = resultReg
+    }
+}
+
+// ============ RET ============
+fn vm_executeRet(regIdx: int) -> void {
+    let returnValue = vm_getReg(regIdx)
+    let retReg = vm_returnReg
+    if arrays.length(vm_callStack) == 0 {
+        vm_halted = true
+        vm_result = returnValue
+        return
+    }
+    vm_restoreFrame()
+    if retReg >= 0 {
+        vm_setReg(retReg, returnValue)
+    }
+}
+
+// ============ MAKE_ARRAY ============
+fn vm_executeMakeArray(resultReg: int, count: int) -> void {
+    let elements: list = []
+    let i = 0
+    while i < count {
+        let val = arrays.get(vm_argStack, arrays.length(vm_argStack) - 1)
+        arrays.pop(vm_argStack)
+        let newElems: list = [val]
+        let j = 0
+        while j < arrays.length(elements) {
+            arrays.push(newElems, arrays.get(elements, j))
+            j = j + 1
+        }
+        elements = newElems
+        i = i + 1
+    }
+    vm_setReg(resultReg, elements)
+}
+
+// ============ MAKE_MAP ============
+fn vm_executeMakeMap(resultReg: int, count: int) -> void {
+    let m: map = {}
+    let i = 0
+    while i < count {
+        let v = arrays.get(vm_argStack, arrays.length(vm_argStack) - 1)
+        arrays.pop(vm_argStack)
+        let k = arrays.get(vm_argStack, arrays.length(vm_argStack) - 1)
+        arrays.pop(vm_argStack)
+        m[convert.toString(k)] = v
+        i = i + 1
+    }
+    vm_setReg(resultReg, m)
+}
+
+// ============ INDEX_GET ============
+fn vm_executeIndexGet(resultReg: int, objReg: int, idxReg: int) -> void {
+    let obj = vm_getReg(objReg)
+    let idx = vm_getReg(idxReg)
+    if convert.typeOf(obj) == "list" {
+        vm_setReg(resultReg, arrays.get(obj, idx))
+    } else {
+        vm_setReg(resultReg, obj[convert.toString(idx)])
+    }
+}
+
+// ============ INDEX_SET ============
+fn vm_executeIndexSet(objReg: int, idxReg: int, valReg: int) -> void {
+    let obj = vm_getReg(objReg)
+    let idx = vm_getReg(idxReg)
+    let val = vm_getReg(valReg)
+    if convert.typeOf(obj) == "list" {
+        obj[idx] = val
+    } else {
+        obj[convert.toString(idx)] = val
+    }
+    vm_setReg(objReg, obj)
+}
+
+// ============ MEMBER_GET ============
+fn vm_executeMemberGet(resultReg: int, objReg: int, constIdx: int) -> void {
+    let obj = vm_getReg(objReg)
+    let propName = arrays.get(vm_constants, constIdx)
+    if propName == "length" && convert.typeOf(obj) == "list" {
+        vm_setReg(resultReg, arrays.length(obj))
+    } else if obj != null {
+        vm_setReg(resultReg, obj[propName])
+    } else {
+        vm_setReg(resultReg, null)
+    }
+}
+
+// ============ MEMBER_SET ============
+fn vm_executeMemberSet(objReg: int, constIdx: int, valReg: int) -> void {
+    let obj = vm_getReg(objReg)
+    let propName = arrays.get(vm_constants, constIdx)
+    let val = vm_getReg(valReg)
+    if obj != null {
+        obj[propName] = val
+        vm_setReg(objReg, obj)
+    }
+}
+
+// ============ Call builtin (simplified) ============
+fn vm_callBuiltin(builtin: map, args: list) -> any {
+    let idx = builtin["idx"]
+    if idx == 0 {
+        if arrays.length(args) > 0 { io.println(convert.toString(arrays.get(args, 0))) } else { io.println("") }
+        return null
+    }
+    if idx == 1 {
+        if arrays.length(args) > 0 { io.print(convert.toString(arrays.get(args, 0))) }
+        return null
+    }
+    if arrays.length(args) > 0 { return arrays.get(args, 0) }
+    return null
+}

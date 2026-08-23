@@ -1,0 +1,36 @@
+from "./lib/lexer" import tokenize
+from "./lib/parser" import parse
+from "./lib/codegen" import compile
+from "./lib/vm" import run
+
+io.println("=== Test: list pass by reference? ===")
+let code = "fn modify(arr) { arrays.push(arr, 4) } let a = [1, 2, 3]; modify(a); let r = arrays.length(a)"
+io.println("Code: " + code)
+let t = tokenize(code)
+let a = parse(t)
+let p = compile(a)
+let r = run(p)
+io.println("Result: " + convert.toString(r))
+io.println("Expected: 4 (if pass by reference) or 3 (if pass by value)")
+io.println("")
+
+io.println("=== Test: map field access? ===")
+let code2 = "let m = {a: 1, b: 2}; let r = m[\"a\"] + m[\"b\"]"
+io.println("Code: " + code2)
+let t2 = tokenize(code2)
+let a2 = parse(t2)
+let p2 = compile(a2)
+// Print bytecode for main
+let funcs = p2["functions"]
+let main = arrays.get(funcs, arrays.length(funcs) - 1)
+io.println("main instrs=" + convert.toString(arrays.length(main["instructions"])))
+let instrs = main["instructions"]
+let i = 0
+while i < arrays.length(instrs) {
+    let inst = arrays.get(instrs, i)
+    io.println("  " + convert.toString(i) + ": op=" + convert.toString(inst["op"]) + " operands=" + convert.toString(inst["operands"]))
+    i = i + 1
+}
+let r2 = run(p2)
+io.println("Result: " + convert.toString(r2))
+io.println("Expected: 3")

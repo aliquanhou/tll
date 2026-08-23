@@ -1,0 +1,50 @@
+from "./lib/lexer" import tokenize
+from "./lib/parser" import parse
+from "./lib/codegen" import compile
+from "./lib/vm" import run
+
+io.println("=== TLL VM Self-hosting Test ===")
+io.println("")
+
+fn runTest(name: string, code: string) -> void {
+    io.println("--- " + name + " ---")
+    io.println("Code: " + code)
+    let tokens = tokenize(code)
+    let ast = parse(tokens)
+    let program = compile(ast)
+    let result = run(program)
+    io.println("Result: " + convert.toString(result))
+    io.println("")
+}
+
+// Test 1: Simple arithmetic
+runTest("Test 1: arithmetic", "let x = 1 + 2 * 3")
+
+// Test 2: Variable assignment
+runTest("Test 2: assignment", "let x = 10; x = x + 5")
+
+// Test 3: Function call
+runTest("Test 3: function call", "fn add(a, b) { return a + b } let r = add(3, 4)")
+
+// Test 4: If-else
+runTest("Test 4: if-else", "fn max(a, b) { if a > b { return a } else { return b } } let r = max(5, 3)")
+
+// Test 5: While loop (sum 1..5)
+runTest("Test 5: while sum", "fn sum(n) { let i = 1; let s = 0; while i <= n { s = s + i; i = i + 1 }; return s } let r = sum(5)")
+
+// Test 6: Nested function calls
+runTest("Test 6: nested calls", "fn double(x) { return x * 2 } fn add(a, b) { return a + b } let r = double(add(2, 3))")
+
+// Test 7: Comparison and logical
+runTest("Test 7: comparison", "let r = 5 > 3 && 2 < 4")
+
+// Test 8: Array literal
+runTest("Test 8: array", "let arr = [1, 2, 3]; let r = arr[0] + arr[1] + arr[2]")
+
+// Test 9: Map literal
+runTest("Test 9: map", "let m = {a: 1, b: 2}; let r = m[\"a\"] + m[\"b\"]")
+
+// Test 10: Recursion (factorial)
+runTest("Test 10: recursion", "fn fact(n) { if n <= 1 { return 1 } else { return n * fact(n - 1) } } let r = fact(5)")
+
+io.println("=== All VM tests completed ===")
