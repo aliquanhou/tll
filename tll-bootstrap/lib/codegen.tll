@@ -196,9 +196,9 @@ export fn compile(program: map) -> map {
 
     // First pass: collect global variables and function declarations
     let globalCounter = 0
-    let i = 0
-    while i < arrays.length(stmts) {
-        let stmt = arrays.get(stmts, i)
+    let p1i = 0
+    while p1i < arrays.length(stmts) {
+        let stmt = arrays.get(stmts, p1i)
         let kind = stmt.kind
         if kind == "Let" || kind == "Const" {
             cg_globalMapSet(stmt.name, globalCounter)
@@ -219,7 +219,7 @@ export fn compile(program: map) -> map {
                 arrays.push(cg_functions, fnObj)
             }
         }
-        i = i + 1
+        p1i = p1i + 1
     }
 
     // Create main function
@@ -228,9 +228,9 @@ export fn compile(program: map) -> map {
     arrays.push(cg_functions, mainFn)
 
     // Second pass: compile function bodies
-    i = 0
-    while i < arrays.length(stmts) {
-        let stmt = arrays.get(stmts, i)
+    let p2i = 0
+    while p2i < arrays.length(stmts) {
+        let stmt = arrays.get(stmts, p2i)
         if stmt.kind == "Fn" {
             cg_compileFunction(stmt)
             arrays.push(cg_allFnInstructions, cg_instructions)
@@ -244,7 +244,7 @@ export fn compile(program: map) -> map {
                 arrays.push(cg_allFnLocalCounts, cg_currentLocalCount)
             }
         }
-        i = i + 1
+        p2i = p2i + 1
     }
 
     // Compile main
@@ -272,14 +272,14 @@ export fn compile(program: map) -> map {
 
     // Rebuild functions list
     let finalFunctions: list = []
-    i = 0
-    while i < arrays.length(cg_functions) {
-        let func = arrays.get(cg_functions, i)
-        let instrs = arrays.get(cg_allFnInstructions, i)
-        let localCount = arrays.get(cg_allFnLocalCounts, i)
+    let ffi = 0
+    while ffi < arrays.length(cg_functions) {
+        let func = arrays.get(cg_functions, ffi)
+        let instrs = arrays.get(cg_allFnInstructions, ffi)
+        let localCount = arrays.get(cg_allFnLocalCounts, ffi)
         let newFn = { name: func.name, paramCount: func.paramCount, instructions: instrs, localCount: localCount }
         arrays.push(finalFunctions, newFn)
-        i = i + 1
+        ffi = ffi + 1
     }
 
     return {

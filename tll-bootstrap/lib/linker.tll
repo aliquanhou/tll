@@ -177,7 +177,7 @@ export fn linkAndCompile(entryFile: string) -> map {
     }
 
     // Concatenate all sources in dependency order, removing import/export statements
-    let combinedSource = ""
+    let allLines: list = []
     let j = 0
     while j < arrays.length(files) {
         let filePath = arrays.get(files, j)
@@ -190,12 +190,13 @@ export fn linkAndCompile(entryFile: string) -> map {
             let line = arrays.get(lines, k)
             // Skip import statements (functions are now in the same combined file)
             if !strings.startsWith(line, "from ") && !strings.startsWith(line, "import ") {
-                combinedSource = combinedSource + line + "\n"
+                arrays.push(allLines, line)
             }
             k = k + 1
         }
         j = j + 1
     }
+    let combinedSource = strings.join(allLines, "\n")
 
     // Parse once and compile
     let tokens = tokenize(combinedSource)

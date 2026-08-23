@@ -1,0 +1,550 @@
+fn func0(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    return result
+}
+
+fn func1(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func0(a, b)
+    result = result + prev
+    return result
+}
+
+fn func2(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func1(a, b)
+    result = result + prev
+    return result
+}
+
+fn func3(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func2(a, b)
+    result = result + prev
+    return result
+}
+
+fn func4(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func3(a, b)
+    result = result + prev
+    return result
+}
+
+fn func5(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func4(a, b)
+    result = result + prev
+    return result
+}
+
+fn func6(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func5(a, b)
+    result = result + prev
+    return result
+}
+
+fn func7(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func6(a, b)
+    result = result + prev
+    return result
+}
+
+fn func8(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func7(a, b)
+    result = result + prev
+    return result
+}
+
+fn func9(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func8(a, b)
+    result = result + prev
+    return result
+}
+
+fn func10(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func9(a, b)
+    result = result + prev
+    return result
+}
+
+fn func11(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func10(a, b)
+    result = result + prev
+    return result
+}
+
+fn func12(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func11(a, b)
+    result = result + prev
+    return result
+}
+
+fn func13(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func12(a, b)
+    result = result + prev
+    return result
+}
+
+fn func14(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func13(a, b)
+    result = result + prev
+    return result
+}
+
+fn func15(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func14(a, b)
+    result = result + prev
+    return result
+}
+
+fn func16(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func15(a, b)
+    result = result + prev
+    return result
+}
+
+fn func17(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func16(a, b)
+    result = result + prev
+    return result
+}
+
+fn func18(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func17(a, b)
+    result = result + prev
+    return result
+}
+
+fn func19(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func18(a, b)
+    result = result + prev
+    return result
+}
+
+fn func20(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func19(a, b)
+    result = result + prev
+    return result
+}
+
+fn func21(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func20(a, b)
+    result = result + prev
+    return result
+}
+
+fn func22(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func21(a, b)
+    result = result + prev
+    return result
+}
+
+fn func23(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func22(a, b)
+    result = result + prev
+    return result
+}
+
+fn func24(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func23(a, b)
+    result = result + prev
+    return result
+}
+
+fn func25(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func24(a, b)
+    result = result + prev
+    return result
+}
+
+fn func26(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func25(a, b)
+    result = result + prev
+    return result
+}
+
+fn func27(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func26(a, b)
+    result = result + prev
+    return result
+}
+
+fn func28(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func27(a, b)
+    result = result + prev
+    return result
+}
+
+fn func29(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func28(a, b)
+    result = result + prev
+    return result
+}
+
+fn func30(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func29(a, b)
+    result = result + prev
+    return result
+}
+
+fn func31(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func30(a, b)
+    result = result + prev
+    return result
+}
+
+fn func32(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func31(a, b)
+    result = result + prev
+    return result
+}
+
+fn func33(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func32(a, b)
+    result = result + prev
+    return result
+}
+
+fn func34(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func33(a, b)
+    result = result + prev
+    return result
+}
+
+fn func35(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func34(a, b)
+    result = result + prev
+    return result
+}
+
+fn func36(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func35(a, b)
+    result = result + prev
+    return result
+}
+
+fn func37(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func36(a, b)
+    result = result + prev
+    return result
+}
+
+fn func38(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func37(a, b)
+    result = result + prev
+    return result
+}
+
+fn func39(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func38(a, b)
+    result = result + prev
+    return result
+}
+
+fn func40(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func39(a, b)
+    result = result + prev
+    return result
+}
+
+fn func41(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func40(a, b)
+    result = result + prev
+    return result
+}
+
+fn func42(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func41(a, b)
+    result = result + prev
+    return result
+}
+
+fn func43(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func42(a, b)
+    result = result + prev
+    return result
+}
+
+fn func44(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func43(a, b)
+    result = result + prev
+    return result
+}
+
+fn func45(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func44(a, b)
+    result = result + prev
+    return result
+}
+
+fn func46(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func45(a, b)
+    result = result + prev
+    return result
+}
+
+fn func47(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func46(a, b)
+    result = result + prev
+    return result
+}
+
+fn func48(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func47(a, b)
+    result = result + prev
+    return result
+}
+
+fn func49(a: int, b: int) -> int {
+    let sum = a + b
+    let diff = a - b
+    let product = a * b
+    let ratio = a / b
+    let result = sum + diff + product + ratio
+    let prev = func48(a, b)
+    result = result + prev
+    return result
+}
+
+io.println(func0(10, 2))
+io.println(func49(10, 2))

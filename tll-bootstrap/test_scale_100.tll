@@ -1,0 +1,602 @@
+fn func0(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func1(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func2(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func3(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func4(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func5(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func6(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func7(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func8(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func9(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func10(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func11(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func12(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func13(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func14(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func15(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func16(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func17(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func18(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func19(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func20(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func21(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func22(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func23(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func24(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func25(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func26(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func27(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func28(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func29(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func30(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func31(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func32(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func33(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func34(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func35(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func36(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func37(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func38(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func39(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func40(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func41(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func42(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func43(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func44(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func45(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func46(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func47(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func48(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func49(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func50(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func51(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func52(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func53(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func54(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func55(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func56(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func57(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func58(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func59(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func60(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func61(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func62(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func63(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func64(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func65(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func66(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func67(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func68(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func69(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func70(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func71(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func72(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func73(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func74(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func75(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func76(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func77(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func78(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func79(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func80(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func81(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func82(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func83(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func84(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func85(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func86(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func87(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func88(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func89(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func90(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func91(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func92(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func93(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func94(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func95(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func96(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func97(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func98(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+fn func99(a: int, b: int) -> int {
+    let sum = a + b
+    let product = a * b
+    return sum + product
+}
+
+io.println(func0(1, 2))
+io.println(func99(3, 4))

@@ -1,0 +1,16 @@
+fn outer() {
+    let i = 0
+    io.println(inner())
+    i = i + 1
+    return i
+}
+
+fn inner() {
+    let i = 0
+    while i < 10 {
+        i = i + 1
+    }
+    return i
+}
+
+io.println(outer())
