@@ -1,0 +1,58 @@
+// Bootstrap Level 3 Test
+// Verify compiler determinism: compile same program 3 times, outputs must be identical
+
+from "./lib/lexer" import tokenize
+from "./lib/parser" import parse
+from "./lib/typechecker" import check
+from "./lib/codegen" import compile
+
+io.println("=== Bootstrap Level 3: Compiler Determinism Test ===")
+io.println("")
+
+let testSource = "fn add(a: int, b: int) -> int { return a + b } let r = add(2, 3)"
+
+// Compile 3 times
+io.println("[Round 1] Compiling...")
+let tokens1 = tokenize(testSource)
+let ast1 = parse(tokens1)
+let bc1 = compile(ast1)
+let json1 = json.stringify(bc1)
+
+io.println("[Round 2] Compiling...")
+let tokens2 = tokenize(testSource)
+let ast2 = parse(tokens2)
+let bc2 = compile(ast2)
+let json2 = json.stringify(bc2)
+
+io.println("[Round 3] Compiling...")
+let tokens3 = tokenize(testSource)
+let ast3 = parse(tokens3)
+let bc3 = compile(ast3)
+let json3 = json.stringify(bc3)
+
+// Compare
+io.println("")
+io.println("=== Comparison Results ===")
+io.println("Round 1 length: " + convert.toString(strings.length(json1)))
+io.println("Round 2 length: " + convert.toString(strings.length(json2)))
+io.println("Round 3 length: " + convert.toString(strings.length(json3)))
+
+let match12 = json1 == json2
+let match23 = json2 == json3
+let match13 = json1 == json3
+
+io.println("")
+io.println("Round 1 == Round 2: " + convert.toString(match12))
+io.println("Round 2 == Round 3: " + convert.toString(match23))
+io.println("Round 1 == Round 3: " + convert.toString(match13))
+
+if match12 && match23 && match13 {
+    io.println("")
+    io.println("✅ Bootstrap Level 3 PASSED: Compiler is deterministic!")
+} else {
+    io.println("")
+    io.println("❌ Bootstrap Level 3 FAILED: Compiler is not deterministic!")
+}
+
+io.println("")
+io.println("=== Test Complete ===")
