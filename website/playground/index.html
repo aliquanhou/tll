@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLL Playground</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{--cyan:#00d4ff;--purple:#7b2ffc;--green:#00ff88;--bg:#0a0e17;--bg2:#0f1420;--text:#e8edf5;--muted:#8892a6;--code-bg:#1a1f2e;--border:rgba(0,212,255,.15)}
+  body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  nav{padding:12px 24px;display:flex;justify-content:space-between;align-items:center;background:rgba(10,14,23,.9);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);flex-shrink:0}
+  .nav-logo{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:2px;text-decoration:none}
+  .nav-links{display:flex;gap:24px;align-items:center}
+  .nav-links a{color:var(--muted);text-decoration:none;font-size:13px;font-weight:500;transition:color .3s}
+  .nav-links a:hover,.nav-links a.active{color:var(--cyan)}
+  .playground{flex:1;display:flex;overflow:hidden}
+  .editor-pane{flex:1;display:flex;flex-direction:column;border-right:1px solid var(--border)}
+  .pane-header{padding:10px 16px;background:rgba(0,0,0,.2);border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted)}
+  .run-btn{padding:6px 16px;background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif;transition:all .3s}
+  .run-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,212,255,.3)}
+  .run-btn:disabled{opacity:.5;cursor:not-allowed}
+  #editor{flex:1;background:var(--code-bg);color:var(--text);border:none;outline:none;padding:20px;font-family:'JetBrains Mono',monospace;font-size:14px;line-height:1.8;resize:none;tab-size:2}
+  .output-pane{flex:1;display:flex;flex-direction:column}
+  #output{flex:1;background:var(--bg2);color:var(--green);padding:20px;font-family:'JetBrains Mono',monospace;font-size:13px;line-height:1.8;overflow:auto;white-space:pre-wrap}
+  .output-placeholder{color:var(--muted);font-style:italic}
+  .coming-soon{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;z-index:10;background:rgba(10,14,23,.95);padding:48px 64px;border-radius:20px;border:1px solid var(--border);backdrop-filter:blur(20px)}
+  .coming-soon h1{font-size:36px;margin-bottom:12px;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .coming-soon p{color:var(--muted);font-size:14px;margin-bottom:24px}
+  .coming-soon .badge{display:inline-block;padding:6px 16px;border:1px solid var(--border);border-radius:20px;font-size:12px;color:var(--cyan);font-family:'JetBrains Mono',monospace}
+  @media(max-width:768px){.playground{flex-direction:column}.editor-pane{border-right:none;border-bottom:1px solid var(--border)}}
+</style>
+</head>
+<body>
+<nav>
+  <a href="/" class="nav-logo">TLL</a>
+  <div class="nav-links">
+    <a href="/">首页</a>
+    <a href="/docs/">文档</a>
+    <a href="/playground/" class="active">Playground</a>
+    <a href="https://github.com/aliquanhou/tll" target="_blank">GitHub</a>
+  </div>
+</nav>
+<div class="playground">
+  <div class="editor-pane">
+    <div class="pane-header">
+      <span>main.tll</span>
+      <button class="run-btn" id="runBtn" disabled>▶ Run</button>
+    </div>
+    <textarea id="editor" spellcheck="false">// TLL Playground — Coming Soon
+// 在线编辑器正在开发中
+
+fn main() {
+    io.println("Hello, TLL Playground!")
+
+    let name = "AI-Native"
+    let version = "0.1"
+
+    io.println("Language: TLL " + version)
+    io.println("Paradigm: " + name)
+}
+
+main()</textarea>
+  </div>
+  <div class="output-pane">
+    <div class="pane-header"><span>Output</span></div>
+    <div id="output"><span class="output-placeholder">// 点击 Run 按钮运行代码...
+// Playground 后端正在开发中
+// 目前请在本地使用: tll run main.tll</span></div>
+  </div>
+</div>
+<div class="coming-soon">
+  <h1>Playground</h1>
+  <p>在线运行 TLL 代码的功能正在开发中</p>
+  <span class="badge">Coming in v0.2</span>
+</div>
+<script>
+  document.getElementById('runBtn').addEventListener('click', function(){
+    document.getElementById('output').textContent = '// Playground 后端尚未部署\n// 请在本地使用 Bootstrap Compiler:\n// cd tll-compiler && node dist/src/cli.js run main.tll';
+  });
+</script>
+</body>
+</html>
