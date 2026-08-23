@@ -4,6 +4,7 @@
  */
 
 import * as AST from './ast';
+import { stdlibModules } from './stdlib';
 
 export interface TypeInfo {
   name: string;
@@ -69,13 +70,51 @@ export class TypeChecker {
     this.globalScope.defineType('List', { name: 'List', kind: 'generic', generics: ['T'] });
     this.globalScope.defineType('Map', { name: 'Map', kind: 'generic', generics: ['K', 'V'] });
 
-    // io.println
+    // Standard library modules (io, json, math, strings, arrays, convert)
+    for (const [modName, mod] of Object.entries(stdlibModules)) {
+      const fields = new Map<string, TypeInfo>();
+      for (const fnName of Object.keys(mod)) {
+        const returnType = this.inferStdlibReturnType(modName, fnName);
+        fields.set(fnName, {
+          name: fnName,
+          kind: 'function',
+          params: [],
+          returnType,
+        });
+      }
+      const modType: TypeInfo = { name: modName, kind: 'struct', fields };
+      this.globalScope.define(modName, {
+        name: modName,
+        type: modType,
+        mutable: false,
+        kind: 'variable',
+      });
+    }
+
+    // Global println for convenience
     this.globalScope.define('println', {
       name: 'println',
       type: { name: 'fn', kind: 'function', params: [{ name: 'str', kind: 'primitive' }], returnType: { name: 'void', kind: 'primitive' } },
       mutable: false,
       kind: 'function',
     });
+  }
+
+  private inferStdlibReturnType(modName: string, fnName: string): TypeInfo {
+    const voidFns = ['println', 'print', 'forEach', 'fill'];
+    const strFns = ['toUpper', 'toLower', 'trim', 'trimStart', 'trimEnd', 'substring', 'replace', 'replaceAll', 'repeat', 'padStart', 'padEnd', 'charAt', 'stringify', 'join', 'toString', 'toChar', 'readLine'];
+    const intFns = ['length', 'indexOf', 'lastIndexOf', 'toInt', 'charCode', 'randomInt'];
+    const floatFns = ['sqrt', 'abs', 'floor', 'ceil', 'round', 'min', 'max', 'pow', 'sin', 'cos', 'tan', 'log', 'log2', 'log10', 'exp', 'pi', 'e', 'random', 'toFloat'];
+    const boolFns = ['contains', 'startsWith', 'endsWith', 'isEmpty', 'some', 'every', 'includes', 'toBool'];
+    const listFns = ['split', 'lines', 'words', 'map', 'filter', 'sort', 'reverse', 'slice', 'concat', 'flat', 'range', 'push', 'pop', 'shift', 'unshift'];
+
+    if (voidFns.includes(fnName)) return { name: 'void', kind: 'primitive' };
+    if (strFns.includes(fnName)) return { name: 'str', kind: 'primitive' };
+    if (intFns.includes(fnName)) return { name: 'int', kind: 'primitive' };
+    if (floatFns.includes(fnName)) return { name: 'float', kind: 'primitive' };
+    if (boolFns.includes(fnName)) return { name: 'bool', kind: 'primitive' };
+    if (listFns.includes(fnName)) return { name: 'List', kind: 'generic', generics: ['T'] };
+    return { name: 'auto', kind: 'primitive' };
   }
 
   public check(program: AST.Program): void {
@@ -291,7 +330,17 @@ export class TypeChecker {
       case 'Binary': {
         const left = this.checkExpression(expr.left);
         const right = this.checkExpression(expr.right);
-        if (['+', '-', '*', '/', '%', '**'].includes(expr.operator)) {
+        if (expr.operator === '+') {
+          // String concatenation if either operand is string
+          if (left.name === 'str' || right.name === 'str') {
+            return { name: 'str', kind: 'primitive' };
+          }
+          if (!this.isNumeric(left) || !this.isNumeric(right)) {
+            this.errors.push(`Line ${expr.line}: arithmetic operator '+' requires numeric or string operands`);
+          }
+          return left;
+        }
+        if (['-', '*', '/', '%', '**'].includes(expr.operator)) {
           if (!this.isNumeric(left) || !this.isNumeric(right)) {
             this.errors.push(`Line ${expr.line}: arithmetic operator '${expr.operator}' requires numeric operands`);
           }
@@ -314,9 +363,13 @@ export class TypeChecker {
         }
         return calleeType.returnType || { name: 'void', kind: 'primitive' };
       }
-      case 'Member':
-        this.checkExpression(expr.object);
+      case 'Member': {
+        const objType = this.checkExpression(expr.object);
+        if (objType.fields && objType.fields.has(expr.property)) {
+          return objType.fields.get(expr.property)!;
+        }
         return { name: 'auto', kind: 'primitive' };
+      }
       case 'Index':
         this.checkExpression(expr.object);
         this.checkExpression(expr.index);

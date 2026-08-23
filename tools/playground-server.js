@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const PORT = 8080;
+const PORT = 3000;
 const TLL_CLI = '/opt/tll/tll-compiler/dist/src/cli.js';
 const MAX_CODE_LENGTH = 10000;
 const TIMEOUT_MS = 10000;
