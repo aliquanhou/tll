@@ -941,7 +941,9 @@ export class Parser {
         this.expect(TokenType.RParen, "')'");
         expr = { kind: 'Call', callee: expr, args, line: expr.line, column: expr.column };
       } else if (this.match(TokenType.Dot)) {
-        const property = this.expect(TokenType.Ident, "property name").value;
+        const propToken = this.peek();
+        this.advance();
+        const property = propToken.value || propToken.type;
         expr = { kind: 'Member', object: expr, property, line: expr.line, column: expr.column };
       } else if (this.match(TokenType.LBracket)) {
         const index = this.parseExpression();
@@ -950,7 +952,9 @@ export class Parser {
       } else if (this.match(TokenType.Question)) {
         // Optional chaining: expr?.prop
         if (this.match(TokenType.Dot)) {
-          const property = this.expect(TokenType.Ident, "property name").value;
+          const propToken = this.peek();
+          this.advance();
+          const property = propToken.value || propToken.type;
           expr = { kind: 'Member', object: expr, property, line: expr.line, column: expr.column };
         }
       } else {

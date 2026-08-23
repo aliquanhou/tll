@@ -553,7 +553,8 @@ fn parsePostfix() -> map {
             expr = node
         } else if parse_match("DOT") {
             let t = parse_previous()
-            let pt = parse_expect("IDENT", "property name")
+            let pt = parse_peek()
+            parse_advance()
             let node = makeNode("Member", t.line, t.column)
             node.object = expr
             node.property = pt.tkValue
@@ -669,7 +670,7 @@ fn parseMapLiteral() -> map {
         while true {
             let keyTok = parse_peek()
             let keyStr = ""
-            if parse_check("IDENT") || parse_check("STRING") {
+            if parse_check("IDENT") || parse_check("STRING") || parse_check("TYPE") || parse_check("STRUCT") || parse_check("ENUM") || parse_check("ASYNC") || parse_check("AWAIT") {
                 let kt = parse_advance()
                 keyStr = kt.tkValue
             } else {

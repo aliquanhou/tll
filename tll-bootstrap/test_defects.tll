@@ -1,0 +1,45 @@
+// Language Defect Test Suite
+// Tests for the 4 known language defects
+
+io.println("=== Language Defect Test Suite ===")
+io.println("")
+
+// Defect 1: map["key"] vs map.key semantic inconsistency
+io.println("--- Defect 1: map[key] vs map.key ---")
+let m = { name: "TLL", version: 1 }
+io.println("map.key: " + m.name)
+let keyName = "name"
+let indexResult = m[keyName]
+io.println("map[key] (dynamic): " + convert.toString(indexResult))
+let indexLiteral = m["version"]
+io.println("map[\"version\"] (literal): " + convert.toString(indexLiteral))
+
+// Defect 2: arr[i] = x reliability
+io.println("")
+io.println("--- Defect 2: arr[i] = x ---")
+let arr = [10, 20, 30]
+io.println("before: " + convert.toString(arr[0]) + ", " + convert.toString(arr[1]) + ", " + convert.toString(arr[2]))
+arr[0] = 100
+arr[1] = 200
+arr[2] = 300
+io.println("after: " + convert.toString(arr[0]) + ", " + convert.toString(arr[1]) + ", " + convert.toString(arr[2]))
+
+// Defect 3: keyword vs field name conflict (type, value, kind)
+io.println("")
+io.println("--- Defect 3: keyword field names ---")
+let node1 = { type: "String", value: "hello" }
+io.println("node.type: " + node1.type)
+io.println("node.value: " + node1.value)
+let node2 = { kind: "Binary", left: 1, right: 2 }
+io.println("node.kind: " + node2.kind)
+
+// Defect 4: map literal key name vs variable name conflict
+io.println("")
+io.println("--- Defect 4: map literal key vs variable ---")
+let name = "variableName"
+let data = { name: "fieldName", value: 42 }
+io.println("data.name (should be 'fieldName'): " + data.name)
+io.println("outer name variable (should be 'variableName'): " + name)
+
+io.println("")
+io.println("=== All Defect Tests Complete ===")
