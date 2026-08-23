@@ -447,6 +447,75 @@ const http: StdLibModule = {
   },
 };
 
+// ─── agent (AI / LLM) ──────────────────────────────────────────────────────
+let agentApiKey = process.env.OPENAI_API_KEY || process.env.TLL_AI_API_KEY || '';
+let agentBaseUrl = process.env.OPENAI_BASE_URL || process.env.TLL_AI_BASE_URL || 'https://api.openai.com/v1';
+let agentDefaultModel = process.env.TLL_AI_MODEL || 'gpt-4o-mini';
+
+function callLLM(messages: any[], model?: string): string {
+  if (!agentApiKey) {
+    throw new Error('agent: no API key set. Use agent.setApiKey(key) or set OPENAI_API_KEY env var.');
+  }
+  const useModel = model || agentDefaultModel;
+  const url = `${agentBaseUrl.replace(/\/$/, '')}/chat/completions`;
+  const body = JSON.stringify({
+    model: useModel,
+    messages: messages,
+    temperature: 0.7,
+  });
+  const tmpFile = `/tmp/tll_agent_${Date.now()}_${Math.random().toString(36).slice(2)}.json`;
+  try {
+    require('fs').writeFileSync(tmpFile, body);
+    const cmd = `curl -s --max-time 60 -X POST ${shellEscape(url)} ` +
+      `-H "Content-Type: application/json" ` +
+      `-H "Authorization: Bearer ${agentApiKey}" ` +
+      `-d @${tmpFile}`;
+    const result = execSync(cmd, { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+    const parsed = JSON.parse(result);
+    if (parsed.error) {
+      throw new Error(`LLM API error: ${parsed.error.message || JSON.stringify(parsed.error)}`);
+    }
+    if (parsed.choices && parsed.choices.length > 0) {
+      return parsed.choices[0].message?.content || '';
+    }
+    throw new Error('LLM API returned no choices: ' + result.slice(0, 500));
+  } catch (e: any) {
+    if (e.message && e.message.startsWith('LLM')) throw e;
+    throw new Error('agent API call error: ' + e.message);
+  } finally {
+    try { require('fs').unlinkSync(tmpFile); } catch {}
+  }
+}
+
+const agent: StdLibModule = {
+  run: (systemPrompt: any, userPrompt: any, model?: any) => {
+    const messages = [
+      { role: 'system', content: String(systemPrompt || '') },
+      { role: 'user', content: String(userPrompt || '') },
+    ];
+    return callLLM(messages, model ? String(model) : undefined);
+  },
+  chat: (messages: any, model?: any) => {
+    if (!Array.isArray(messages)) {
+      throw new Error('agent.chat: messages must be an array of {role, content}');
+    }
+    return callLLM(messages, model ? String(model) : undefined);
+  },
+  setApiKey: (key: any) => {
+    agentApiKey = String(key || '');
+    return null;
+  },
+  setBaseUrl: (url: any) => {
+    agentBaseUrl = String(url || '');
+    return null;
+  },
+  setModel: (model: any) => {
+    agentDefaultModel = String(model || '');
+    return null;
+  },
+  getModel: () => agentDefaultModel,
+};
+
 // ─── Module Registry ───────────────────────────────────────────────────────
 export const stdlibModules: Record<string, StdLibModule> = {
   io,
@@ -457,6 +526,7 @@ export const stdlibModules: Record<string, StdLibModule> = {
   convert,
   fs,
   http,
+  agent,
 };
 
 /**

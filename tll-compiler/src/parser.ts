@@ -119,7 +119,11 @@ export class Parser {
       case TokenType.Type:
         return this.parseTypeAlias(false);
       case TokenType.Agent:
-        return this.parseAgentDeclaration();
+        // agent Name { ... } is a declaration; agent.xxx() is an expression
+        if (this.tokens[this.pos + 1]?.type === TokenType.Ident) {
+          return this.parseAgentDeclaration();
+        }
+        return this.parseExpressionStatement();
       case TokenType.Tool:
         return this.parseToolDeclaration();
       case TokenType.Workflow:
@@ -1044,6 +1048,11 @@ export class Parser {
         }
         // async alone is not valid in expression context
         throw new ParserError(`Unexpected 'async'`, token.line, token.column);
+
+      case TokenType.Agent:
+        // 'agent' as identifier (e.g. agent.setApiKey())
+        this.advance();
+        return { kind: 'Ident', name: 'agent', line: token.line, column: token.column };
 
       case TokenType.Ident:
         this.advance();
