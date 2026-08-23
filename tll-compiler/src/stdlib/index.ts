@@ -487,6 +487,67 @@ function callLLM(messages: any[], model?: string): string {
   }
 }
 
+// Call LLM with tools, returns the full message object (may include tool_calls)
+function callLLMWithTools(messages: any[], tools: any[], model?: string): any {
+  if (!agentApiKey) {
+    throw new Error('agent: no API key set. Use agent.setApiKey(key) or set OPENAI_API_KEY env var.');
+  }
+  const useModel = model || agentDefaultModel;
+  const url = `${agentBaseUrl.replace(/\/$/, '')}/chat/completions`;
+  const body = JSON.stringify({
+    model: useModel,
+    messages: messages,
+    tools: tools,
+    tool_choice: 'auto',
+    temperature: 0.7,
+  });
+  const tmpFile = `/tmp/tll_agent_tools_${Date.now()}_${Math.random().toString(36).slice(2)}.json`;
+  try {
+    require('fs').writeFileSync(tmpFile, body);
+    const cmd = `curl -s --max-time 60 -X POST ${shellEscape(url)} ` +
+      `-H "Content-Type: application/json" ` +
+      `-H "Authorization: Bearer ${agentApiKey}" ` +
+      `-d @${tmpFile}`;
+    const result = execSync(cmd, { encoding: 'utf8', maxBuffer: 10 * 1024 * 1024 });
+    const parsed = JSON.parse(result);
+    if (parsed.error) {
+      throw new Error(`LLM API error: ${parsed.error.message || JSON.stringify(parsed.error)}`);
+    }
+    if (parsed.choices && parsed.choices.length > 0) {
+      return parsed.choices[0].message;
+    }
+    throw new Error('LLM API returned no choices: ' + result.slice(0, 500));
+  } catch (e: any) {
+    if (e.message && e.message.startsWith('LLM')) throw e;
+    throw new Error('agent API call error: ' + e.message);
+  } finally {
+    try { require('fs').unlinkSync(tmpFile); } catch {}
+  }
+}
+
+// Generate simple tool description from tool name (param names are arg0, arg1, ...)
+function buildToolSchema(toolName: string, paramCount: number): any {
+  const properties: Record<string, any> = {};
+  const required: string[] = [];
+  for (let i = 0; i < paramCount; i++) {
+    const pname = `arg${i}`;
+    properties[pname] = { type: 'string', description: `Argument ${i}` };
+    required.push(pname);
+  }
+  return {
+    type: 'function',
+    function: {
+      name: toolName,
+      description: `Tool function: ${toolName}`,
+      parameters: {
+        type: 'object',
+        properties: properties,
+        required: required,
+      },
+    },
+  };
+}
+
 const agent: StdLibModule = {
   run: (systemPrompt: any, userPrompt: any, model?: any) => {
     const messages = [
@@ -514,6 +575,93 @@ const agent: StdLibModule = {
     return null;
   },
   getModel: () => agentDefaultModel,
+  runWithTools: (systemPrompt: any, userPrompt: any, toolNames: any, model?: any) => {
+    const runtime = (globalThis as any).__tll_runtime;
+    if (!runtime) {
+      throw new Error('agent.runWithTools: runtime not available');
+    }
+    if (!Array.isArray(toolNames)) {
+      throw new Error('agent.runWithTools: toolNames must be an array');
+    }
+
+    // Build tool schemas by looking up param count from runtime
+    const tools: any[] = [];
+    const toolParamCounts: Record<string, number> = {};
+    for (const name of toolNames) {
+      const toolName = String(name);
+      // Find function in runtime to get param count
+      let paramCount = 1;
+      try {
+        const fns = runtime.program.functions;
+        for (const fn of fns) {
+          if (fn.name === toolName) {
+            paramCount = fn.paramCount;
+            break;
+          }
+        }
+      } catch {}
+      toolParamCounts[toolName] = paramCount;
+      tools.push(buildToolSchema(toolName, paramCount));
+    }
+
+    // Build messages
+    const messages: any[] = [
+      { role: 'system', content: String(systemPrompt || '') },
+      { role: 'user', content: String(userPrompt || '') },
+    ];
+
+    // Tool calling loop (max 10 iterations)
+    const maxIterations = 10;
+    for (let iter = 0; iter < maxIterations; iter++) {
+      const responseMsg = callLLMWithTools(messages, tools, model ? String(model) : undefined);
+
+      // If no tool_calls, this is the final answer
+      if (!responseMsg.tool_calls || responseMsg.tool_calls.length === 0) {
+        return responseMsg.content || '';
+      }
+
+      // Add assistant message with tool_calls
+      messages.push(responseMsg);
+
+      // Execute each tool call
+      for (const toolCall of responseMsg.tool_calls) {
+        const fnName = toolCall.function?.name;
+        let fnArgs: any = {};
+        try {
+          fnArgs = JSON.parse(toolCall.function?.arguments || '{}');
+        } catch {
+          fnArgs = {};
+        }
+
+        // Convert args object to ordered array
+        const paramCount = toolParamCounts[fnName] || 1;
+        const args: any[] = [];
+        for (let i = 0; i < paramCount; i++) {
+          const val = fnArgs[`arg${i}`];
+          args.push(val !== undefined ? String(val) : '');
+        }
+
+        // Call the TLL user function
+        let result: any;
+        try {
+          result = runtime.callUserFunction(fnName, args);
+        } catch (e: any) {
+          result = `Error: ${e.message}`;
+        }
+
+        // Add tool result message
+        messages.push({
+          role: 'tool',
+          tool_call_id: toolCall.id,
+          content: result !== null && result !== undefined ? String(result) : '',
+        });
+      }
+    }
+
+    // Max iterations reached, return last assistant content if available
+    const lastMsg = messages[messages.length - 1];
+    return lastMsg?.content || '[Tool calling limit reached]';
+  },
 };
 
 // ─── Module Registry ───────────────────────────────────────────────────────

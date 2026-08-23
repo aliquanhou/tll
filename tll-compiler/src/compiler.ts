@@ -61,6 +61,7 @@ export interface CompiledFunction {
   paramCount: number;
   instructions: Instruction[];
   localCount: number;
+  isTool?: boolean;
 }
 
 export interface CompiledProgram {
@@ -88,10 +89,24 @@ export class Compiler {
     // First pass: collect all function declarations
     for (const stmt of program.statements) {
       let fnDecl: AST.FnDeclaration | null = null;
+      let isTool = false;
       if (stmt.kind === 'Fn') {
         fnDecl = stmt;
       } else if (stmt.kind === 'Export' && stmt.declaration.kind === 'Fn') {
         fnDecl = stmt.declaration as AST.FnDeclaration;
+      } else if (stmt.kind === 'Tool') {
+        // Convert ToolDeclaration to FnDeclaration-like structure
+        const tool = stmt as AST.ToolDeclaration;
+        fnDecl = {
+          kind: 'Fn',
+          name: tool.name,
+          params: tool.params,
+          returnType: tool.returnType,
+          body: tool.body,
+          line: tool.line,
+          column: tool.column,
+        } as AST.FnDeclaration;
+        isTool = true;
       }
       if (fnDecl) {
         const idx = this.functions.length;
@@ -101,6 +116,7 @@ export class Compiler {
           paramCount: fnDecl.params.length,
           instructions: [],
           localCount: 0,
+          isTool,
         });
       }
     }
@@ -122,6 +138,17 @@ export class Compiler {
         fnDecl = stmt;
       } else if (stmt.kind === 'Export' && stmt.declaration.kind === 'Fn') {
         fnDecl = stmt.declaration as AST.FnDeclaration;
+      } else if (stmt.kind === 'Tool') {
+        const tool = stmt as AST.ToolDeclaration;
+        fnDecl = {
+          kind: 'Fn',
+          name: tool.name,
+          params: tool.params,
+          returnType: tool.returnType,
+          body: tool.body,
+          line: tool.line,
+          column: tool.column,
+        } as AST.FnDeclaration;
       }
       if (fnDecl) {
         const fnIdx = this.functionMap.get(fnDecl.name)!;

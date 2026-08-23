@@ -20,12 +20,28 @@ export class Runtime {
   private program: CompiledProgram;
   private callStack: CallFrame[] = [];
   private globals: Map<string, any> = new Map();
+  private toolRegistry: Map<string, number> = new Map(); // tool name -> function index
+
+  // Global runtime instance for stdlib callbacks (e.g. agent tool calling)
+  static current: Runtime | null = null;
 
   constructor(program: CompiledProgram) {
     this.program = program;
+    Runtime.current = this;
+    // Expose to stdlib via global (avoids circular dependency)
+    (globalThis as any).__tll_runtime = this;
   }
 
   public run(): any {
+    // Register all tool functions
+    this.toolRegistry.clear();
+    for (let i = 0; i < this.program.functions.length; i++) {
+      const fn = this.program.functions[i];
+      if (fn.isTool) {
+        this.toolRegistry.set(fn.name, i);
+      }
+    }
+
     const mainFn = this.program.functions[this.program.mainFunctionIndex];
     const frame: CallFrame = {
       function: mainFn,
@@ -53,6 +69,73 @@ export class Runtime {
     }
 
     return undefined;
+  }
+
+  /**
+   * Call a user-defined TLL function by name (used by stdlib for tool calling).
+   * Returns the function's return value.
+   */
+  public callUserFunction(name: string, args: any[]): any {
+    // Find function index
+    let fnIdx = this.toolRegistry.get(name);
+    if (fnIdx === undefined) {
+      for (let i = 0; i < this.program.functions.length; i++) {
+        if (this.program.functions[i].name === name) {
+          fnIdx = i;
+          break;
+        }
+      }
+    }
+    if (fnIdx === undefined) {
+      throw new Error(`callUserFunction: function '${name}' not found`);
+    }
+
+    const fn = this.program.functions[fnIdx];
+    const frame: CallFrame = {
+      function: fn,
+      pc: 0,
+      registers: new Array(256).fill(undefined),
+      locals: new Array(fn.localCount).fill(undefined),
+      argStack: [],
+      tryStack: [],
+      returnReg: 0,
+    };
+    // Set parameters
+    for (let i = 0; i < args.length && i < fn.paramCount; i++) {
+      frame.locals[i] = args[i];
+    }
+
+    // Save current call stack and execute function in isolation
+    const savedStack = this.callStack;
+    this.callStack = [frame];
+
+    let returnValue: any = undefined;
+    while (this.callStack.length > 0) {
+      const cur = this.callStack[this.callStack.length - 1];
+      if (cur.pc >= cur.function.instructions.length) {
+        // Function ended without explicit return
+        this.callStack.pop();
+        break;
+      }
+      const inst = cur.function.instructions[cur.pc];
+      cur.pc++;
+      if (inst.op === OpCode.RET) {
+        returnValue = cur.registers[inst.operands[0]];
+        this.callStack.pop();
+        break;
+      }
+      const result = this.executeInstruction(inst, cur);
+      if (result === 'HALT') break;
+    }
+
+    // Restore call stack
+    this.callStack = savedStack;
+    return returnValue;
+  }
+
+  /** Get list of registered tool function names */
+  public getToolNames(): string[] {
+    return Array.from(this.toolRegistry.keys());
   }
 
   private executeInstruction(inst: Instruction, frame: CallFrame): string | void {

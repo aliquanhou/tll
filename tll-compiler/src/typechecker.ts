@@ -134,6 +134,17 @@ export class TypeChecker {
         fnDecl = stmt;
       } else if (stmt.kind === 'Export' && stmt.declaration.kind === 'Fn') {
         fnDecl = stmt.declaration as AST.FnDeclaration;
+      } else if (stmt.kind === 'Tool') {
+        const tool = stmt as AST.ToolDeclaration;
+        fnDecl = {
+          kind: 'Fn',
+          name: tool.name,
+          params: tool.params,
+          returnType: tool.returnType,
+          body: tool.body,
+          line: tool.line,
+          column: tool.column,
+        } as AST.FnDeclaration;
       }
       if (fnDecl) {
         const paramTypes = fnDecl.params.map(p => this.resolveType(p.type));
