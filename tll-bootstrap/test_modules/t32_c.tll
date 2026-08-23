@@ -1,0 +1,6 @@
+// T3.2 Module C: depends on A (creates circular dependency A->B->C->A)
+from "./t32_a" import a_value
+
+export fn c_value() -> int {
+    return a_value() + 3
+}

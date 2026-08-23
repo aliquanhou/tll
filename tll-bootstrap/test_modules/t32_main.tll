@@ -1,0 +1,6 @@
+// T3.2 Main: triggers circular dependency A->B->C->A
+from "./t32_a" import a_value
+
+io.println("T3.2 Circular dependency test")
+let result = a_value()
+io.println("Result: " + convert.toString(result))

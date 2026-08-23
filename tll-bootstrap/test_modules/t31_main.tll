@@ -1,0 +1,12 @@
+// T3.1 Main: depends on A (main -> A -> B -> C)
+from "./a" import a_value
+
+io.println("T3.1 Multi-level dependency test")
+let result = a_value()
+io.println("Result: " + convert.toString(result))
+// Expected: 10 + 20 + 30 = 60
+if result == 60 {
+    io.println("PASS: T3.1 multi-level dependency")
+} else {
+    io.println("FAIL: expected 60, got " + convert.toString(result))
+}

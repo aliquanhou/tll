@@ -1,0 +1,4 @@
+// T3.1 Module C: deepest dependency
+export fn c_value() -> int {
+    return 10
+}

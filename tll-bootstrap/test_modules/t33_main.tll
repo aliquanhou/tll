@@ -1,0 +1,8 @@
+// T3.3 Main: imports hello() from both A and B (same name)
+// TLL currently may not support renamed imports, so test what happens
+from "./t33_a" import hello
+from "./t33_b" import hello
+
+io.println("T3.3 Same-name function test")
+io.println(hello())
+// Expected: either "Hello from A" or "Hello from B" (last import wins), or error

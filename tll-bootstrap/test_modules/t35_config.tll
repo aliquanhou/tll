@@ -1,0 +1,4 @@
+// T3.5 config module: exports a constant
+export const VERSION = "1.0.0"
+export const AUTHOR = "TLL Team"
+export const MAX_RETRIES = 3

@@ -1,0 +1,15 @@
+// T3.5 Main: cross-module constant reference
+from "./t35_config" import VERSION
+from "./t35_config" import AUTHOR
+from "./t35_config" import MAX_RETRIES
+
+io.println("T3.5 Cross-module constant test")
+io.println("VERSION: " + VERSION)
+io.println("AUTHOR: " + AUTHOR)
+io.println("MAX_RETRIES: " + convert.toString(MAX_RETRIES))
+
+if VERSION == "1.0.0" && AUTHOR == "TLL Team" && MAX_RETRIES == 3 {
+    io.println("PASS: T3.5 cross-module constant")
+} else {
+    io.println("FAIL: constants not imported correctly")
+}

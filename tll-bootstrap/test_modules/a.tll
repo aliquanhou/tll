@@ -1,0 +1,6 @@
+// T3.1 Module A: depends on B
+from "./b" import b_value
+
+export fn a_value() -> int {
+    return b_value() + 30
+}

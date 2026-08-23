@@ -1,0 +1,10 @@
+// T3.4 Cross-module call test compiler
+from "./lib/linker" import linkAndCompile
+
+io.println("=== T3.4: Cross-module call test ===")
+let bytecode = linkAndCompile("test_modules/t34_main.tll")
+io.println("Functions: " + convert.toString(arrays.length(bytecode.functions)))
+let jsonStr = json.stringify(bytecode)
+fs.writeFile("test_modules/t34_output.tllbc", jsonStr)
+io.println("Saved to test_modules/t34_output.tllbc")
+io.println("=== Done ===")

@@ -1,0 +1,4 @@
+// T3.3 Module B: also defines hello() (same name, different module)
+export fn hello() -> string {
+    return "Hello from B"
+}

@@ -1,0 +1,6 @@
+// T3.2 Module B: depends on C
+from "./t32_c" import c_value
+
+export fn b_value() -> int {
+    return c_value() + 2
+}

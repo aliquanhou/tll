@@ -1,0 +1,15 @@
+// T3.4 Main: cross-module function call
+from "./t34_math" import add
+from "./t34_math" import multiply
+
+io.println("T3.4 Cross-module call test")
+let sum = add(10, 20)
+io.println("add(10, 20) = " + convert.toString(sum))
+let product = multiply(5, 6)
+io.println("multiply(5, 6) = " + convert.toString(product))
+
+if sum == 30 && product == 30 {
+    io.println("PASS: T3.4 cross-module call")
+} else {
+    io.println("FAIL: expected sum=30, product=30")
+}

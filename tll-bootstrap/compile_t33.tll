@@ -1,0 +1,10 @@
+// T3.3 Same-name function test compiler
+from "./lib/linker" import linkAndCompile
+
+io.println("=== T3.3: Same-name function test ===")
+let bytecode = linkAndCompile("test_modules/t33_main.tll")
+io.println("Functions: " + convert.toString(arrays.length(bytecode.functions)))
+let jsonStr = json.stringify(bytecode)
+fs.writeFile("test_modules/t33_output.tllbc", jsonStr)
+io.println("Saved to test_modules/t33_output.tllbc")
+io.println("=== Done ===")
