@@ -184,6 +184,8 @@ export fn linkAndCompile(entryFile: string) -> map {
         let source = fs.readFile(filePath)
         // Remove export keyword (functions are now in the same combined file)
         source = strings.replaceAll(source, "export fn ", "fn ")
+        source = strings.replaceAll(source, "export const ", "const ")
+        source = strings.replaceAll(source, "export let ", "let ")
         let lines = strings.split(source, "\n")
         let k = 0
         while k < arrays.length(lines) {
