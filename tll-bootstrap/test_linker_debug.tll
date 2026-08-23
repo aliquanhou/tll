@@ -1,52 +1,23 @@
-// Debug Linker test
-from "./lib/lexer" import tokenize
-from "./lib/parser" import parse
-from "./lib/codegen" import compile
+// Test linkAndCompile with error handling
+from "./lib/linker" import linkAndCompile
 
-io.println("=== Debug Linker Test ===")
+io.println("=== LinkAndCompile Debug Test ===")
 io.println("")
 
-// Manually compile test_mod_b.tll (single file, no linking)
-io.println("[1] Compiling test_mod_b.tll directly...")
-let source = fs.readFile("test_mod_b.tll")
-let tokens = tokenize(source)
-let ast = parse(tokens)
-io.println("  Statements: " + convert.toString(arrays.length(ast.statements)))
-let bc = compile(ast)
-io.println("  Functions: " + convert.toString(arrays.length(bc.functions)))
-io.println("  Direct compile SUCCESS")
-io.println("")
-
-// Now test merged AST
-io.println("[2] Testing merged AST...")
-let sourceA = fs.readFile("test_mod_a.tll")
-let tokensA = tokenize(sourceA)
-let astA = parse(tokensA)
-io.println("  Module A statements: " + convert.toString(arrays.length(astA.statements)))
-
-let sourceB = fs.readFile("test_mod_b.tll")
-let tokensB = tokenize(sourceB)
-let astB = parse(tokensB)
-io.println("  Module B statements: " + convert.toString(arrays.length(astB.statements)))
-
-// Merge
-let allStmts: list = []
-let i = 0
-while i < arrays.length(astA.statements) {
-    arrays.push(allStmts, arrays.get(astA.statements, i))
-    i = i + 1
+try {
+    io.println("Calling linkAndCompile...")
+    let bytecode = linkAndCompile("compiler.tll")
+    io.println("linkAndCompile returned!")
+    io.println("bytecode type: " + convert.typeOf(bytecode))
+    if bytecode != null {
+        io.println("Functions: " + convert.toString(arrays.length(bytecode.functions)))
+        io.println("Constants: " + convert.toString(arrays.length(bytecode.constants)))
+    } else {
+        io.println("bytecode is null!")
+    }
+} catch err {
+    io.println("ERROR caught: " + convert.toString(err))
 }
-i = 0
-while i < arrays.length(astB.statements) {
-    arrays.push(allStmts, arrays.get(astB.statements, i))
-    i = i + 1
-}
-io.println("  Merged statements: " + convert.toString(arrays.length(allStmts)))
 
-let mergedAst = { kind: "Program", statements: allStmts }
-io.println("  Compiling merged AST...")
-let mergedBc = compile(mergedAst)
-io.println("  Functions: " + convert.toString(arrays.length(mergedBc.functions)))
-io.println("  Merged compile SUCCESS")
 io.println("")
-io.println("=== Debug Complete ===")
+io.println("=== Test Complete ===")
