@@ -127,7 +127,11 @@ export class Parser {
       case TokenType.Tool:
         return this.parseToolDeclaration();
       case TokenType.Workflow:
-        return this.parseWorkflowDeclaration();
+        // workflow Name { ... } is a declaration; workflow.xxx() is an expression
+        if (this.tokens[this.pos + 1]?.type === TokenType.Ident) {
+          return this.parseWorkflowDeclaration();
+        }
+        return this.parseExpressionStatement();
       case TokenType.Intent:
         return this.parseIntentDeclaration();
       case TokenType.Entity:
@@ -1054,6 +1058,11 @@ export class Parser {
         this.advance();
         return { kind: 'Ident', name: 'agent', line: token.line, column: token.column };
 
+      case TokenType.Workflow:
+        // 'workflow' as identifier (e.g. workflow.define())
+        this.advance();
+        return { kind: 'Ident', name: 'workflow', line: token.line, column: token.column };
+
       case TokenType.Ident:
         this.advance();
         // Check for struct literal: TypeName { field: value }
@@ -1109,9 +1118,10 @@ export class Parser {
       return { kind: 'BlockExpr', statements: [], line: start.line, column: start.column };
     }
 
-    // Check if this looks like a map: ident : expr
+    // Check if this looks like a map: key : expr (allow keywords as keys, e.g. from, to)
     const firstToken = this.peek();
-    if (firstToken.type === TokenType.Ident && this.peekAtNext()?.type === TokenType.Colon) {
+    if (firstToken.type !== TokenType.RBrace && firstToken.type !== TokenType.Semicolon &&
+        this.peekAtNext()?.type === TokenType.Colon) {
       // Map literal
       this.pos = savePos;
       return this.parseMapLiteral();
@@ -1145,9 +1155,14 @@ export class Parser {
 
     while (!this.check(TokenType.RBrace) && !this.isAtEnd()) {
       let key: AST.Expression;
-      if (this.check(TokenType.Ident)) {
+      const curToken = this.peek();
+      // Allow identifiers and keywords as map keys (e.g. { from: ..., to: ... })
+      if (curToken.type === TokenType.Ident ||
+          (curToken.type !== TokenType.RBrace && curToken.type !== TokenType.Colon &&
+           curToken.type !== TokenType.Comma && curToken.type !== TokenType.LBrace &&
+           curToken.type !== TokenType.LBracket && curToken.type !== TokenType.LParen)) {
         const keyToken = this.advance();
-        key = { kind: 'String', value: keyToken.value, raw: false, line: keyToken.line, column: keyToken.column };
+        key = { kind: 'String', value: keyToken.value || keyToken.type, raw: false, line: keyToken.line, column: keyToken.column };
       } else {
         key = this.parseExpression();
       }

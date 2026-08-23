@@ -664,6 +664,132 @@ const agent: StdLibModule = {
   },
 };
 
+// ─── workflow (state machine) ──────────────────────────────────────────────
+interface WorkflowTransition {
+  from: string;
+  to: string;
+  event?: string;
+  action?: string;
+}
+
+interface WorkflowDefinition {
+  states: string[];
+  initial: string;
+  transitions: WorkflowTransition[];
+}
+
+interface WorkflowInstance {
+  name: string;
+  currentState: string;
+  history: string[];
+}
+
+const workflowDefinitions: Map<string, WorkflowDefinition> = new Map();
+const workflowInstances: Map<number, WorkflowInstance> = new Map();
+let workflowInstanceIdCounter = 0;
+
+const workflow: StdLibModule = {
+  define: (name: any, config: any) => {
+    const wfName = String(name);
+    if (!config || typeof config !== 'object') {
+      throw new Error('workflow.define: config must be an object with states, initial, transitions');
+    }
+    const states = Array.isArray(config.states) ? config.states.map(String) : [];
+    const initial = String(config.initial || (states.length > 0 ? states[0] : ''));
+    const transitions: WorkflowTransition[] = [];
+    if (Array.isArray(config.transitions)) {
+      for (const t of config.transitions) {
+        if (t && typeof t === 'object') {
+          transitions.push({
+            from: String(t.from || ''),
+            to: String(t.to || ''),
+            event: t.event !== undefined ? String(t.event) : undefined,
+            action: t.action !== undefined ? String(t.action) : undefined,
+          });
+        }
+      }
+    }
+    workflowDefinitions.set(wfName, { states, initial, transitions });
+    return null;
+  },
+  start: (name: any) => {
+    const wfName = String(name);
+    const def = workflowDefinitions.get(wfName);
+    if (!def) {
+      throw new Error(`workflow.start: workflow '${wfName}' not defined. Use workflow.define() first.`);
+    }
+    const id = ++workflowInstanceIdCounter;
+    workflowInstances.set(id, {
+      name: wfName,
+      currentState: def.initial,
+      history: [def.initial],
+    });
+    return id;
+  },
+  getState: (instanceId: any) => {
+    const id = Number(instanceId);
+    const inst = workflowInstances.get(id);
+    if (!inst) {
+      throw new Error(`workflow.getState: instance ${id} not found`);
+    }
+    return inst.currentState;
+  },
+  transition: (instanceId: any, event: any) => {
+    const id = Number(instanceId);
+    const eventName = String(event);
+    const inst = workflowInstances.get(id);
+    if (!inst) {
+      throw new Error(`workflow.transition: instance ${id} not found`);
+    }
+    const def = workflowDefinitions.get(inst.name);
+    if (!def) {
+      throw new Error(`workflow.transition: workflow '${inst.name}' not defined`);
+    }
+    // Find matching transition: match by event name, or by target state name
+    for (const t of def.transitions) {
+      const matchesFrom = t.from === inst.currentState;
+      const matchesEvent = t.event !== undefined && t.event === eventName;
+      const matchesTo = t.to === eventName;
+      if (matchesFrom && (matchesEvent || matchesTo)) {
+        inst.currentState = t.to;
+        inst.history.push(t.to);
+        return t.to;
+      }
+    }
+    throw new Error(`workflow.transition: no valid transition from '${inst.currentState}' for event '${eventName}'`);
+  },
+  canTransition: (instanceId: any, event: any) => {
+    const id = Number(instanceId);
+    const eventName = String(event);
+    const inst = workflowInstances.get(id);
+    if (!inst) return false;
+    const def = workflowDefinitions.get(inst.name);
+    if (!def) return false;
+    for (const t of def.transitions) {
+      const matchesFrom = t.from === inst.currentState;
+      const matchesEvent = t.event !== undefined && t.event === eventName;
+      const matchesTo = t.to === eventName;
+      if (matchesFrom && (matchesEvent || matchesTo)) return true;
+    }
+    return false;
+  },
+  list: () => {
+    return Array.from(workflowDefinitions.keys());
+  },
+  getHistory: (instanceId: any) => {
+    const id = Number(instanceId);
+    const inst = workflowInstances.get(id);
+    if (!inst) return [];
+    return inst.history;
+  },
+  getStates: (name: any) => {
+    const wfName = String(name);
+    const def = workflowDefinitions.get(wfName);
+    if (!def) return [];
+    return def.states;
+  },
+};
+
 // ─── Module Registry ───────────────────────────────────────────────────────
 export const stdlibModules: Record<string, StdLibModule> = {
   io,
@@ -675,6 +801,7 @@ export const stdlibModules: Record<string, StdLibModule> = {
   fs,
   http,
   agent,
+  workflow,
 };
 
 /**
