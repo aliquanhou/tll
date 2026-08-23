@@ -1,0 +1,86 @@
+from "./lib/lexer" import tokenize
+from "./lib/parser" import parse
+
+io.println("=== TLL Parser Self-hosting Test ===")
+io.println("")
+
+// Helper: print AST node recursively
+fn printNode(node: map, indent: int) -> void {
+    let prefix = ""
+    let i = 0
+    while i < indent {
+        prefix = prefix + "  "
+        i = i + 1
+    }
+    if node == null {
+        io.println(prefix + "null")
+        return
+    }
+    let kind = node["kind"]
+    io.print(prefix + kind)
+    if kind == "Ident" {
+        io.print(" '" + node["name"] + "'")
+    } else if kind == "Int" || kind == "Float" || kind == "String" {
+        io.print(" '" + node["value"] + "'")
+    } else if kind == "Bool" {
+        io.print(" " + convert.toString(node["value"]))
+    } else if kind == "Let" || kind == "Const" {
+        io.print(" " + node["name"])
+    } else if kind == "Fn" {
+        io.print(" " + node["name"])
+    } else if kind == "Binary" {
+        io.print(" '" + node["operator"] + "'")
+    } else if kind == "Call" {
+        io.print("()")
+    } else if kind == "Member" {
+        io.print("." + node["property"])
+    }
+    io.println("")
+}
+
+fn runTest(name: string, code: string) -> void {
+    io.println("--- " + name + " ---")
+    io.println("Input: " + code)
+    let tokens = tokenize(code)
+    let ast = parse(tokens)
+    let stmts = ast["statements"]
+    io.println("Statements: " + convert.toString(arrays.length(stmts)))
+    let i = 0
+    while i < arrays.length(stmts) {
+        printNode(arrays.get(stmts, i), 1)
+        i = i + 1
+    }
+    io.println("")
+}
+
+// Test 1: Simple let
+runTest("Test 1: let statement", "let x = 5")
+
+// Test 2: Arithmetic expression
+runTest("Test 2: arithmetic", "let x = 1 + 2 * 3")
+
+// Test 3: Function declaration
+runTest("Test 3: function", "fn add(a: int, b: int) -> int { return a + b }")
+
+// Test 4: If statement
+runTest("Test 4: if-else", "if x > 0 { return 1 } else { return 0 }")
+
+// Test 5: While loop
+runTest("Test 5: while", "while i < 10 { i = i + 1 }")
+
+// Test 6: Function call
+runTest("Test 6: call", "let result = add(3, 4)")
+
+// Test 7: Array literal
+runTest("Test 7: array", "let arr = [1, 2, 3]")
+
+// Test 8: Map literal
+runTest("Test 8: map", "let m = {name: \"TLL\", version: 1}")
+
+// Test 9: String and comparison
+runTest("Test 9: string+compare", "let s = \"hello\" == \"world\"")
+
+// Test 10: Logical operators
+runTest("Test 10: logical", "let r = true && false || true")
+
+io.println("=== All parser tests completed ===")

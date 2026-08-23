@@ -1,0 +1,692 @@
+// TLL Parser - Self-hosting Bootstrap (v1.0 Phase 2)
+// Recursive descent + Pratt parser, rewritten from TypeScript
+// Uses global state (TLL functions cannot modify captured vars)
+
+// ============ Parser state ============
+let parse_tokens: list = []
+let parse_pos = 0
+
+// ============ Token helpers ============
+
+fn parse_peek() -> map {
+    return arrays.get(parse_tokens, parse_pos)
+}
+
+fn parse_previous() -> map {
+    return arrays.get(parse_tokens, parse_pos - 1)
+}
+
+fn parse_advance() -> map {
+    if !parse_isAtEnd() {
+        parse_pos = parse_pos + 1
+    }
+    return parse_previous()
+}
+
+fn parse_isAtEnd() -> bool {
+    let t = parse_peek()
+    return t["type"] == "EOF"
+}
+
+fn parse_check(tkType: string) -> bool {
+    if parse_isAtEnd() {
+        return false
+    }
+    let t = parse_peek()
+    return t["type"] == tkType
+}
+
+fn parse_match(tkType: string) -> bool {
+    if parse_check(tkType) {
+        parse_advance()
+        return true
+    }
+    return false
+}
+
+fn parse_expect(tkType: string, message: string) -> map {
+    if parse_check(tkType) {
+        return parse_advance()
+    }
+    let t = parse_peek()
+    throw "Parse error: expected " + message + ", got '" + t["value"] + "' (" + t["type"] + ") at line " + convert.toString(t["line"])
+}
+
+// ============ AST helpers ============
+
+fn makeNode(kind: string, line: int, column: int) -> map {
+    return { kind: kind, line: line, column: column }
+}
+
+// ============ Entry point ============
+
+export fn parse(tokens: list) -> map {
+    parse_tokens = tokens
+    parse_pos = 0
+    let statements: list = []
+    while !parse_isAtEnd() {
+        let stmt = parseStatement()
+        if stmt != null {
+            arrays.push(statements, stmt)
+        }
+    }
+    return { kind: "Program", statements: statements }
+}
+
+// ============ Statement parsing ============
+
+fn parseStatement() -> map {
+    if parse_isAtEnd() {
+        return null
+    }
+    let t = parse_peek()
+    let stmtType = t["type"]
+
+    if stmtType == "LET" || stmtType == "MUT" { return parseLetStatement() }
+    if stmtType == "CONST" { return parseConstStatement() }
+    if stmtType == "FN" { return parseFnDeclaration() }
+    if stmtType == "RETURN" { return parseReturnStatement() }
+    if stmtType == "IF" { return parseIfStatement() }
+    if stmtType == "WHILE" { return parseWhileStatement() }
+    if stmtType == "FOR" { return parseForStatement() }
+    if stmtType == "BREAK" { return parseBreakStatement() }
+    if stmtType == "CONTINUE" { return parseContinueStatement() }
+    if stmtType == "TRY" { return parseTryStatement() }
+    if stmtType == "THROW" { return parseThrowStatement() }
+    if stmtType == "IMPORT" { return parseImportStatement() }
+    if stmtType == "FROM" { return parseFromImportStatement() }
+    if stmtType == "EXPORT" { return parseExportStatement() }
+    if stmtType == "LBRACE" { return parseBlockStatement() }
+    if stmtType == "SEMICOLON" { parse_advance(); return null }
+
+    return parseExpressionStatement()
+}
+
+fn parseLetStatement() -> map {
+    let t = parse_advance() // let/mut
+    let nameTok = parse_expect("IDENT", "variable name")
+    let name = nameTok["value"]
+    let typeAnnotation: map = null
+    if parse_match("COLON") {
+        typeAnnotation = parseType()
+    }
+    parse_expect("EQ", "'='")
+    let value = parseExpression()
+    let node = makeNode("Let", t["line"], t["column"])
+    node["name"] = name
+    node["value"] = value
+    node["isConst"] = false
+    return node
+}
+
+fn parseConstStatement() -> map {
+    let t = parse_advance() // const
+    let nameTok = parse_expect("IDENT", "constant name")
+    let name = nameTok["value"]
+    let typeAnnotation: map = null
+    if parse_match("COLON") {
+        typeAnnotation = parseType()
+    }
+    parse_expect("EQ", "'='")
+    let value = parseExpression()
+    let node = makeNode("Const", t["line"], t["column"])
+    node["name"] = name
+    node["value"] = value
+    node["isConst"] = true
+    return node
+}
+
+fn parseFnDeclaration() -> map {
+    let t = parse_advance() // fn
+    let nameTok = parse_expect("IDENT", "function name")
+    let name = nameTok["value"]
+    parse_expect("LPAREN", "'('")
+    let params = parseParams()
+    parse_expect("RPAREN", "')'")
+    let returnType: map = null
+    if parse_match("ARROW") {
+        returnType = parseType()
+    }
+    let body = parseBlockStatement()
+    let node = makeNode("Fn", t["line"], t["column"])
+    node["name"] = name
+    node["params"] = params
+    node["returnType"] = returnType
+    node["body"] = body
+    return node
+}
+
+fn parseParams() -> list {
+    let params: list = []
+    if parse_check("RPAREN") {
+        return params
+    }
+    while true {
+        let nameTok = parse_expect("IDENT", "parameter name")
+        let pname = nameTok["value"]
+        let ptype: map = null
+        if parse_match("COLON") {
+            ptype = parseType()
+        }
+        let param = { name: pname, type: ptype }
+        arrays.push(params, param)
+        if !parse_match("COMMA") {
+            break
+        }
+    }
+    return params
+}
+
+fn parseReturnStatement() -> map {
+    let t = parse_advance() // return
+    let value: map = null
+    if !parse_check("SEMICOLON") && !parse_check("RBRACE") && !parse_isAtEnd() {
+        value = parseExpression()
+    }
+    let node = makeNode("Return", t["line"], t["column"])
+    node["value"] = value
+    return node
+}
+
+fn parseIfStatement() -> map {
+    let t = parse_advance() // if
+    let condition = parseExpression()
+    let consequent = parseBlockStatement()
+    let alternate: map = null
+    if parse_match("ELSE") {
+        if parse_check("IF") {
+            alternate = parseIfStatement()
+        } else {
+            alternate = parseBlockStatement()
+        }
+    }
+    let node = makeNode("If", t["line"], t["column"])
+    node["condition"] = condition
+    node["consequent"] = consequent
+    node["alternate"] = alternate
+    return node
+}
+
+fn parseWhileStatement() -> map {
+    let t = parse_advance() // while
+    let condition = parseExpression()
+    let body = parseBlockStatement()
+    let node = makeNode("While", t["line"], t["column"])
+    node["condition"] = condition
+    node["body"] = body
+    return node
+}
+
+fn parseForStatement() -> map {
+    let t = parse_advance() // for
+    let varTok = parse_expect("IDENT", "loop variable")
+    let varName = varTok["value"]
+    parse_expect("IN", "'in'")
+    let iterable = parseExpression()
+    let body = parseBlockStatement()
+    let node = makeNode("For", t["line"], t["column"])
+    node["variable"] = varName
+    node["iterable"] = iterable
+    node["body"] = body
+    return node
+}
+
+fn parseBreakStatement() -> map {
+    let t = parse_advance() // break
+    return makeNode("Break", t["line"], t["column"])
+}
+
+fn parseContinueStatement() -> map {
+    let t = parse_advance() // continue
+    return makeNode("Continue", t["line"], t["column"])
+}
+
+fn parseTryStatement() -> map {
+    let t = parse_advance() // try
+    let block = parseBlockStatement()
+    let catchParam: string = ""
+    let catchBlock: map = null
+    if parse_match("CATCH") {
+        if parse_check("IDENT") {
+            let ct = parse_advance()
+            catchParam = ct["value"]
+        }
+        catchBlock = parseBlockStatement()
+    }
+    let finallyBlock: map = null
+    if parse_match("FINALLY") {
+        finallyBlock = parseBlockStatement()
+    }
+    let node = makeNode("Try", t["line"], t["column"])
+    node["block"] = block
+    node["catchParam"] = catchParam
+    node["catchBlock"] = catchBlock
+    node["finallyBlock"] = finallyBlock
+    return node
+}
+
+fn parseThrowStatement() -> map {
+    let t = parse_advance() // throw
+    let value = parseExpression()
+    let node = makeNode("Throw", t["line"], t["column"])
+    node["value"] = value
+    return node
+}
+
+fn parseImportStatement() -> map {
+    let t = parse_advance() // import
+    let names: list = []
+    if parse_check("IDENT") {
+        let nt = parse_advance()
+        arrays.push(names, nt["value"])
+        while parse_match("COMMA") {
+            let nt2 = parse_expect("IDENT", "import name")
+            arrays.push(names, nt2["value"])
+        }
+    }
+    let modulePath = ""
+    if parse_match("FROM") {
+        let mt = parse_expect("STRING", "module path")
+        modulePath = mt["value"]
+    } else {
+        let mt = parse_expect("STRING", "module path")
+        modulePath = mt["value"]
+    }
+    let node = makeNode("Import", t["line"], t["column"])
+    node["names"] = names
+    node["modulePath"] = modulePath
+    return node
+}
+
+fn parseFromImportStatement() -> map {
+    let t = parse_advance() // from
+    let mt = parse_expect("STRING", "module path")
+    let modulePath = mt["value"]
+    parse_expect("IMPORT", "'import'")
+    let names: list = []
+    if parse_check("IDENT") {
+        let nt = parse_advance()
+        arrays.push(names, nt["value"])
+        while parse_match("COMMA") {
+            let nt2 = parse_expect("IDENT", "import name")
+            arrays.push(names, nt2["value"])
+        }
+    }
+    let node = makeNode("Import", t["line"], t["column"])
+    node["names"] = names
+    node["modulePath"] = modulePath
+    return node
+}
+
+fn parseExportStatement() -> map {
+    let t = parse_advance() // export
+    let declaration = parseStatement()
+    let node = makeNode("Export", t["line"], t["column"])
+    node["declaration"] = declaration
+    return node
+}
+
+fn parseBlockStatement() -> map {
+    let t = parse_expect("LBRACE", "'{'")
+    let statements: list = []
+    while !parse_check("RBRACE") && !parse_isAtEnd() {
+        let stmt = parseStatement()
+        if stmt != null {
+            arrays.push(statements, stmt)
+        }
+    }
+    parse_expect("RBRACE", "'}'")
+    let node = makeNode("Block", t["line"], t["column"])
+    node["statements"] = statements
+    return node
+}
+
+fn parseExpressionStatement() -> map {
+    let t = parse_peek()
+    let expr = parseExpression()
+    let node = makeNode("ExpressionStatement", t["line"], t["column"])
+    node["expression"] = expr
+    return node
+}
+
+// ============ Type parsing ============
+
+fn parseType() -> map {
+    return parsePrimaryType()
+}
+
+fn parsePrimaryType() -> map {
+    let t = parse_peek()
+    if parse_check("IDENT") {
+        let nt = parse_advance()
+        let node = makeNode("TypeRef", t["line"], t["column"])
+        node["name"] = nt["value"]
+        return node
+    }
+    if parse_match("LPAREN") {
+        // function type or tuple - simplified
+        parse_expect("RPAREN", "')'")
+        let node = makeNode("TypeRef", t["line"], t["column"])
+        node["name"] = "void"
+        return node
+    }
+    let nt = parse_advance()
+    let node = makeNode("TypeRef", t["line"], t["column"])
+    node["name"] = nt["value"]
+    return node
+}
+
+// ============ Expression parsing (Pratt) ============
+
+fn parseExpression() -> map {
+    return parsePipe()
+}
+
+fn parsePipe() -> map {
+    let left = parseAssignment()
+    while parse_match("PIPE") {
+        let t = parse_previous()
+        let right = parseAssignment()
+        let node = makeNode("Pipe", t["line"], t["column"])
+        node["left"] = left
+        node["right"] = right
+        left = node
+    }
+    return left
+}
+
+fn parseAssignment() -> map {
+    let left = parseOr()
+    if parse_match("EQ") || parse_match("PLUSEQ") || parse_match("MINUSEQ") || parse_match("STAREQ") || parse_match("SLASHEQ") || parse_match("PERCENTEQ") {
+        let t = parse_previous()
+        let op = t["value"]
+        let right = parseAssignment()
+        let node = makeNode("Binary", t["line"], t["column"])
+        node["operator"] = op
+        node["left"] = left
+        node["right"] = right
+        return node
+    }
+    return left
+}
+
+fn parseOr() -> map {
+    let left = parseAnd()
+    while parse_match("OR") {
+        let t = parse_previous()
+        let right = parseAnd()
+        let node = makeNode("Binary", t["line"], t["column"])
+        node["operator"] = "||"
+        node["left"] = left
+        node["right"] = right
+        left = node
+    }
+    return left
+}
+
+fn parseAnd() -> map {
+    let left = parseEquality()
+    while parse_match("AND") {
+        let t = parse_previous()
+        let right = parseEquality()
+        let node = makeNode("Binary", t["line"], t["column"])
+        node["operator"] = "&&"
+        node["left"] = left
+        node["right"] = right
+        left = node
+    }
+    return left
+}
+
+fn parseEquality() -> map {
+    let left = parseComparison()
+    while parse_match("EQEQ") || parse_match("NEQ") {
+        let t = parse_previous()
+        let op = t["value"]
+        let right = parseComparison()
+        let node = makeNode("Binary", t["line"], t["column"])
+        node["operator"] = op
+        node["left"] = left
+        node["right"] = right
+        left = node
+    }
+    return left
+}
+
+fn parseComparison() -> map {
+    let left = parseRange()
+    while parse_match("LT") || parse_match("GT") || parse_match("LE") || parse_match("GE") {
+        let t = parse_previous()
+        let op = t["value"]
+        let right = parseRange()
+        let node = makeNode("Binary", t["line"], t["column"])
+        node["operator"] = op
+        node["left"] = left
+        node["right"] = right
+        left = node
+    }
+    return left
+}
+
+fn parseRange() -> map {
+    let left = parseAddition()
+    if parse_match("RANGE") || parse_match("RANGEINCLUSIVE") {
+        let t = parse_previous()
+        let inclusive = t["type"] == "RANGEINCLUSIVE"
+        let right = parseAddition()
+        let node = makeNode("Range", t["line"], t["column"])
+        node["start"] = left
+        node["end"] = right
+        node["inclusive"] = inclusive
+        return node
+    }
+    return left
+}
+
+fn parseAddition() -> map {
+    let left = parseMultiplication()
+    while parse_match("PLUS") || parse_match("MINUS") {
+        let t = parse_previous()
+        let op = t["value"]
+        let right = parseMultiplication()
+        let node = makeNode("Binary", t["line"], t["column"])
+        node["operator"] = op
+        node["left"] = left
+        node["right"] = right
+        left = node
+    }
+    return left
+}
+
+fn parseMultiplication() -> map {
+    let left = parsePower()
+    while parse_match("STAR") || parse_match("SLASH") || parse_match("PERCENT") {
+        let t = parse_previous()
+        let op = t["value"]
+        let right = parsePower()
+        let node = makeNode("Binary", t["line"], t["column"])
+        node["operator"] = op
+        node["left"] = left
+        node["right"] = right
+        left = node
+    }
+    return left
+}
+
+fn parsePower() -> map {
+    let left = parseUnary()
+    if parse_match("POWER") {
+        let t = parse_previous()
+        let right = parsePower()
+        let node = makeNode("Binary", t["line"], t["column"])
+        node["operator"] = "**"
+        node["left"] = left
+        node["right"] = right
+        return node
+    }
+    return left
+}
+
+fn parseUnary() -> map {
+    if parse_match("MINUS") || parse_match("BANG") {
+        let t = parse_previous()
+        let op = t["value"]
+        let operand = parseUnary()
+        let node = makeNode("Unary", t["line"], t["column"])
+        node["operator"] = op
+        node["operand"] = operand
+        return node
+    }
+    return parsePostfix()
+}
+
+fn parsePostfix() -> map {
+    let expr = parsePrimary()
+    while true {
+        if parse_match("LPAREN") {
+            let t = parse_previous()
+            let args = parseArgs()
+            parse_expect("RPAREN", "')'")
+            let node = makeNode("Call", t["line"], t["column"])
+            node["callee"] = expr
+            node["args"] = args
+            expr = node
+        } else if parse_match("DOT") {
+            let t = parse_previous()
+            let pt = parse_expect("IDENT", "property name")
+            let node = makeNode("Member", t["line"], t["column"])
+            node["object"] = expr
+            node["property"] = pt["value"]
+            expr = node
+        } else if parse_match("LBRACKET") {
+            let t = parse_previous()
+            let index = parseExpression()
+            parse_expect("RBRACKET", "']'")
+            let node = makeNode("Index", t["line"], t["column"])
+            node["object"] = expr
+            node["index"] = index
+            expr = node
+        } else {
+            break
+        }
+    }
+    return expr
+}
+
+fn parseArgs() -> list {
+    let args: list = []
+    if parse_check("RPAREN") {
+        return args
+    }
+    while true {
+        arrays.push(args, parseExpression())
+        if !parse_match("COMMA") {
+            break
+        }
+    }
+    return args
+}
+
+fn parsePrimary() -> map {
+    let t = parse_peek()
+
+    if parse_match("INT") {
+        let node = makeNode("Int", t["line"], t["column"])
+        node["value"] = t["value"]
+        return node
+    }
+    if parse_match("FLOAT") {
+        let node = makeNode("Float", t["line"], t["column"])
+        node["value"] = t["value"]
+        return node
+    }
+    if parse_match("STRING") {
+        let node = makeNode("String", t["line"], t["column"])
+        node["value"] = t["value"]
+        return node
+    }
+    if parse_match("RAWSTRING") {
+        let node = makeNode("String", t["line"], t["column"])
+        node["value"] = t["value"]
+        node["raw"] = true
+        return node
+    }
+    if parse_match("TRUE") {
+        let node = makeNode("Bool", t["line"], t["column"])
+        node["value"] = true
+        return node
+    }
+    if parse_match("FALSE") {
+        let node = makeNode("Bool", t["line"], t["column"])
+        node["value"] = false
+        return node
+    }
+    if parse_match("NULL") {
+        let node = makeNode("Null", t["line"], t["column"])
+        return node
+    }
+    if parse_match("LPAREN") {
+        let expr = parseExpression()
+        parse_expect("RPAREN", "')'")
+        return expr
+    }
+    if parse_match("LBRACKET") {
+        return parseArrayLiteral()
+    }
+    if parse_match("LBRACE") {
+        return parseMapLiteral()
+    }
+    if parse_match("IDENT") {
+        let node = makeNode("Ident", t["line"], t["column"])
+        node["name"] = t["value"]
+        return node
+    }
+
+    throw "Parse error: unexpected token '" + t["value"] + "' (" + t["type"] + ") at line " + convert.toString(t["line"])
+}
+
+fn parseArrayLiteral() -> map {
+    let t = parse_previous() // [
+    let elements: list = []
+    if !parse_check("RBRACKET") {
+        while true {
+            arrays.push(elements, parseExpression())
+            if !parse_match("COMMA") {
+                break
+            }
+        }
+    }
+    parse_expect("RBRACKET", "']'")
+    let node = makeNode("Array", t["line"], t["column"])
+    node["elements"] = elements
+    return node
+}
+
+fn parseMapLiteral() -> map {
+    let t = parse_previous() // {
+    let entries: list = []
+    if !parse_check("RBRACE") {
+        while true {
+            let keyTok = parse_peek()
+            let key = ""
+            if parse_check("IDENT") || parse_check("STRING") {
+                let kt = parse_advance()
+                key = kt["value"]
+            } else {
+                let keyExpr = parseExpression()
+                key = keyExpr["value"]
+            }
+            parse_expect("COLON", "':'")
+            let value = parseExpression()
+            let entry = { key: key, value: value }
+            arrays.push(entries, entry)
+            if !parse_match("COMMA") {
+                break
+            }
+        }
+    }
+    parse_expect("RBRACE", "'}'")
+    let node = makeNode("Map", t["line"], t["column"])
+    node["entries"] = entries
+    return node
+}
