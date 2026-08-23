@@ -36,6 +36,7 @@ export type Statement =
   | TypeAliasStatement
   | AgentDeclaration
   | ToolDeclaration
+  | WorkflowDeclaration
   | IntentDeclaration
   | EntityDeclaration
   | ApiDeclaration
@@ -217,6 +218,12 @@ export interface ToolDeclaration extends BaseNode {
   params: Param[];
   returnType?: TypeNode;
   body: BlockStatement;
+}
+
+export interface WorkflowDeclaration extends BaseNode {
+  kind: 'Workflow';
+  name: string;
+  properties: Record<string, Expression>;
 }
 
 export interface IntentDeclaration extends BaseNode {

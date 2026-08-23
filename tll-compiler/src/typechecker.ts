@@ -216,6 +216,7 @@ export class TypeChecker {
       case 'TypeAlias':
       case 'Agent':
       case 'Tool':
+      case 'Workflow':
       case 'Intent':
       case 'Entity':
       case 'Api':

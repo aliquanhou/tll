@@ -122,6 +122,8 @@ export class Parser {
         return this.parseAgentDeclaration();
       case TokenType.Tool:
         return this.parseToolDeclaration();
+      case TokenType.Workflow:
+        return this.parseWorkflowDeclaration();
       case TokenType.Intent:
         return this.parseIntentDeclaration();
       case TokenType.Entity:
@@ -581,6 +583,7 @@ export class Parser {
 
   private parseToolDeclaration(): AST.ToolDeclaration {
     const start = this.advance(); // tool
+    this.match(TokenType.Fn); // optional 'fn' keyword: tool fn name()
     const name = this.expect(TokenType.Ident, "tool name").value;
     this.expect(TokenType.LParen, "'('");
     const params = this.parseParams();
@@ -591,6 +594,15 @@ export class Parser {
     }
     const body = this.parseBlockStatement();
     return { kind: 'Tool', name, params, returnType, body, line: start.line, column: start.column };
+  }
+
+  private parseWorkflowDeclaration(): AST.WorkflowDeclaration {
+    const start = this.advance(); // workflow
+    const name = this.expect(TokenType.Ident, "workflow name").value;
+    this.expect(TokenType.LBrace, "'{'");
+    const properties = this.parsePropertyBlock();
+    this.expect(TokenType.RBrace, "'}'");
+    return { kind: 'Workflow', name, properties, line: start.line, column: start.column };
   }
 
   private parseIntentDeclaration(): AST.IntentDeclaration {
@@ -679,7 +691,10 @@ export class Parser {
     const props: Record<string, AST.Expression> = {};
     while (!this.check(TokenType.RBrace) && !this.isAtEnd()) {
       const key = this.expect(TokenType.Ident, "property name").value;
-      this.expect(TokenType.Eq, "'='");
+      // Support both ':' (modern) and '=' (legacy) as separator
+      if (!this.match(TokenType.Colon) && !this.match(TokenType.Eq)) {
+        this.expect(TokenType.Colon, "':' or '='");
+      }
       const value = this.parseExpression();
       props[key] = value;
       this.match(TokenType.Comma);

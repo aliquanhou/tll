@@ -138,7 +138,7 @@ export class Compiler {
     for (const stmt of program.statements) {
       if (stmt.kind !== 'Fn' && stmt.kind !== 'Struct' && stmt.kind !== 'Enum' &&
           stmt.kind !== 'Interface' && stmt.kind !== 'Import' && stmt.kind !== 'TypeAlias' &&
-          stmt.kind !== 'Agent' && stmt.kind !== 'Tool' && stmt.kind !== 'Intent' &&
+          stmt.kind !== 'Agent' && stmt.kind !== 'Tool' && stmt.kind !== 'Workflow' && stmt.kind !== 'Intent' &&
           stmt.kind !== 'Entity' && stmt.kind !== 'Api' && stmt.kind !== 'Application' &&
           stmt.kind !== 'Package' && stmt.kind !== 'Impl' && stmt.kind !== 'Export') {
         this.compileStatement(stmt);
