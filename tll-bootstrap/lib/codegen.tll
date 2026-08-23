@@ -540,20 +540,11 @@ fn cg_compileCall(expr: map) -> int {
         i = i + 1
     }
 
-    // Check for direct function call - search cg_functions list directly (avoid map issues)
+    // Check for direct function call - use function name map for O(1) lookup
     if expr.callee["kind"] == "Ident" {
         let calleeName = expr.callee["name"]
-        let foundIdx = -1
-        let fi = 0
-        while fi < arrays.length(cg_functions) {
-            let f = arrays.get(cg_functions, fi)
-            if f.name == calleeName {
-                foundIdx = fi
-                fi = arrays.length(cg_functions)
-            }
-            fi = fi + 1
-        }
-        if foundIdx >= 0 {
+        let foundIdx = cg_fnMapGet(calleeName)
+        if foundIdx != null {
             cg_emit(OP_CALL, [resultReg, foundIdx, arrays.length(args)])
             return resultReg
         }
