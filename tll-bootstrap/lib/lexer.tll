@@ -122,7 +122,6 @@ fn isHexDigit(ch: string) -> bool {
 
 fn getKeywordType(word: string) -> string {
     if word == "let" { return TK_LET }
-    if word == "mut" { return TK_MUT }
     if word == "const" { return TK_CONST }
     if word == "fn" { return TK_FN }
     if word == "return" { return TK_RETURN }
@@ -133,52 +132,28 @@ fn getKeywordType(word: string) -> string {
     if word == "in" { return TK_IN }
     if word == "break" { return TK_BREAK }
     if word == "continue" { return TK_CONTINUE }
-    if word == "match" { return TK_MATCH }
-    if word == "case" { return TK_CASE }
-    if word == "default" { return TK_DEFAULT }
     if word == "true" { return TK_TRUE }
     if word == "false" { return TK_FALSE }
     if word == "null" { return TK_NULL }
-    if word == "undefined" { return TK_UNDEFINED }
     if word == "import" { return TK_IMPORT }
     if word == "from" { return TK_FROM }
     if word == "export" { return TK_EXPORT }
     if word == "as" { return TK_AS }
-    if word == "module" { return TK_MODULE }
-    if word == "pub" { return TK_PUB }
-    if word == "priv" { return TK_PRIV }
     if word == "type" { return TK_TYPE }
     if word == "struct" { return TK_STRUCT }
     if word == "enum" { return TK_ENUM }
-    if word == "interface" { return TK_INTERFACE }
-    if word == "impl" { return TK_IMPL }
     if word == "entity" { return TK_ENTITY }
     if word == "api" { return TK_API }
     if word == "application" { return TK_APPLICATION }
     if word == "async" { return TK_ASYNC }
     if word == "await" { return TK_AWAIT }
-    if word == "defer" { return TK_DEFER }
     if word == "try" { return TK_TRY }
     if word == "catch" { return TK_CATCH }
     if word == "finally" { return TK_FINALLY }
     if word == "throw" { return TK_THROW }
-    if word == "Result" { return TK_RESULT }
-    if word == "Option" { return TK_OPTION }
-    if word == "Some" { return TK_SOME }
-    if word == "None" { return TK_NONE }
-    if word == "Ok" { return TK_OK }
-    if word == "Err" { return TK_ERR }
     if word == "agent" { return TK_AGENT }
-    if word == "intent" { return TK_INTENT }
     if word == "tool" { return TK_TOOL }
     if word == "workflow" { return TK_WORKFLOW }
-    if word == "spawn" { return TK_SPAWN }
-    if word == "send" { return TK_SEND }
-    if word == "self" { return TK_SELF }
-    if word == "Self" { return TK_SELF }
-    if word == "super" { return TK_SUPER }
-    if word == "package" { return TK_PACKAGE }
-    if word == "move" { return TK_MOVE }
     return ""
 }
 

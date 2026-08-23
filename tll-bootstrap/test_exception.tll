@@ -1,0 +1,33 @@
+// Test exception handling
+io.println("=== Exception Test ===")
+
+// Test 1: basic try/catch
+try {
+    throw "test error"
+} catch err {
+    io.println("Caught: " + err)
+}
+
+// Test 2: finally block
+let finallyRan = false
+try {
+    io.println("In try")
+} catch e {
+    io.println("In catch")
+} finally {
+    finallyRan = true
+    io.println("In finally")
+}
+io.println("finallyRan: " + convert.toString(finallyRan))
+
+// Test 3: exception propagation
+fn fail() -> void {
+    throw "from fail"
+}
+try {
+    fail()
+} catch e {
+    io.println("Propagated: " + e)
+}
+
+io.println("=== All exception tests passed ===")

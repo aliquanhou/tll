@@ -210,6 +210,15 @@ export fn compile(program: map) -> map {
             let fnObj = { name: stmt.name, paramCount: arrays.length(stmt.params), instructions: [], localCount: 0 }
             arrays.push(cg_functions, fnObj)
         }
+        if kind == "Export" {
+            let decl = stmt.declaration
+            if decl.kind == "Fn" {
+                let fnIdx = arrays.length(cg_functions)
+                cg_fnMapSet(decl.name, fnIdx)
+                let fnObj = { name: decl.name, paramCount: arrays.length(decl.params), instructions: [], localCount: 0 }
+                arrays.push(cg_functions, fnObj)
+            }
+        }
         i = i + 1
     }
 
@@ -226,6 +235,14 @@ export fn compile(program: map) -> map {
             cg_compileFunction(stmt)
             arrays.push(cg_allFnInstructions, cg_instructions)
             arrays.push(cg_allFnLocalCounts, cg_currentLocalCount)
+        }
+        if stmt.kind == "Export" {
+            let decl = stmt.declaration
+            if decl.kind == "Fn" {
+                cg_compileFunction(decl)
+                arrays.push(cg_allFnInstructions, cg_instructions)
+                arrays.push(cg_allFnLocalCounts, cg_currentLocalCount)
+            }
         }
         i = i + 1
     }
