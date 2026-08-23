@@ -87,12 +87,18 @@ export class Compiler {
 
     // First pass: collect all function declarations
     for (const stmt of program.statements) {
+      let fnDecl: AST.FnDeclaration | null = null;
       if (stmt.kind === 'Fn') {
+        fnDecl = stmt;
+      } else if (stmt.kind === 'Export' && stmt.declaration.kind === 'Fn') {
+        fnDecl = stmt.declaration as AST.FnDeclaration;
+      }
+      if (fnDecl) {
         const idx = this.functions.length;
-        this.functionMap.set(stmt.name, idx);
+        this.functionMap.set(fnDecl.name, idx);
         this.functions.push({
-          name: stmt.name,
-          paramCount: stmt.params.length,
+          name: fnDecl.name,
+          paramCount: fnDecl.params.length,
           instructions: [],
           localCount: 0,
         });
@@ -111,9 +117,15 @@ export class Compiler {
     // Second pass: compile function bodies
     for (let i = 0; i < program.statements.length; i++) {
       const stmt = program.statements[i];
+      let fnDecl: AST.FnDeclaration | null = null;
       if (stmt.kind === 'Fn') {
-        const fnIdx = this.functionMap.get(stmt.name)!;
-        this.compileFunction(stmt, fnIdx);
+        fnDecl = stmt;
+      } else if (stmt.kind === 'Export' && stmt.declaration.kind === 'Fn') {
+        fnDecl = stmt.declaration as AST.FnDeclaration;
+      }
+      if (fnDecl) {
+        const fnIdx = this.functionMap.get(fnDecl.name)!;
+        this.compileFunction(fnDecl, fnIdx);
       }
     }
 
@@ -128,7 +140,7 @@ export class Compiler {
           stmt.kind !== 'Interface' && stmt.kind !== 'Import' && stmt.kind !== 'TypeAlias' &&
           stmt.kind !== 'Agent' && stmt.kind !== 'Tool' && stmt.kind !== 'Intent' &&
           stmt.kind !== 'Entity' && stmt.kind !== 'Api' && stmt.kind !== 'Application' &&
-          stmt.kind !== 'Package' && stmt.kind !== 'Impl') {
+          stmt.kind !== 'Package' && stmt.kind !== 'Impl' && stmt.kind !== 'Export') {
         this.compileStatement(stmt);
       }
     }
@@ -232,6 +244,14 @@ export class Compiler {
         break;
       case 'Throw':
         this.compileThrow(stmt);
+        break;
+      case 'Export':
+        // Compile the exported declaration (function/const/let/struct)
+        this.compileStatement((stmt as AST.ExportStatement).declaration);
+        break;
+      case 'Import':
+        // Imports are resolved at link time (multi-file compilation stage 2)
+        // For now, record and skip - single-file programs don't need imports
         break;
       default:
         // Skip declarations

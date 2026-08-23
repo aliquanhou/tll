@@ -175,11 +175,17 @@ export class TypeChecker {
       case 'Break':
       case 'Continue':
       case 'Defer':
+        // Placeholder: full checking in later versions
+        break;
       case 'Try':
         this.checkTry(stmt as AST.TryStatement);
         break;
       case 'Throw':
         this.checkExpression((stmt as AST.ThrowStatement).value);
+        break;
+      case 'Export':
+        // Check the exported declaration
+        this.checkStatement((stmt as AST.ExportStatement).declaration);
         break;
       case 'Interface':
       case 'Impl':

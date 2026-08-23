@@ -104,6 +104,10 @@ export class Parser {
         return this.parseThrowStatement();
       case TokenType.Import:
         return this.parseImportStatement();
+      case TokenType.From:
+        return this.parseFromImportStatement();
+      case TokenType.Export:
+        return this.parseExportStatement();
       case TokenType.Struct:
         return this.parseStructDeclaration(false);
       case TokenType.Enum:
@@ -394,6 +398,51 @@ export class Parser {
 
     this.match(TokenType.Semicolon);
     return { kind: 'Import', modulePath, namedImports, isWildcard: false, line: start.line, column: start.column };
+  }
+
+  private parseFromImportStatement(): AST.ImportStatement {
+    const start = this.advance(); // from
+    const modulePath = this.expect(TokenType.String, "module path string").value;
+    this.expect(TokenType.Import, "'import'");
+
+    if (this.match(TokenType.Star)) {
+      this.match(TokenType.Semicolon);
+      return { kind: 'Import', modulePath, isWildcard: true, line: start.line, column: start.column };
+    }
+
+    const namedImports: string[] = [];
+    do {
+      namedImports.push(this.expect(TokenType.Ident, "import name").value);
+    } while (this.match(TokenType.Comma));
+
+    this.match(TokenType.Semicolon);
+    return { kind: 'Import', modulePath, namedImports, isWildcard: false, line: start.line, column: start.column };
+  }
+
+  private parseExportStatement(): AST.ExportStatement {
+    const start = this.advance(); // export
+    const next = this.peek();
+    let declaration: AST.Statement;
+
+    switch (next.type) {
+      case TokenType.Fn:
+        declaration = this.parseFnDeclaration(false);
+        break;
+      case TokenType.Const:
+        declaration = this.parseConstStatement();
+        break;
+      case TokenType.Let:
+      case TokenType.Mut:
+        declaration = this.parseLetStatement();
+        break;
+      case TokenType.Struct:
+        declaration = this.parseStructDeclaration(false);
+        break;
+      default:
+        throw new ParserError(`Cannot export ${next.type}`, next.line, next.column);
+    }
+
+    return { kind: 'Export', declaration, line: start.line, column: start.column };
   }
 
   private peekAtNext(): Token | undefined {

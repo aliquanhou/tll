@@ -11,6 +11,7 @@ import { Parser } from './parser';
 import { TypeChecker } from './typechecker';
 import { Compiler } from './compiler';
 import { Runtime } from './runtime';
+import * as AST from './ast';
 
 const VERSION = '0.1.0-bootstrap';
 
@@ -76,15 +77,64 @@ function compile(source: string, fileName: string) {
   return { tokens, ast, bytecode };
 }
 
-function cmdRun(filePath: string): void {
-  const source = readFile(filePath);
-  const { bytecode } = compile(source, filePath);
+function compileMultiple(filePaths: string[]) {
+  const allStatements: AST.Statement[] = [];
+  let allConstants: any[] = [];
+
+  for (const filePath of filePaths) {
+    const source = readFile(filePath);
+    // Lex
+    const lexer = new Lexer(source);
+    let tokens;
+    try {
+      tokens = lexer.tokenize();
+    } catch (e: any) {
+      console.error(`${filePath}: ${e.message}`);
+      process.exit(1);
+    }
+    // Parse
+    const parser = new Parser();
+    let ast;
+    try {
+      ast = parser.parse(source);
+    } catch (e: any) {
+      console.error(`${filePath}: ${e.message}`);
+      process.exit(1);
+    }
+    // Type check
+    const typeChecker = new TypeChecker();
+    typeChecker.check(ast);
+    if (typeChecker.errors.length > 0) {
+      for (const err of typeChecker.errors) {
+        console.error(`${filePath}: ${err}`);
+      }
+    }
+    // Collect statements
+    for (const stmt of ast.statements) {
+      allStatements.push(stmt);
+    }
+  }
+
+  // Create merged program
+  const mergedAst: AST.Program = {
+    statements: allStatements,
+  };
+
+  // Compile merged program
+  const compiler = new Compiler();
+  const bytecode = compiler.compile(mergedAst);
+
+  return { bytecode };
+}
+
+function cmdRun(filePaths: string[]): void {
+  const { bytecode } = compileMultiple(filePaths);
 
   const runtime = new Runtime(bytecode);
   try {
     runtime.run();
   } catch (e: any) {
-    console.error(`${filePath}: ${e.message}`);
+    console.error(`${filePaths[0]}: ${e.message}`);
     process.exit(1);
   }
 }
@@ -149,7 +199,7 @@ function main(): void {
         console.error('Error: no input file specified');
         process.exit(1);
       }
-      cmdRun(args[1]);
+      cmdRun(args.slice(1));
       break;
 
     case 'build':
@@ -199,7 +249,7 @@ function main(): void {
     default:
       // If argument looks like a .tll file, run it
       if (command.endsWith('.tll')) {
-        cmdRun(command);
+        cmdRun([command]);
       } else {
         console.error(`Unknown command: ${command}`);
         printUsage();

@@ -13,6 +13,7 @@ interface CallFrame {
   locals: any[];
   argStack: any[];
   tryStack: number[]; // stack of catch block pc offsets
+  returnReg: number; // register in caller to store return value
 }
 
 export class Runtime {
@@ -33,6 +34,7 @@ export class Runtime {
       locals: new Array(mainFn.localCount).fill(undefined),
       argStack: [],
       tryStack: [],
+      returnReg: -1,
     };
     this.callStack.push(frame);
 
@@ -162,6 +164,7 @@ export class Runtime {
             locals: new Array(fn.localCount).fill(undefined),
             argStack: [],
             tryStack: [],
+            returnReg: a,
           };
           for (let i = 0; i < argCount && i < fn.paramCount; i++) {
             newFrame.locals[i] = args[i];
@@ -184,10 +187,11 @@ export class Runtime {
 
       case OpCode.RET: {
         const returnValue = regs[a];
+        const returnReg = frame.returnReg;
         this.callStack.pop();
-        if (this.callStack.length > 0) {
-          // Store return value in caller's register (simplified)
-          // The caller will read from a known location
+        if (this.callStack.length > 0 && returnReg >= 0) {
+          const callerFrame = this.callStack[this.callStack.length - 1];
+          callerFrame.registers[returnReg] = returnValue;
         }
         break;
       }

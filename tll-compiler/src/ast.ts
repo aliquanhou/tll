@@ -32,6 +32,7 @@ export type Statement =
   | InterfaceDeclaration
   | ImplDeclaration
   | ImportStatement
+  | ExportStatement
   | TypeAliasStatement
   | AgentDeclaration
   | ToolDeclaration
@@ -190,6 +191,11 @@ export interface ImportStatement extends BaseNode {
   alias?: string;
   namedImports?: string[];
   isWildcard: boolean;
+}
+
+export interface ExportStatement extends BaseNode {
+  kind: 'Export';
+  declaration: Statement; // FnDeclaration | ConstStatement | LetStatement | StructDeclaration
 }
 
 export interface TypeAliasStatement extends BaseNode {
