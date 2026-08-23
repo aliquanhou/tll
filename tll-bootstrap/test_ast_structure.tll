@@ -1,0 +1,48 @@
+// Test: inspect AST structure for multiline fn
+from "./lib/lexer" import tokenize
+from "./lib/parser" import parse
+
+io.println("=== AST Structure Test ===")
+
+// Multiline fn + expression
+let source = "fn add(a: int, b: int) -> int {\n    return a + b\n}\n\nio.println(\"hello\")\n"
+
+let ast = parse(tokenize(source))
+io.println("Total statements: " + convert.toString(arrays.length(ast.statements)))
+
+let i = 0
+while i < arrays.length(ast.statements) {
+    let stmt = arrays.get(ast.statements, i)
+    io.println("[" + convert.toString(i) + "] kind=" + stmt.kind)
+    if stmt.kind == "Fn" {
+        io.println("    name=" + stmt.name)
+        io.println("    body.statements count=" + convert.toString(arrays.length(stmt.body.statements)))
+        let j = 0
+        while j < arrays.length(stmt.body.statements) {
+            let bs = arrays.get(stmt.body.statements, j)
+            io.println("      [" + convert.toString(j) + "] kind=" + bs.kind)
+            j = j + 1
+        }
+    }
+    if stmt.kind == "ExpressionStatement" {
+        io.println("    expression.kind=" + stmt.expression.kind)
+    }
+    i = i + 1
+}
+
+io.println("")
+io.println("=== Single-line fn for comparison ===")
+let source2 = "fn add(a: int, b: int) -> int { return a + b } io.println(\"hello\")"
+let ast2 = parse(tokenize(source2))
+io.println("Total statements: " + convert.toString(arrays.length(ast2.statements)))
+i = 0
+while i < arrays.length(ast2.statements) {
+    let stmt = arrays.get(ast2.statements, i)
+    io.println("[" + convert.toString(i) + "] kind=" + stmt.kind)
+    if stmt.kind == "Fn" {
+        io.println("    body.statements count=" + convert.toString(arrays.length(stmt.body.statements)))
+    }
+    i = i + 1
+}
+
+io.println("=== Done ===")

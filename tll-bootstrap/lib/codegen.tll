@@ -256,14 +256,14 @@ export fn compile(program: map) -> map {
     cg_instructions = []
     cg_currentLocalCount = 0
 
-    i = 0
-    while i < arrays.length(stmts) {
-        let stmt = arrays.get(stmts, i)
+    let mi = 0
+    while mi < arrays.length(stmts) {
+        let stmt = arrays.get(stmts, mi)
         let kind = stmt.kind
         if kind != "Fn" && kind != "Import" && kind != "FromImport" && kind != "Export" {
             cg_compileStatement(stmt)
         }
-        i = i + 1
+        mi = mi + 1
     }
 
     cg_emit(OP_HALT, [])
