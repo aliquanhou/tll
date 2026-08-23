@@ -1,0 +1,22 @@
+// Test multiline fn + expression
+from "./lib/lexer" import tokenize
+from "./lib/parser" import parse
+from "./lib/codegen" import compile
+
+io.println("=== Multiline Fn Test ===")
+
+let source = "fn add(a: int, b: int) -> int {\n    return a + b\n}\n\nio.println(\"hello\")\n"
+io.println("Source length: " + convert.toString(strings.length(source)))
+
+let ast = parse(tokenize(source))
+io.println("Statements: " + convert.toString(arrays.length(ast.statements)))
+let i = 0
+while i < arrays.length(ast.statements) {
+    io.println("  [" + convert.toString(i) + "] kind=" + arrays.get(ast.statements, i).kind)
+    i = i + 1
+}
+
+io.println("Compiling...")
+let bc = compile(ast)
+io.println("Done! Functions: " + convert.toString(arrays.length(bc.functions)))
+io.println("=== Test Complete ===")

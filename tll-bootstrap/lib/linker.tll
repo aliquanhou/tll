@@ -1,0 +1,206 @@
+// TLL Module Linker
+// Resolves imports, builds dependency graph, merges ASTs, and compiles
+
+from "./lexer" import tokenize
+from "./parser" import parse
+from "./codegen" import compile
+
+// ============ Path Resolution ============
+
+// Get directory from a file path
+fn getDir(filePath: string) -> string {
+    let lastSlash = strings.lastIndexOf(filePath, "/")
+    if lastSlash < 0 {
+        return "."
+    }
+    return strings.substring(filePath, 0, lastSlash)
+}
+
+// Resolve a module path relative to current file
+fn resolveModulePath(currentFile: string, importPath: string) -> string {
+    let dir = getDir(currentFile)
+    let cleanPath = importPath
+    // Handle ./ prefix
+    if strings.length(cleanPath) >= 2 && strings.substring(cleanPath, 0, 2) == "./" {
+        cleanPath = strings.substring(cleanPath, 2, strings.length(cleanPath))
+    }
+    // Handle ../ prefix (go up one directory)
+    if strings.length(cleanPath) >= 3 && strings.substring(cleanPath, 0, 3) == "../" {
+        cleanPath = strings.substring(cleanPath, 3, strings.length(cleanPath))
+        let lastSlash = strings.lastIndexOf(dir, "/")
+        if lastSlash >= 0 {
+            dir = strings.substring(dir, 0, lastSlash)
+        }
+    }
+    let fullPath = dir + "/" + cleanPath
+    // Add .tll extension if not present
+    if !strings.endsWith(fullPath, ".tll") {
+        fullPath = fullPath + ".tll"
+    }
+    return fullPath
+}
+
+// Check if a module path is relative (starts with ./ or ../)
+fn isRelativeModule(modPath: string) -> bool {
+    if strings.length(modPath) >= 2 {
+        let first = strings.substring(modPath, 0, 1)
+        let second = strings.substring(modPath, 1, 2)
+        if first == "." && second == "/" {
+            return true
+        }
+        if first == "." && second == "." {
+            return true
+        }
+    }
+    return false
+}
+
+// ============ Import Extraction ============
+
+// Extract import module paths from AST
+fn extractImports(ast: map) -> list {
+    let imports: list = []
+    let stmts = ast.statements
+    let i = 0
+    while i < arrays.length(stmts) {
+        let stmt = arrays.get(stmts, i)
+        if stmt.kind == "Import" {
+            arrays.push(imports, stmt.modulePath)
+        }
+        i = i + 1
+    }
+    return imports
+}
+
+// ============ Dependency Resolution ============
+
+// Global state for dependency resolution
+let resolvedFiles: list = []
+let visitedFiles: list = []
+
+// Check if a file is already in the resolved list
+fn isResolved(filePath: string) -> bool {
+    let i = 0
+    while i < arrays.length(resolvedFiles) {
+        if arrays.get(resolvedFiles, i) == filePath {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+// Check if a file is currently being visited (for circular dependency detection)
+fn isVisited(filePath: string) -> bool {
+    let i = 0
+    while i < arrays.length(visitedFiles) {
+        if arrays.get(visitedFiles, i) == filePath {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+// Extract import paths from source code using string matching
+fn extractImportsFromSource(source: string) -> list {
+    let imports: list = []
+    let lines = strings.split(source, "\n")
+    let i = 0
+    while i < arrays.length(lines) {
+        let line = arrays.get(lines, i)
+        // Check for "from ... import" pattern
+        if strings.startsWith(line, "from ") {
+            let firstQuote = strings.indexOf(line, "\"")
+            if firstQuote >= 0 {
+                let rest = strings.substring(line, firstQuote + 1, strings.length(line))
+                let secondQuote = strings.indexOf(rest, "\"")
+                if secondQuote >= 0 {
+                    let modPath = strings.substring(rest, 0, secondQuote)
+                    arrays.push(imports, modPath)
+                }
+            }
+        }
+        i = i + 1
+    }
+    return imports
+}
+
+// Recursively resolve dependencies
+fn load(filePath: string) -> void {
+    if isResolved(filePath) {
+        return
+    }
+    if isVisited(filePath) {
+        io.println("Warning: circular dependency detected: " + filePath)
+        return
+    }
+    arrays.push(visitedFiles, filePath)
+
+    let source = fs.readFile(filePath)
+    let imports = extractImportsFromSource(source)
+
+    // Load dependencies first
+    let i = 0
+    while i < arrays.length(imports) {
+        let modPath = arrays.get(imports, i)
+        if isRelativeModule(modPath) {
+            let depPath = resolveModulePath(filePath, modPath)
+            load(depPath)
+        }
+        // Stdlib modules (io, math, etc.) are built-in, skip
+        i = i + 1
+    }
+
+    // Add current file after dependencies
+    arrays.push(resolvedFiles, filePath)
+}
+
+// Resolve all dependencies for an entry file
+export fn resolveDependencies(entryFile: string) -> list {
+    resolvedFiles = []
+    visitedFiles = []
+    load(entryFile)
+    return resolvedFiles
+}
+
+// ============ Full Link and Compile ============
+
+// Link all modules and compile to bytecode
+export fn linkAndCompile(entryFile: string) -> map {
+    let files = resolveDependencies(entryFile)
+    io.println("Resolved " + convert.toString(arrays.length(files)) + " module(s):")
+    let i = 0
+    while i < arrays.length(files) {
+        io.println("  " + arrays.get(files, i))
+        i = i + 1
+    }
+
+    // Concatenate all sources in dependency order, removing import/export statements
+    let combinedSource = ""
+    let j = 0
+    while j < arrays.length(files) {
+        let filePath = arrays.get(files, j)
+        let source = fs.readFile(filePath)
+        // Remove export keyword (functions are now in the same combined file)
+        source = strings.replaceAll(source, "export fn ", "fn ")
+        let lines = strings.split(source, "\n")
+        let k = 0
+        while k < arrays.length(lines) {
+            let line = arrays.get(lines, k)
+            // Skip import statements (functions are now in the same combined file)
+            if !strings.startsWith(line, "from ") && !strings.startsWith(line, "import ") {
+                combinedSource = combinedSource + line + "\n"
+            }
+            k = k + 1
+        }
+        j = j + 1
+    }
+
+    // Parse once and compile
+    let tokens = tokenize(combinedSource)
+    let ast = parse(tokens)
+    let bytecode = compile(ast)
+
+    return bytecode
+}

@@ -1,0 +1,5 @@
+// Simple module B - imports from A
+from "./test_mod_a" import add, multiply
+
+io.println("3 + 4 = " + convert.toString(add(3, 4)))
+io.println("3 * 4 = " + convert.toString(multiply(3, 4)))

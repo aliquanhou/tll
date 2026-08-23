@@ -1,0 +1,25 @@
+// Simple Linker test with two small modules
+from "./lib/linker" import linkAndCompile
+
+io.println("=== Simple Linker Test ===")
+io.println("")
+
+let bytecode = linkAndCompile("test_mod_b.tll")
+
+io.println("")
+io.println("Functions: " + convert.toString(arrays.length(bytecode.functions)))
+let i = 0
+while i < arrays.length(bytecode.functions) {
+    let f = arrays.get(bytecode.functions, i)
+    io.println("  [" + convert.toString(i) + "] " + f.name + " (params=" + convert.toString(f.paramCount) + ", instrs=" + convert.toString(arrays.length(f.instructions)) + ")")
+    i = i + 1
+}
+
+io.println("")
+if arrays.length(bytecode.functions) >= 3 {
+    io.println("✅ Simple Linker PASSED: " + convert.toString(arrays.length(bytecode.functions)) + " functions linked!")
+} else {
+    io.println("❌ Simple Linker FAILED: only " + convert.toString(arrays.length(bytecode.functions)) + " functions")
+}
+io.println("")
+io.println("=== Test Complete ===")

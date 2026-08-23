@@ -1,0 +1,16 @@
+// Test compile from file directly
+from "./lib/lexer" import tokenize
+from "./lib/parser" import parse
+from "./lib/codegen" import compile
+
+io.println("=== File Compile Test ===")
+
+let source = fs.readFile("test_simple_a.tll")
+io.println("Source length: " + convert.toString(strings.length(source)))
+let ast = parse(tokenize(source))
+io.println("Statements: " + convert.toString(arrays.length(ast.statements)))
+
+io.println("Compiling...")
+let bc = compile(ast)
+io.println("Done! Functions: " + convert.toString(arrays.length(bc.functions)))
+io.println("=== Test Complete ===")

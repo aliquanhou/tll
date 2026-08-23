@@ -362,8 +362,15 @@ function cmdRun(filePaths: string[]): void {
 }
 
 function cmdBuild(filePath: string): void {
-  const source = readFile(filePath);
-  const { bytecode } = compile(source, filePath);
+  const resolved = path.resolve(filePath);
+  const filesToCompile = resolveDependencies(resolved);
+  if (filesToCompile.length > 1) {
+    console.error(`Resolved ${filesToCompile.length} module(s):`);
+    for (const f of filesToCompile) {
+      console.error(`  ${f}`);
+    }
+  }
+  const { bytecode } = compileMultiple(filesToCompile);
 
   const outPath = filePath.replace(/\.tll$/, '') + '.tllbc';
   fs.writeFileSync(outPath, JSON.stringify(bytecode, null, 2));

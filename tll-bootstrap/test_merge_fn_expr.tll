@@ -1,0 +1,16 @@
+// Test merge fn + simple expression
+from "./lib/lexer" import tokenize
+from "./lib/parser" import parse
+from "./lib/codegen" import compile
+
+io.println("=== Merge Fn + Simple Expr ===")
+
+// fn + simple let expression (no function call)
+let source = "fn add(a: int, b: int) -> int { return a + b } let x = 1 + 2"
+let ast = parse(tokenize(source))
+io.println("Statements: " + convert.toString(arrays.length(ast.statements)))
+
+io.println("Compiling...")
+let bc = compile(ast)
+io.println("Done! Functions: " + convert.toString(arrays.length(bc.functions)))
+io.println("=== Test Complete ===")

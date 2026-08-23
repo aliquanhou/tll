@@ -1,0 +1,57 @@
+// Debug Linker test - detailed
+from "./lib/lexer" import tokenize
+from "./lib/parser" import parse
+from "./lib/codegen" import compile
+
+io.println("=== Detailed Debug ===")
+
+let sourceA = fs.readFile("test_mod_a.tll")
+let tokensA = tokenize(sourceA)
+let astA = parse(tokensA)
+
+io.println("Module A statements:")
+let i = 0
+while i < arrays.length(astA.statements) {
+    let s = arrays.get(astA.statements, i)
+    io.println("  [" + convert.toString(i) + "] kind=" + s.kind)
+    if s.kind == "Export" {
+        io.println("    declaration.kind=" + s.declaration.kind)
+        io.println("    declaration.name=" + s.declaration.name)
+    }
+    i = i + 1
+}
+
+let sourceB = fs.readFile("test_mod_b.tll")
+let tokensB = tokenize(sourceB)
+let astB = parse(tokensB)
+
+io.println("Module B statements:")
+i = 0
+while i < arrays.length(astB.statements) {
+    let s = arrays.get(astB.statements, i)
+    io.println("  [" + convert.toString(i) + "] kind=" + s.kind)
+    i = i + 1
+}
+
+// Merge
+let allStmts: list = []
+i = 0
+while i < arrays.length(astA.statements) {
+    arrays.push(allStmts, arrays.get(astA.statements, i))
+    i = i + 1
+}
+i = 0
+while i < arrays.length(astB.statements) {
+    arrays.push(allStmts, arrays.get(astB.statements, i))
+    i = i + 1
+}
+
+io.println("Merged statements: " + convert.toString(arrays.length(allStmts)))
+let mergedAst = { kind: "Program", statements: allStmts }
+
+io.println("Calling compile...")
+let mergedBc = compile(mergedAst)
+io.println("Compile returned!")
+io.println("Functions: " + convert.toString(arrays.length(mergedBc.functions)))
+
+io.println("=== Done ===")

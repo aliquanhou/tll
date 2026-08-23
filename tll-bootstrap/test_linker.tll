@@ -1,0 +1,46 @@
+// Test TLL Module Linker
+// Use linker to compile compiler.tll with all dependencies
+
+from "./lib/linker" import linkAndCompile
+
+io.println("=== TLL Module Linker Test ===")
+io.println("")
+
+let bytecode = linkAndCompile("compiler.tll")
+
+io.println("")
+io.println("=== Compilation Result ===")
+io.println("Functions: " + convert.toString(arrays.length(bytecode.functions)))
+io.println("Constants: " + convert.toString(arrays.length(bytecode.constants)))
+io.println("mainFunctionIndex: " + convert.toString(bytecode.mainFunctionIndex))
+
+io.println("")
+io.println("First 10 functions:")
+let i = 0
+while i < arrays.length(bytecode.functions) && i < 10 {
+    let f = arrays.get(bytecode.functions, i)
+    io.println("  [" + convert.toString(i) + "] " + f.name + " (instrs=" + convert.toString(arrays.length(f.instructions)) + ")")
+    i = i + 1
+}
+
+io.println("")
+io.println("Last 5 functions:")
+let total = arrays.length(bytecode.functions)
+let start = total - 5
+if start < 0 { start = 0 }
+let j = start
+while j < total {
+    let f = arrays.get(bytecode.functions, j)
+    io.println("  [" + convert.toString(j) + "] " + f.name + " (instrs=" + convert.toString(arrays.length(f.instructions)) + ")")
+    j = j + 1
+}
+
+io.println("")
+if arrays.length(bytecode.functions) > 10 {
+    io.println("✅ Module Linker SUCCESS: " + convert.toString(arrays.length(bytecode.functions)) + " functions linked!")
+} else {
+    io.println("❌ Module Linker FAILED: only " + convert.toString(arrays.length(bytecode.functions)) + " functions")
+}
+
+io.println("")
+io.println("=== Test Complete ===")

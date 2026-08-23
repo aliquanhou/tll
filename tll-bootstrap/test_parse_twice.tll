@@ -1,0 +1,36 @@
+// Test parse twice and merge
+from "./lib/lexer" import tokenize
+from "./lib/parser" import parse
+from "./lib/codegen" import compile
+
+io.println("=== Parse Twice Test ===")
+
+let sourceA = "fn add(a: int, b: int) -> int { return a + b }"
+let sourceB = "io.println(\"hello\")"
+
+let astA = parse(tokenize(sourceA))
+io.println("A statements: " + convert.toString(arrays.length(astA.statements)))
+
+let astB = parse(tokenize(sourceB))
+io.println("B statements: " + convert.toString(arrays.length(astB.statements)))
+
+// Merge
+let all: list = []
+let i = 0
+while i < arrays.length(astA.statements) {
+    arrays.push(all, arrays.get(astA.statements, i))
+    i = i + 1
+}
+i = 0
+while i < arrays.length(astB.statements) {
+    arrays.push(all, arrays.get(astB.statements, i))
+    i = i + 1
+}
+
+io.println("Merged: " + convert.toString(arrays.length(all)))
+let merged = { kind: "Program", statements: all }
+
+io.println("Compiling...")
+let bc = compile(merged)
+io.println("Done! Functions: " + convert.toString(arrays.length(bc.functions)))
+io.println("=== Test Complete ===")

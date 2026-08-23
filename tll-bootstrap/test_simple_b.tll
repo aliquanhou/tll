@@ -1,0 +1,2 @@
+// Simple module B - no import, just expression
+io.println("hello")

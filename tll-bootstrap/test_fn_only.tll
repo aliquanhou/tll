@@ -1,0 +1,22 @@
+// Test compile with only fn statement
+from "./lib/lexer" import tokenize
+from "./lib/parser" import parse
+from "./lib/codegen" import compile
+
+io.println("=== Fn Only Test ===")
+
+let source = "fn add(a: int, b: int) -> int { return a + b }"
+let ast = parse(tokenize(source))
+io.println("Statements: " + convert.toString(arrays.length(ast.statements)))
+io.println("Statement 0 kind: " + arrays.get(ast.statements, 0).kind)
+
+io.println("Compiling...")
+let bc = compile(ast)
+io.println("Done! Functions: " + convert.toString(arrays.length(bc.functions)))
+let i = 0
+while i < arrays.length(bc.functions) {
+    let f = arrays.get(bc.functions, i)
+    io.println("  [" + convert.toString(i) + "] " + f.name)
+    i = i + 1
+}
+io.println("=== Test Complete ===")
