@@ -452,6 +452,9 @@ let agentApiKey = process.env.OPENAI_API_KEY || process.env.TLL_AI_API_KEY || ''
 let agentBaseUrl = process.env.OPENAI_BASE_URL || process.env.TLL_AI_BASE_URL || 'https://api.openai.com/v1';
 let agentDefaultModel = process.env.TLL_AI_MODEL || 'gpt-4o-mini';
 
+// Memory store for agent conversations
+const agentMemory: Map<string, string> = new Map();
+
 function callLLM(messages: any[], model?: string): string {
   if (!agentApiKey) {
     throw new Error('agent: no API key set. Use agent.setApiKey(key) or set OPENAI_API_KEY env var.');
@@ -661,6 +664,32 @@ const agent: StdLibModule = {
     // Max iterations reached, return last assistant content if available
     const lastMsg = messages[messages.length - 1];
     return lastMsg?.content || '[Tool calling limit reached]';
+  },
+  // ─── Memory functions ───
+  saveMemory: (key: any, value: any) => {
+    agentMemory.set(String(key), String(value));
+    return null;
+  },
+  loadMemory: (key: any) => {
+    const val = agentMemory.get(String(key));
+    return val !== undefined ? val : null;
+  },
+  hasMemory: (key: any) => {
+    return agentMemory.has(String(key));
+  },
+  clearMemory: (key: any) => {
+    agentMemory.delete(String(key));
+    return null;
+  },
+  clearAllMemory: () => {
+    agentMemory.clear();
+    return null;
+  },
+  listMemory: () => {
+    return Array.from(agentMemory.keys());
+  },
+  getMemoryCount: () => {
+    return agentMemory.size;
   },
 };
 
