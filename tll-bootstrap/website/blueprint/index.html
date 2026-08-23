@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLL — 技术蓝图 | v1.0 Self-hosting → v1.1</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{--cyan:#00d4ff;--purple:#7b2ffc;--green:#00ff88;--yellow:#febc2e;--red:#ff5f57;--bg:#0a0e17;--bg2:#0f1420;--text:#e8edf5;--muted:#8892a6;--code-bg:#1a1f2e;--border:rgba(0,212,255,.15)}
+  html{scroll-behavior:smooth}
+  body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;line-height:1.6}
+  nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:16px 40px;display:flex;justify-content:space-between;align-items:center;background:rgba(10,14,23,.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+  .nav-logo{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:2px}
+  .nav-links{display:flex;gap:32px;align-items:center}
+  .nav-links a{color:var(--muted);text-decoration:none;font-size:14px;font-weight:500;transition:color .3s}
+  .nav-links a:hover{color:var(--cyan)}
+  .nav-github{display:flex;align-items:center;gap:8px;padding:8px 18px;border:1px solid var(--border);border-radius:8px;color:var(--text)!important;transition:all .3s}
+  .nav-github:hover{border-color:var(--cyan);background:rgba(0,212,255,.05)}
+  .container{max-width:1100px;margin:0 auto;padding:120px 20px 80px}
+  .page-header{text-align:center;margin-bottom:60px}
+  .page-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border:1px solid var(--green);border-radius:20px;font-size:12px;color:var(--green);background:rgba(0,255,136,.05);margin-bottom:24px;font-family:'JetBrains Mono',monospace}
+  .page-badge .dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .page-title{font-family:'JetBrains Mono',monospace;font-size:clamp(36px,6vw,64px);font-weight:700;margin-bottom:16px;background:linear-gradient(135deg,var(--cyan),var(--purple),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .page-subtitle{font-size:18px;color:var(--muted);max-width:600px;margin:0 auto}
+  .section{margin-bottom:60px}
+  .section-label{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);text-transform:uppercase;letter-spacing:3px;margin-bottom:12px}
+  .section-title{font-size:28px;font-weight:700;margin-bottom:24px;color:var(--text)}
+  .grid-2{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px}
+  .card{background:rgba(26,31,46,.5);border:1px solid var(--border);border-radius:16px;padding:28px;transition:all .3s}
+  .card:hover{border-color:rgba(0,212,255,.3);background:rgba(26,31,46,.8)}
+  .card-header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+  .card-icon{font-size:24px}
+  .card-title{font-size:18px;font-weight:700;color:var(--text)}
+  .card-status{font-size:11px;padding:4px 10px;border-radius:12px;font-family:'JetBrains Mono',monospace;margin-left:auto}
+  .status-done{background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.3)}
+  .status-warn{background:rgba(254,188,46,.1);color:var(--yellow);border:1px solid rgba(254,188,46,.3)}
+  .status-todo{background:rgba(136,146,166,.1);color:var(--muted);border:1px solid rgba(136,146,166,.3)}
+  .status-p0{background:rgba(255,95,87,.1);color:var(--red);border:1px solid rgba(255,95,87,.3)}
+  .status-p1{background:rgba(254,188,46,.1);color:var(--yellow);border:1px solid rgba(254,188,46,.3)}
+  .status-p2{background:rgba(0,212,255,.1);color:var(--cyan);border:1px solid rgba(0,212,255,.3)}
+  .status-p3{background:rgba(123,47,252,.1);color:var(--purple);border:1px solid rgba(123,47,252,.3)}
+  .check-list{list-style:none;padding:0}
+  .check-list li{display:flex;align-items:flex-start;gap:10px;padding:6px 0;font-size:14px;color:var(--text)}
+  .check-list li .mark{flex-shrink:0;font-family:'JetBrains Mono',monospace;font-weight:700}
+  .check-list li .mark.ok{color:var(--green)}
+  .check-list li .mark.warn{color:var(--yellow)}
+  .check-list li .mark.todo{color:var(--muted)}
+  .check-list li .detail{color:var(--muted);font-size:12px;font-family:'JetBrains Mono',monospace;margin-top:2px}
+  .debt-item{background:rgba(255,95,87,.03);border:1px solid rgba(255,95,87,.15);border-radius:12px;padding:20px;margin-bottom:16px}
+  .debt-title{font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px;display:flex;align-items:center;gap:8px}
+  .debt-meta{font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-bottom:8px}
+  .debt-desc{font-size:14px;color:var(--muted);line-height:1.6}
+  .roadmap-group{margin-bottom:32px}
+  .roadmap-group-title{font-size:16px;font-weight:700;margin-bottom:16px;display:flex;align-items:center;gap:10px;font-family:'JetBrains Mono',monospace}
+  .roadmap-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+  .verify-box{background:linear-gradient(135deg,rgba(0,212,255,.05),rgba(123,47,252,.05));border:1px solid var(--border);border-radius:16px;padding:32px}
+  .verify-title{font-size:20px;font-weight:700;margin-bottom:20px;color:var(--cyan);font-family:'JetBrains Mono',monospace}
+  .verify-list{list-style:none;padding:0}
+  .verify-list li{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:14px}
+  .verify-list li:last-child{border-bottom:none}
+  .verify-list li .icon{color:var(--green);font-size:18px}
+  .timeline{position:relative;padding-left:32px}
+  .timeline::before{content:'';position:absolute;left:8px;top:0;bottom:0;width:2px;background:linear-gradient(180deg,var(--green),var(--cyan),var(--purple),var(--muted))}
+  .timeline-item{position:relative;margin-bottom:32px}
+  .timeline-item::before{content:'';position:absolute;left:-28px;top:6px;width:14px;height:14px;border-radius:50%;background:var(--bg);border:2px solid var(--cyan)}
+  .timeline-item.done::before{border-color:var(--green);background:var(--green)}
+  .timeline-item.current::before{border-color:var(--cyan);animation:pulse 2s infinite}
+  .timeline-item.todo::before{border-color:var(--muted)}
+  .timeline-version{font-family:'JetBrains Mono',monospace;font-size:14px;font-weight:700;color:var(--cyan);margin-bottom:4px}
+  .timeline-item.done .timeline-version{color:var(--green)}
+  .timeline-item.todo .timeline-version{color:var(--muted)}
+  .timeline-title{font-size:18px;font-weight:700;margin-bottom:8px;color:var(--text)}
+  .timeline-desc{font-size:14px;color:var(--muted);line-height:1.6}
+  footer{padding:40px 20px;text-align:center;border-top:1px solid var(--border);background:rgba(10,14,23,.8)}
+  .footer-links{display:flex;justify-content:center;gap:32px;margin-bottom:16px;flex-wrap:wrap}
+  .footer-links a{color:var(--muted);text-decoration:none;font-size:14px;transition:color .3s}
+  .footer-links a:hover{color:var(--cyan)}
+  .footer-copy{font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+  @media(max-width:768px){nav{padding:12px 20px}.nav-links{gap:16px}.nav-links a:not(.nav-github){display:none}.container{padding:100px 16px 60px}}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-logo">TLL</div>
+  <div class="nav-links">
+    <a href="/">首页</a>
+    <a href="/docs/">文档</a>
+    <a href="/playground/">Playground</a>
+    <a href="https://github.com/aliquanhou/tll" class="nav-github" target="_blank">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+      GitHub
+    </a>
+  </div>
+</nav>
+<div class="container">
+  <div class="page-header">
+    <div class="page-badge"><span class="dot"></span>Technical Blueprint</div>
+    <h1 class="page-title">技术蓝图</h1>
+    <p class="page-subtitle">TLL v1.0 Self-hosting 已完成。以下是完整技术状态、已知限制和 v1.1 路线图。</p>
+  </div>
+
+  <!-- 第一部分：v1.0 已完成 -->
+  <div class="section">
+    <div class="section-label">// Section 01</div>
+    <h2 class="section-title">v1.0 已完成 ✅</h2>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header">
+          <span class="card-icon">⚙️</span>
+          <span class="card-title">编译器核心</span>
+          <span class="card-status status-done">DONE</span>
+        </div>
+        <ul class="check-list">
+          <li><span class="mark ok">✓</span><div>Lexer — 纯 TLL 实现，8/8 测试通过</div></li>
+          <li><span class="mark ok">✓</span><div>Parser — 纯 TLL 实现，10/10 测试通过</div></li>
+          <li><span class="mark ok">✓</span><div>Type Checker — 纯 TLL 实现，13/13 测试通过</div></li>
+          <li><span class="mark ok">✓</span><div>Codegen — 纯 TLL 实现，10/10 测试通过</div></li>
+          <li><span class="mark ok">✓</span><div>VM — 纯 TLL 实现，核心指令完整</div></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-icon">🔄</span>
+          <span class="card-title">自举验证</span>
+          <span class="card-status status-done">DONE</span>
+        </div>
+        <ul class="check-list">
+          <li><span class="mark ok">✓</span><div>L4: 编译器字节码在 TLL VM 中执行</div></li>
+          <li><span class="mark ok">✓</span><div>L5: 编译器成功编译自身</div></li>
+          <li><span class="mark ok">✓</span><div>两轮一致性: 127/127 函数匹配</div></li>
+          <li><span class="mark ok">✓</span><div>确定性: 连续两轮输出一致</div></li>
+          <li><span class="mark ok">✓</span><div>规格: 127 函数 / 2294 常量 / mainIdx=126</div></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-icon">📦</span>
+          <span class="card-title">模块系统</span>
+          <span class="card-status status-warn">CORE STABLE</span>
+        </div>
+        <ul class="check-list">
+          <li><span class="mark ok">✓</span><div>多层依赖解析 (T3.1) — main→A→B→C</div></li>
+          <li><span class="mark ok">✓</span><div>跨模块函数调用 (T3.4) — add/multiply</div></li>
+          <li><span class="mark ok">✓</span><div>同名函数处理 (T3.3) — 第一个导入获胜</div></li>
+          <li><span class="mark warn">⚠</span><div>循环依赖检测 (T3.2) — 警告模式，非硬错误</div></li>
+          <li><span class="mark todo">○</span><div>跨模块常量引用 (T3.5) — export const 不支持</div></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <span class="card-icon">📚</span>
+          <span class="card-title">标准库</span>
+          <span class="card-status status-done">DONE</span>
+        </div>
+        <ul class="check-list">
+          <li><span class="mark ok">✓</span><div>io — println/print/readLine (3函数)</div></li>
+          <li><span class="mark ok">✓</span><div>json — parse/stringify (2函数)</div></li>
+          <li><span class="mark ok">✓</span><div>math — sqrt/abs/pow/pi/随机数 (19函数)</div></li>
+          <li><span class="mark ok">✓</span><div>strings — 大小写/分割/替换/包含 (25函数)</div></li>
+          <li><span class="mark ok">✓</span><div>arrays — map/filter/reduce/排序 (22函数)</div></li>
+          <li><span class="mark ok">✓</span><div>convert/fs/http — 类型转换/文件/网络 (28函数)</div></li>
+          <li><span class="mark ok">✓</span><div>agent/workflow — AI 原生能力 (15函数)</div></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 第二部分：当前限制 -->
+  <div class="section">
+    <div class="section-label">// Section 02</div>
+    <h2 class="section-title">当前限制（已知技术债）⚠️</h2>
+    <div class="debt-item">
+      <div class="debt-title">🔧 cg_bootstrap_align workaround</div>
+      <div class="debt-meta">优先级: P0 · 计划: v1.1 立即修复</div>
+      <div class="debt-desc">
+        <strong>根因:</strong> Bootstrap 编译器（TypeScript）的函数索引分配存在 off-by-one bug。当函数定义顺序特定时，<code>cg_compileStatement</code> 的调用索引解析错误，导致 main 函数只编译出 1 条 HALT 指令。<br>
+        <strong>当前方案:</strong> 在 <code>cg_compileBlock</code> 之前保留一个空函数 <code>cg_bootstrap_align</code>，通过偏移函数索引来掩盖 bug。<br>
+        <strong>影响:</strong> 代码中存在无意义的空函数，技术债已文档化。
+      </div>
+    </div>
+    <div class="debt-item">
+      <div class="debt-title">📦 export const 不支持</div>
+      <div class="debt-meta">优先级: P0 · 计划: v1.1 添加</div>
+      <div class="debt-desc">
+        <strong>根因:</strong> Module Linker 目前只处理 <code>export fn</code>，不处理 <code>export const</code> 和 <code>export let</code>。<br>
+        <strong>影响:</strong> T3.5 跨模块常量引用失败，VERSION/AUTHOR 等常量无法跨模块导入。<br>
+        <strong>当前方案:</strong> 无 workaround，需在 Module Linker 中添加常量导出/导入支持。
+      </div>
+    </div>
+    <div class="debt-item">
+      <div class="debt-title">🔄 循环依赖为警告模式</div>
+      <div class="debt-meta">优先级: P1 · 计划: v1.1 升级为硬错误</div>
+      <div class="debt-desc">
+        <strong>根因:</strong> 当前 Module Linker 检测到循环依赖时只输出 Warning，继续编译。<br>
+        <strong>影响:</strong> 可能导致运行时无限递归或未定义行为。<br>
+        <strong>当前方案:</strong> 警告可帮助调试，但生产环境应升级为硬错误。
+      </div>
+    </div>
+    <div class="debt-item">
+      <div class="debt-title">🏷️ 不支持重命名导入</div>
+      <div class="debt-meta">优先级: P1 · 计划: v1.1 添加</div>
+      <div class="debt-desc">
+        <strong>根因:</strong> 语法解析器未实现 <code>import x as y</code> 语法。<br>
+        <strong>影响:</strong> 两个模块导出同名函数时无法区分，只能第一个导入获胜。<br>
+        <strong>当前方案:</strong> 无 workaround，需在 Parser 中添加重命名导入语法支持。
+      </div>
+    </div>
+  </div>
+
+  <!-- 第三部分：v1.1 路线图 -->
+  <div class="section">
+    <div class="section-label">// Section 03</div>
+    <h2 class="section-title">v1.1 路线图</h2>
+    <div class="roadmap-group">
+      <div class="roadmap-group-title"><span class="card-status status-p0">P0</span> 立即执行</div>
+      <div class="roadmap-cards">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-icon">🔧</span>
+            <span class="card-title">修复 Bootstrap 函数索引</span>
+          </div>
+          <div class="debt-desc">深入分析 TypeScript 编译器的函数注册/调用解析机制，定位 off-by-one 根因，修复后移除 <code>cg_bootstrap_align</code> workaround。</div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-icon">📦</span>
+            <span class="card-title">添加 export const 支持</span>
+          </div>
+          <div class="debt-desc">在 Module Linker 中添加常量导出/导入支持，包括 <code>export const</code> 和 <code>export let</code>，使 T3.5 跨模块常量引用通过。</div>
+        </div>
+      </div>
+    </div>
+    <div class="roadmap-group">
+      <div class="roadmap-group-title"><span class="card-status status-p1">P1</span> 短期</div>
+      <div class="roadmap-cards">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-icon">🏷️</span>
+            <span class="card-title">重命名导入</span>
+          </div>
+          <div class="debt-desc">在 Parser 中实现 <code>import x as y</code> 语法，支持同名函数的区分导入。</div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-icon">🔄</span>
+            <span class="card-title">循环依赖硬错误</span>
+          </div>
+          <div class="debt-desc">将循环依赖检测从警告模式升级为硬错误，编译时直接报错退出，防止运行时无限递归。</div>
+        </div>
+      </div>
+    </div>
+    <div class="roadmap-group">
+      <div class="roadmap-group-title"><span class="card-status status-p2">P2</span> 中期</div>
+      <div class="roadmap-cards">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-icon">⚡</span>
+            <span class="card-title">VM 性能优化</span>
+          </div>
+          <div class="debt-desc">优化字节码虚拟机的指令执行效率，包括寄存器分配、函数调用栈管理和常量池访问。</div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-icon">📚</span>
+            <span class="card-title">标准库扩展</span>
+          </div>
+          <div class="debt-desc">扩展标准库功能，包括 crypto、collections、testing、datetime 等模块，提升开发体验。</div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-icon">❌</span>
+            <span class="card-title">错误信息增强</span>
+          </div>
+          <div class="debt-desc">改进编译器和运行时的错误信息，提供更精确的位置信息、上下文提示和修复建议。</div>
+        </div>
+      </div>
+    </div>
+    <div class="roadmap-group">
+      <div class="roadmap-group-title"><span class="card-status status-p3">P3</span> 长期</div>
+      <div class="roadmap-cards">
+        <div class="card">
+          <div class="card-header">
+            <span class="card-icon">🖥️</span>
+            <span class="card-title">TLL OS 框架</span>
+          </div>
+          <div class="debt-desc">构建 TLL OS 应用框架，包括 Application 声明式定义、项目管理、部署系统，实现 <code>tll create/dev/build/deploy</code> 全流程。</div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-icon">🤖</span>
+            <span class="card-title">AI Agent 运行时增强</span>
+          </div>
+          <div class="debt-desc">增强 Agent/Tool/Workflow 运行时，支持多 Agent 协作、持久化记忆、工具自动发现和工作流可视化。</div>
+        </div>
+        <div class="card">
+          <div class="card-header">
+            <span class="card-icon">💳</span>
+            <span class="card-title">商业场景接入</span>
+          </div>
+          <div class="debt-desc">接入支付、API 网关、Web 服务等商业场景能力，支持电商、SaaS 等真实商业应用开发。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 第四部分：验证标准 -->
+  <div class="section">
+    <div class="section-label">// Section 04</div>
+    <h2 class="section-title">验证标准</h2>
+    <div class="verify-box">
+      <div class="verify-title">// Quality Gates</div>
+      <p style="color:var(--muted);margin-bottom:20px;font-size:14px">任何 v1.1 修改必须通过以下门禁，才能合并到 main 分支：</p>
+      <ul class="verify-list">
+        <li><span class="icon">✓</span><div><strong>L4:</strong> 编译器字节码在 TLL VM 中成功执行，无崩溃、无 OOM</div></li>
+        <li><span class="icon">✓</span><div><strong>L5:</strong> 编译器成功编译自身，生成有效字节码</div></li>
+        <li><span class="icon">✓</span><div><strong>两轮一致性:</strong> 函数数 / 常量数 / 指令数完全一致（127/127 匹配）</div></li>
+        <li><span class="icon">✓</span><div><strong>回归测试:</strong> 全部现有测试通过（Lexer 8/8, Parser 10/10, TypeChecker 13/13, Codegen 10/10）</div></li>
+        <li><span class="icon">✓</span><div><strong>模块测试:</strong> T3.1-T3.5 模块链接器测试全部通过或状态不变</div></li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- 版本时间线 -->
+  <div class="section">
+    <div class="section-label">// Section 05</div>
+    <h2 class="section-title">版本时间线</h2>
+    <div class="timeline">
+      <div class="timeline-item done">
+        <div class="timeline-version">v0.1 — 2026-08</div>
+        <div class="timeline-title">Bootstrap Compiler</div>
+        <div class="timeline-desc">TypeScript 实现的 Bootstrap 编译器，Lexer/Parser/AST/Type Check/Bytecode/VM 全链路跑通。</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-version">v0.2 — 2026-08</div>
+        <div class="timeline-title">标准库核心</div>
+        <div class="timeline-desc">99 个标准库函数，8 个模块（io/json/math/strings/arrays/convert/fs/http）。</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-version">v0.3 — 2026-08</div>
+        <div class="timeline-title">工程语言</div>
+        <div class="timeline-desc">错误处理（try/catch/finally）、模块系统（export/import）、Package（tll.toml）。</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-version">v0.4 — 2026-08</div>
+        <div class="timeline-title">AI Native</div>
+        <div class="timeline-desc">Agent/Tool/Workflow/Memory 四大核心能力，AI 成为语言级一等公民。</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-version">v0.5 — 2026-08</div>
+        <div class="timeline-title">验证项目</div>
+        <div class="timeline-desc">纯 TLL 编写的 JSON 解析器，验证语言能力，暴露并修复 OOM Bug。</div>
+      </div>
+      <div class="timeline-item done">
+        <div class="timeline-version">v1.0 — 2026-08-24</div>
+        <div class="timeline-title">Self-hosting Complete 🎉</div>
+        <div class="timeline-desc">纯 TLL 重写全部编译器模块，编译器成功编译自身。127 函数 / 2294 常量，两轮一致性验证通过。Module Linker 核心稳定。</div>
+      </div>
+      <div class="timeline-item current">
+        <div class="timeline-version">v1.1 — 进行中</div>
+        <div class="timeline-title">技术债清理 + 模块系统完善</div>
+        <div class="timeline-desc">修复 Bootstrap 函数索引 bug，移除 cg_bootstrap_align；添加 export const 支持；重命名导入；循环依赖硬错误。</div>
+      </div>
+      <div class="timeline-item todo">
+        <div class="timeline-version">v1.2 — 计划中</div>
+        <div class="timeline-title">性能优化 + 标准库扩展</div>
+        <div class="timeline-desc">VM 性能优化，标准库扩展（crypto/collections/testing/datetime），错误信息增强。</div>
+      </div>
+      <div class="timeline-item todo">
+        <div class="timeline-version">v2.0 — 远期</div>
+        <div class="timeline-title">TLL OS + 商业生态</div>
+        <div class="timeline-desc">TLL OS 应用框架，AI Agent 运行时增强，商业场景接入（支付/API/Web）。</div>
+      </div>
+    </div>
+  </div>
+</div>
+<footer>
+  <div class="footer-links">
+    <a href="/">首页</a><a href="/docs/">文档</a><a href="/playground/">Playground</a><a href="https://github.com/aliquanhou/tll" target="_blank">GitHub</a>
+  </div>
+  <div class="footer-copy">TLL Programming Language &copy; 2026 &middot; MIT License &middot; v1.0 Self-hosting &middot; Technical Blueprint</div>
+</footer>
+</body>
+</html>

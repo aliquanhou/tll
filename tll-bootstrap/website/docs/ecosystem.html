@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>生态系统 — TLL Documentation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{--cyan:#00d4ff;--purple:#7b2ffc;--green:#00ff88;--bg:#0a0e17;--bg2:#0f1420;--bg3:#1a1f2e;--text:#e8edf5;--muted:#8892a6;--border:rgba(0,212,255,.12);--code-bg:#131722}
+  body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
+  nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:12px 32px;display:flex;justify-content:space-between;align-items:center;background:rgba(10,14,23,.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+  .nav-logo{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:2px;text-decoration:none}
+  .nav-links{display:flex;gap:24px;align-items:center}
+  .nav-links a{color:var(--muted);text-decoration:none;font-size:13px;font-weight:500;transition:color .3s}
+  .nav-links a:hover,.nav-links a.active{color:var(--cyan)}
+  .layout{display:flex;padding-top:52px;min-height:100vh}
+  .sidebar{width:260px;flex-shrink:0;position:fixed;top:52px;left:0;bottom:0;overflow-y:auto;padding:24px 20px;border-right:1px solid var(--border);background:rgba(15,20,32,.6)}
+  .sidebar::-webkit-scrollbar{width:4px}
+  .sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+  .sidebar-title{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+  .sidebar-nav{list-style:none;margin-bottom:24px}
+  .sidebar-nav li{margin-bottom:2px}
+  .sidebar-nav a{display:block;padding:7px 10px;color:var(--muted);text-decoration:none;font-size:13px;border-radius:6px;transition:all .2s;font-family:'JetBrains Mono',monospace}
+  .sidebar-nav a:hover{color:var(--cyan);background:rgba(0,212,255,.05)}
+  .sidebar-nav a.active{color:var(--cyan);background:rgba(0,212,255,.08);font-weight:600}
+  .content{flex:1;margin-left:260px;padding:40px 48px 80px;max-width:860px}
+  .content h1{font-size:32px;font-weight:700;margin-bottom:8px;background:linear-gradient(135deg,var(--text),var(--muted));-webkit-background-clip:text;-webkit-text-fill-color:transparent;padding-bottom:16px;border-bottom:2px solid var(--border)}
+  .content h2{font-size:24px;font-weight:700;margin-top:40px;margin-bottom:14px;color:var(--cyan);padding-bottom:8px;border-bottom:1px solid var(--border)}
+  .content h3{font-size:18px;font-weight:600;margin-top:28px;margin-bottom:10px;color:var(--text)}
+  .content p{margin-bottom:14px;color:var(--text);font-size:15px}
+  .content ul,.content ol{margin-bottom:14px;padding-left:24px}
+  .content li{margin-bottom:5px;font-size:14px;color:var(--text)}
+  .content code{font-family:'JetBrains Mono',monospace;font-size:13px;background:var(--code-bg);padding:2px 6px;border-radius:4px;color:var(--cyan);border:1px solid var(--border)}
+  .content pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:18px;overflow-x:auto}
+  .content pre code{background:none;border:none;padding:0;color:var(--text);font-size:13px;line-height:1.7}
+  .content blockquote{border-left:3px solid var(--purple);padding:10px 18px;margin-bottom:16px;background:rgba(123,47,252,.05);border-radius:0 8px 8px 0;color:var(--muted)}
+  .content table{width:100%;border-collapse:collapse;margin-bottom:18px;font-size:14px}
+  .content th{text-align:left;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);color:var(--cyan);font-weight:600;font-family:'JetBrains Mono',monospace;font-size:13px}
+  .content td{padding:10px 14px;border:1px solid var(--border);color:var(--text)}
+  .content tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+  .content a{color:var(--cyan);text-decoration:none;border-bottom:1px solid rgba(0,212,255,.3)}
+  .content a:hover{border-bottom-color:var(--cyan)}
+  .content strong{color:var(--green);font-weight:600}
+  .breadcrumb{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);margin-bottom:20px}
+  .breadcrumb a{color:var(--muted);text-decoration:none}
+  .breadcrumb a:hover{color:var(--cyan)}
+  .next-prev{display:flex;justify-content:space-between;margin-top:48px;padding-top:24px;border-top:1px solid var(--border)}
+  .next-prev a{display:block;padding:14px 20px;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:var(--text);transition:all .3s;max-width:45%}
+  .next-prev a:hover{border-color:var(--cyan);background:rgba(0,212,255,.05)}
+  .next-prev .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+  .next-prev .title{font-size:14px;font-weight:600;color:var(--cyan)}
+  @media(max-width:1024px){.sidebar{transform:translateX(-100%);transition:transform .3s;z-index:99}.sidebar.open{transform:translateX(0)}.content{margin-left:0;padding:24px 20px}}
+</style>
+</head>
+<body>
+<nav>
+  <a href="/" class="nav-logo">TLL</a>
+  <div class="nav-links">
+    <a href="/">首页</a>
+    <a href="/docs/" >文档</a>
+    <a href="/playground/">Playground</a>
+    <a href="https://github.com/aliquanhou/tll" target="_blank">GitHub</a>
+  </div>
+</nav>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-title">Documentation</div>
+    <ul class="sidebar-nav">
+      <li><a href="/docs/getting-started.html" >🚀 入门指南</a></li>
+      <li><a href="/docs/language.html">📖 语言基础</a></li>
+      <li><a href="/docs/first-class.html">⭐ 一等公民</a></li>
+      <li><a href="/docs/stdlib.html">📚 标准库</a></li>
+      <li><a href="/docs/compiler.html">⚙️ 编译器</a></li>
+      <li><a href="/docs/ecosystem.html" class="active">🌐 生态系统</a></li>
+    </ul>
+    <div class="sidebar-title">Reference</div>
+    <ul class="sidebar-nav">
+      <li><a href="/docs/spec/0.1.html">📄 语言规范 0.1</a></li>
+    </ul>
+  </aside>
+  <main class="content">
+    <div class="breadcrumb"><a href="/docs/">文档</a> / 生态系统</div>
+    <h1>🌐 生态系统</h1>
+    <p>TLL 生态系统包括包管理器、CLI 工具、编辑器插件、社区资源。本章介绍如何使用和融入 TLL 生态。</p>
+
+    <h2>1. 包管理器</h2>
+    <h3>tll.toml 包清单</h3>
+    <pre><code>[package]
+name = "myapp"
+version = "0.1.0"
+license = "MIT"
+authors = ["Your Name <you@example.com>"]
+description = "My TLL application"
+repository = "https://github.com/user/myapp"
+
+[dependencies]
+http = "1.0.0"
+json = "2.1.0"
+ai-agent = { git = "https://github.com/aliquanhou/ai-agent", tag = "v0.3.0" }
+my-utils = { path = "../my-utils" }
+
+[dev-dependencies]
+testing = "1.0.0"
+benchmark = "0.2.0"
+
+[profile.release]
+opt_level = 3
+lto = true
+debug = false</code></pre>
+
+    <h3>包管理命令</h3>
+    <table>
+      <tr><th>命令</th><th>说明</th></tr>
+      <tr><td><code>tll new &lt;name&gt;</code></td><td>创建新项目</td></tr>
+      <tr><td><code>tll init</code></td><td>在当前目录初始化项目</td></tr>
+      <tr><td><code>tll install</code></td><td>安装所有依赖</td></tr>
+      <tr><td><code>tll add &lt;pkg&gt;</code></td><td>添加依赖</td></tr>
+      <tr><td><code>tll remove &lt;pkg&gt;</code></td><td>移除依赖</td></tr>
+      <tr><td><code>tll update</code></td><td>更新依赖到最新版本</td></tr>
+      <tr><td><code>tll publish</code></td><td>发布到包仓库</td></tr>
+      <tr><td><code>tll search &lt;query&gt;</code></td><td>搜索包</td></tr>
+      <tr><td><code>tll list</code></td><td>列出已安装的包</td></tr>
+      <tr><td><code>tll outdated</code></td><td>检查过时的依赖</td></tr>
+    </table>
+
+    <h3>版本约束</h3>
+    <pre><code>[dependencies]
+# 精确版本
+http = "1.2.3"
+
+# 兼容版本（>=1.2.3, <2.0.0）
+http = "^1.2.3"
+
+# 近似版本（>=1.2.3, <1.3.0）
+http = "~1.2.3"
+
+# 范围
+http = ">=1.0.0, <2.0.0"
+
+# 最新
+http = "latest"
+
+# Git 依赖
+ai-agent = { git = "https://github.com/aliquanhou/ai-agent" }
+ai-agent = { git = "https://github.com/aliquanhou/ai-agent", branch = "dev" }
+ai-agent = { git = "https://github.com/aliquanhou/ai-agent", tag = "v0.3.0" }
+ai-agent = { git = "https://github.com/aliquanhou/ai-agent", rev = "abc123" }
+
+# 本地路径
+my-utils = { path = "../my-utils" }</code></pre>
+
+    <h2>2. CLI 工具</h2>
+    <h3>开发命令</h3>
+    <pre><code># 创建项目
+tll new myapp
+cd myapp
+
+# 开发模式（自动重载）
+tll dev
+
+# 构建
+tll build
+tll build --release
+
+# 运行
+tll run
+tll run src/main.tll
+
+# 测试
+tll test
+tll test --filter "test_add"
+tll test --watch
+
+# 代码检查
+tll check
+tll check --strict
+
+# 格式化
+tll fmt
+tll fmt --check
+
+# 文档生成
+tll doc
+tll doc --open
+
+# 依赖管理
+tll add http
+tll remove http
+tll install
+tll update
+tll outdated</code></pre>
+
+    <h3>全局选项</h3>
+    <pre><code>tll --version       # 显示版本
+tll --help          # 显示帮助
+tll <command> --help # 显示命令帮助
+tll -v <command>    # 详细输出
+tll -q <command>    # 静默模式
+tll --color=never   # 禁用颜色输出</code></pre>
+
+    <h2>3. 项目模板</h2>
+    <pre><code># 基础库项目
+tll new mylib --lib
+
+# 可执行程序
+tll new myapp --bin
+
+# Web 应用
+tll new myweb --web
+
+# AI Agent 项目
+tll new myagent --agent
+
+# 全栈应用
+tll new myfullstack --fullstack</code></pre>
+
+    <h2>4. 编辑器插件</h2>
+    <table>
+      <tr><th>编辑器</th><th>状态</th><th>功能</th></tr>
+      <tr><td>VS Code</td><td>开发中</td><td>语法高亮、自动补全、跳转定义、错误诊断、格式化</td></tr>
+      <tr><td>Vim / Neovim</td><td>计划中</td><td>语法高亮、LSP 支持</td></tr>
+      <tr><td>Emacs</td><td>计划中</td><td>语法高亮、LSP 支持</td></tr>
+      <tr><td>Sublime Text</td><td>计划中</td><td>语法高亮</td></tr>
+      <tr><td>JetBrains IDE</td><td>计划中</td><td>完整 IDE 支持</td></tr>
+    </table>
+
+    <h3>Language Server Protocol (LSP)</h3>
+    <p>TLL 提供标准的 LSP 服务器，支持任何兼容 LSP 的编辑器：</p>
+    <pre><code># 启动 LSP 服务器
+tll lsp
+
+# VS Code 配置示例（settings.json）
+{
+    "tll.lsp.enabled": true,
+    "tll.format.enable": true,
+    "tll.check.onSave": true
+}</code></pre>
+
+    <h2>5. 社区资源</h2>
+    <h3>官方渠道</h3>
+    <ul>
+      <li><strong>GitHub</strong> — <a href="https://github.com/aliquanhou/tll">https://github.com/aliquanhou/tll</a></li>
+      <li><strong>官网</strong> — <a href="http://tll.knitoem.com">http://tll.knitoem.com</a></li>
+      <li><strong>文档</strong> — <a href="http://tll.knitoem.com/docs/">http://tll.knitoem.com/docs/</a></li>
+      <li><strong>Playground</strong> — <a href="http://tll.knitoem.com/playground/">http://tll.knitoem.com/playground/</a></li>
+    </ul>
+
+    <h3>贡献方式</h3>
+    <ul>
+      <li><strong>代码贡献</strong> — 提交 PR 修复 bug、实现新功能</li>
+      <li><strong>文档贡献</strong> — 改进文档、翻译、添加示例</li>
+      <li><strong>Bug 报告</strong> — 在 GitHub Issues 提交 bug</li>
+      <li><strong>功能建议</strong> — 提出新功能或改进建议</li>
+      <li><strong>社区支持</strong> — 回答问题、帮助新用户</li>
+      <li><strong>生态建设</strong> — 开发库、工具、编辑器插件</li>
+    </ul>
+
+    <h2>6. 版本策略</h2>
+    <p>TLL 遵循 <strong>语义化版本（SemVer）</strong>：</p>
+    <ul>
+      <li><strong>0.x</strong> — 不稳定阶段，小版本之间可能有破坏性变更</li>
+      <li><strong>1.0</strong> — 第一个稳定版本，API 冻结</li>
+      <li><strong>1.x</strong> — 向后兼容的功能新增</li>
+      <li><strong>2.0</strong> — 破坏性变更</li>
+    </ul>
+
+    <h2>7. 常见问题（FAQ）</h2>
+    <h3>Q: TLL 和其他语言有什么区别？</h3>
+    <p>A: TLL 的核心是 <strong>AI-Native</strong>。Agent、Intent、Tool 是语言级一等公民，而非库。TLL 不依赖任何其他语言的语义，目标是完全自举。</p>
+
+    <h3>Q: 为什么用 TypeScript 实现 Bootstrap 编译器？</h3>
+    <p>A: TypeScript 生态成熟、开发效率高、跨平台。Bootstrap 编译器是临时的，用于编译 TLL 编译器源码。<strong>v1.0 Self-hosting 已完成</strong>——TLL 编译器已由 TLL 自己编写，最终目标是完全摆脱 TypeScript。</p>
+
+    <h3>Q: TLL 有垃圾回收吗？</h3>
+    <p>A: TLL v1.0 没有 GC。内存通过所有权 + 借用 + 可选引用计数管理。未来版本可能提供可选 GC。</p>
+
+    <h3>Q: 如何参与 TLL 开发？</h3>
+    <p>A: 阅读 <a href="/docs/compiler.html">编译器文档</a>，Fork <a href="https://github.com/aliquanhou/tll">GitHub 仓库</a>，提交 PR。欢迎任何形式的贡献！</p>
+    </main>
+</div>
+</body>
+</html>
+

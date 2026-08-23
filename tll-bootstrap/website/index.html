@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TLL — AI-Native Programming Language | v1.0 Self-hosting</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{--cyan:#00d4ff;--purple:#7b2ffc;--green:#00ff88;--bg:#0a0e17;--bg2:#0f1420;--text:#e8edf5;--muted:#8892a6;--code-bg:#1a1f2e;--border:rgba(0,212,255,.15)}
+  html{scroll-behavior:smooth}
+  body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;line-height:1.6}
+  #particles{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none}
+  .glow-orb{position:fixed;border-radius:50%;filter:blur(120px);opacity:.3;z-index:0;pointer-events:none;animation:float 20s ease-in-out infinite}
+  .glow-orb.cyan{width:500px;height:500px;background:var(--cyan);top:-100px;right:-100px}
+  .glow-orb.purple{width:400px;height:400px;background:var(--purple);bottom:-100px;left:-100px;animation-delay:-10s}
+  @keyframes float{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(50px,-30px) scale(1.1)}66%{transform:translate(-30px,20px) scale(.95)}}
+  nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:16px 40px;display:flex;justify-content:space-between;align-items:center;background:rgba(10,14,23,.7);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+  .nav-logo{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:2px}
+  .nav-links{display:flex;gap:32px;align-items:center}
+  .nav-links a{color:var(--muted);text-decoration:none;font-size:14px;font-weight:500;transition:color .3s}
+  .nav-links a:hover{color:var(--cyan)}
+  .nav-github{display:flex;align-items:center;gap:8px;padding:8px 18px;border:1px solid var(--border);border-radius:8px;color:var(--text)!important;transition:all .3s}
+  .nav-github:hover{border-color:var(--cyan);background:rgba(0,212,255,.05)}
+  .hero{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:120px 20px 60px}
+  .hero-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border:1px solid var(--green);border-radius:20px;font-size:12px;color:var(--green);background:rgba(0,255,136,.05);margin-bottom:32px;font-family:'JetBrains Mono',monospace}
+  .hero-badge .dot{width:6px;height:6px;background:var(--green);border-radius:50%;animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+  .hero h1{font-family:'JetBrains Mono',monospace;font-size:clamp(72px,12vw,160px);font-weight:700;line-height:1;margin-bottom:16px;background:linear-gradient(135deg,var(--cyan) 0%,var(--purple) 50%,var(--green) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:6px}
+  .hero-subtitle{font-size:clamp(18px,3vw,28px);color:var(--text);font-weight:300;margin-bottom:24px;letter-spacing:1px}
+  .hero-quote{font-size:15px;color:var(--muted);font-style:italic;max-width:600px;margin-bottom:40px;font-family:'JetBrains Mono',monospace;line-height:1.8}
+  .hero-cta{display:flex;gap:16px;margin-bottom:56px;flex-wrap:wrap;justify-content:center}
+  .btn{padding:14px 32px;border-radius:10px;font-size:15px;font-weight:600;text-decoration:none;transition:all .3s;cursor:pointer;border:none;font-family:'Inter',sans-serif}
+  .btn-primary{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#fff;box-shadow:0 4px 24px rgba(0,212,255,.3)}
+  .btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,212,255,.4)}
+  .btn-secondary{background:transparent;color:var(--text);border:1px solid var(--border)}
+  .btn-secondary:hover{border-color:var(--cyan);background:rgba(0,212,255,.05)}
+  .progress-panel{width:100%;max-width:680px;background:rgba(26,31,46,.6);border:1px solid var(--green);border-radius:16px;padding:28px 32px;backdrop-filter:blur(10px)}
+  .progress-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+  .progress-title{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--green);text-transform:uppercase;letter-spacing:2px}
+  .progress-pct{font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--green));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .progress-bar{width:100%;height:6px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden;margin-bottom:20px}
+  .progress-fill{height:100%;background:linear-gradient(90deg,var(--cyan),var(--purple),var(--green));border-radius:3px;width:0;transition:width 1s ease}
+  .progress-modules{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px}
+  .progress-module{display:flex;align-items:center;gap:8px;font-size:12px;font-family:'JetBrains Mono',monospace}
+  .progress-module .icon{font-size:14px}
+  .progress-module .name{color:var(--muted)}
+  .progress-module.done .name{color:var(--green)}
+  .progress-module.active .name{color:var(--cyan)}
+  .progress-stats{margin-top:16px;padding-top:16px;border-top:1px solid var(--border);display:flex;justify-content:space-around;font-family:'JetBrains Mono',monospace;font-size:12px}
+  .progress-stat{text-align:center}
+  .progress-stat .val{font-size:20px;font-weight:700;color:var(--cyan)}
+  .progress-stat .lbl{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:1px}
+  .code-section{position:relative;z-index:1;padding:80px 20px;max-width:900px;margin:0 auto}
+  .section-label{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--cyan);text-transform:uppercase;letter-spacing:3px;margin-bottom:16px;text-align:center}
+  .section-title{font-size:32px;font-weight:700;text-align:center;margin-bottom:40px;background:linear-gradient(135deg,var(--text),var(--muted));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .code-window{background:var(--code-bg);border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  .code-window-header{display:flex;align-items:center;padding:12px 16px;background:rgba(0,0,0,.2);border-bottom:1px solid var(--border)}
+  .code-dots{display:flex;gap:8px}
+  .code-dot{width:12px;height:12px;border-radius:50%}
+  .code-dot.red{background:#ff5f57}.code-dot.yellow{background:#febc2e}.code-dot.green{background:#28c840}
+  .code-filename{margin-left:16px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--muted)}
+  .code-body{padding:24px;font-family:'JetBrains Mono',monospace;font-size:14px;line-height:1.8;min-height:320px;text-align:left}
+  .code-line{display:block}
+  .tok-keyword{color:#c792ea}.tok-type{color:#82aaff}.tok-string{color:#c3e88d}.tok-comment{color:#546e7a;font-style:italic}.tok-number{color:#f78c6c}
+  .cursor{display:inline-block;width:8px;height:18px;background:var(--cyan);animation:blink 1s step-end infinite;vertical-align:middle;margin-left:2px}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+  .features{position:relative;z-index:1;padding:80px 20px;max-width:1100px;margin:0 auto}
+  .features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:24px}
+  .feature-card{background:rgba(26,31,46,.5);border:1px solid var(--border);border-radius:16px;padding:32px 28px;transition:all .4s;position:relative;overflow:hidden}
+  .feature-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--cyan),var(--purple));opacity:0;transition:opacity .4s}
+  .feature-card:hover{transform:translateY(-4px);border-color:rgba(0,212,255,.3);background:rgba(26,31,46,.8)}
+  .feature-card:hover::before{opacity:1}
+  .feature-icon{font-size:36px;margin-bottom:16px}
+  .feature-title{font-size:18px;font-weight:700;margin-bottom:8px;color:var(--text)}
+  .feature-desc{font-size:14px;color:var(--muted);line-height:1.6}
+  .activity{position:relative;z-index:1;padding:80px 20px;max-width:800px;margin:0 auto}
+  .activity-list{background:rgba(26,31,46,.5);border:1px solid var(--border);border-radius:16px;padding:24px}
+  .activity-item{display:flex;align-items:flex-start;gap:16px;padding:14px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+  .activity-item:last-child{border-bottom:none}
+  .activity-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:6px}
+  .activity-dot.green{background:var(--green)}.activity-dot.cyan{background:var(--cyan)}.activity-dot.purple{background:var(--purple)}
+  .activity-content{flex:1}
+  .activity-text{font-size:14px;color:var(--text);margin-bottom:4px}
+  .activity-detail{font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;line-height:1.6}
+  .activity-time{font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;flex-shrink:0}
+  footer{position:relative;z-index:1;padding:40px 20px;text-align:center;border-top:1px solid var(--border);background:rgba(10,14,23,.8)}
+  .footer-links{display:flex;justify-content:center;gap:32px;margin-bottom:16px;flex-wrap:wrap}
+  .footer-links a{color:var(--muted);text-decoration:none;font-size:14px;transition:color .3s}
+  .footer-links a:hover{color:var(--cyan)}
+  .footer-copy{font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace}
+  @media(max-width:768px){nav{padding:12px 20px}.nav-links{gap:16px}.nav-links a:not(.nav-github){display:none}.hero h1{letter-spacing:3px}.progress-panel{padding:20px}.code-body{padding:16px;font-size:12px}}
+</style>
+</head>
+<body>
+<canvas id="particles"></canvas>
+<div class="glow-orb cyan"></div>
+<div class="glow-orb purple"></div>
+<nav>
+  <div class="nav-logo">TLL</div>
+  <div class="nav-links">
+    <a href="#features">特性</a>
+    <a href="/blueprint/">蓝图</a>
+    <a href="/docs/">文档</a>
+    <a href="/playground/">Playground</a>
+    <a href="https://github.com/aliquanhou/tll" class="nav-github" target="_blank">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+      GitHub
+    </a>
+  </div>
+</nav>
+<section class="hero">
+  <div class="hero-badge"><span class="dot"></span>v1.0 · Self-hosting Complete</div>
+  <h1>TLL</h1>
+  <p class="hero-subtitle">AI-Native Programming Language</p>
+  <p class="hero-quote">"TLL v1.0 — Self-hosting Complete. AI-Native. Independent. The compiler compiles itself."</p>
+  <div class="hero-cta">
+    <a href="/docs/" class="btn btn-primary">开始学习 →</a>
+    <a href="/playground/" class="btn btn-secondary">在线体验</a>
+    <a href="/blueprint/" class="btn btn-secondary">技术蓝图</a>
+  </div>
+  <div class="progress-panel">
+    <div class="progress-header">
+      <span class="progress-title">TLL v1.0 自举状态</span>
+      <span class="progress-pct" id="progressPct">0%</span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-modules">
+      <div class="progress-module done"><span class="icon">✓</span><span class="name">Lexer</span></div>
+      <div class="progress-module done"><span class="icon">✓</span><span class="name">Parser</span></div>
+      <div class="progress-module done"><span class="icon">✓</span><span class="name">Type Check</span></div>
+      <div class="progress-module done"><span class="icon">✓</span><span class="name">Codegen</span></div>
+      <div class="progress-module done"><span class="icon">✓</span><span class="name">VM</span></div>
+      <div class="progress-module done"><span class="icon">✓</span><span class="name">Module Link</span></div>
+      <div class="progress-module done"><span class="icon">✓</span><span class="name">Self-Host</span></div>
+    </div>
+    <div class="progress-stats">
+      <div class="progress-stat"><div class="val">127</div><div class="lbl">Functions</div></div>
+      <div class="progress-stat"><div class="val">2294</div><div class="lbl">Constants</div></div>
+      <div class="progress-stat"><div class="val">L4+L5</div><div class="lbl">Bootstrap</div></div>
+      <div class="progress-stat"><div class="val">100%</div><div class="lbl">Consistency</div></div>
+    </div>
+  </div>
+</section>
+<section class="code-section">
+  <div class="section-label">// Self-hosting Verification</div>
+  <h2 class="section-title">编译器编译自身</h2>
+  <div class="code-window">
+    <div class="code-window-header">
+      <div class="code-dots"><div class="code-dot red"></div><div class="code-dot yellow"></div><div class="code-dot green"></div></div>
+      <span class="code-filename">selfhost.tll</span>
+    </div>
+    <div class="code-body" id="typewriter"><span class="cursor"></span></div>
+  </div>
+</section>
+<section class="features" id="features">
+  <div class="section-label">// Core Features</div>
+  <h2 class="section-title">为什么选择 TLL</h2>
+  <div class="features-grid">
+    <div class="feature-card"><div class="feature-icon">🧠</div><div class="feature-title">AI-Native 设计</div><div class="feature-desc">Agent、Tool、Workflow 是语言级一等公民，而非库调用。AI 从第一天就是核心。</div></div>
+    <div class="feature-card"><div class="feature-icon">🔄</div><div class="feature-title">自举已完成</div><div class="feature-desc">TLL Compiler 已由 TLL 自己编写，完全自举。127 函数 / 2294 常量，两轮一致性验证通过。</div></div>
+    <div class="feature-card"><div class="feature-icon">🏗️</div><div class="feature-title">一等公民抽象</div><div class="feature-desc">Entity、API、Application 内置于语言，声明式定义数据模型、接口和服务，无需框架。</div></div>
+    <div class="feature-card"><div class="feature-icon">📦</div><div class="feature-title">零依赖部署</div><div class="feature-desc">最终用户机器只需 tll 命令，无需安装 Node、Python、Rust。单一二进制，开箱即用。</div></div>
+  </div>
+</section>
+<section class="activity">
+  <div class="section-label">// Latest Activity</div>
+  <h2 class="section-title">项目动态</h2>
+  <div class="activity-list">
+    <div class="activity-item">
+      <div class="activity-dot green"></div>
+      <div class="activity-content">
+        <div class="activity-text">🎉 TLL v1.0 Self-hosting 完成</div>
+        <div class="activity-detail">127 函数 / 2294 常量 · L4 + L5 Bootstrap 验证通过 · 两轮自举结果完全一致</div>
+      </div>
+      <div class="activity-time">2026-08-24</div>
+    </div>
+    <div class="activity-item">
+      <div class="activity-dot cyan"></div>
+      <div class="activity-content">
+        <div class="activity-text">Module Linker 核心完成</div>
+        <div class="activity-detail">多层依赖解析 (T3.1) · 跨模块调用 (T3.4) · 同名函数处理 (T3.3) · 循环依赖检测 (T3.2)</div>
+      </div>
+      <div class="activity-time">2026-08-23</div>
+    </div>
+    <div class="activity-item">
+      <div class="activity-dot purple"></div>
+      <div class="activity-content">
+        <div class="activity-text">Codegen OOM 根因修复</div>
+        <div class="activity-detail">循环变量污染修复 · break/continue 编译修复 · 内置函数索引修复 · 三个最小测试全部通过</div>
+      </div>
+      <div class="activity-time">2026-08-23</div>
+    </div>
+    <div class="activity-item">
+      <div class="activity-dot green"></div>
+      <div class="activity-content">
+        <div class="activity-text">Language Specification 1.0 冻结</div>
+        <div class="activity-detail">20 条语义规则 · 关键字/类型/模块系统完整定义 · 自举契约确立</div>
+      </div>
+      <div class="activity-time">2026-08-22</div>
+    </div>
+  </div>
+</section>
+<footer>
+  <div class="footer-links">
+    <a href="/docs/">文档</a><a href="/blueprint/">蓝图</a><a href="/playground/">Playground</a><a href="https://github.com/aliquanhou/tll" target="_blank">GitHub</a><a href="/docs/spec/0.1.html">规范</a>
+  </div>
+  <div class="footer-copy">TLL Programming Language &copy; 2026 &middot; MIT License &middot; v1.0 Self-hosting &middot; Built with AI</div>
+</footer>
+<script>
+(function(){
+  const canvas=document.getElementById('particles'),ctx=canvas.getContext('2d');
+  let particles=[];const N=80,D=150;
+  function resize(){canvas.width=innerWidth;canvas.height=innerHeight}
+  resize();addEventListener('resize',resize);
+  for(let i=0;i<N;i++)particles.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,vx:(Math.random()-.5)*.5,vy:(Math.random()-.5)*.5,r:Math.random()*2+1});
+  function animate(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    for(let i=0;i<particles.length;i++){
+      const p=particles[i];p.x+=p.vx;p.y+=p.vy;
+      if(p.x<0||p.x>canvas.width)p.vx*=-1;if(p.y<0||p.y>canvas.height)p.vy*=-1;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);ctx.fillStyle='rgba(0,212,255,.5)';ctx.fill();
+      for(let j=i+1;j<particles.length;j++){
+        const p2=particles[j],dist=Math.hypot(p.x-p2.x,p.y-p2.y);
+        if(dist<D){ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p2.x,p2.y);ctx.strokeStyle=`rgba(123,47,252,${.15*(1-dist/D)})`;ctx.lineWidth=.5;ctx.stroke()}
+      }
+    }
+    requestAnimationFrame(animate)
+  }
+  animate()
+})();
+(function(){
+  const lines=[
+    {t:'// TLL v1.0 Self-hosting Verification',i:0},
+    {t:'io.println("=== TLL v1.0 ===")',i:0},
+    {t:'io.println("Functions: 127")',i:0},
+    {t:'io.println("Constants: 2294")',i:0},
+    {t:'',i:0},
+    {t:'// 编译器编译自身的核心循环',i:0},
+    {t:'fn compile(source) {',i:0},
+    {t:'  let tokens = lex(source)',i:1},
+    {t:'  let ast = parse(tokens)',i:1},
+    {t:'  typeCheck(ast)',i:1},
+    {t:'  let bytecode = codegen(ast)',i:1},
+    {t:'  return bytecode',i:1},
+    {t:'}',i:0},
+    {t:'',i:0},
+    {t:'// 自举：TLL 编译器编译 TLL 编译器源码',i:0},
+    {t:'let bc1 = compile(compilerSource)',i:0},
+    {t:'let bc2 = vm_run(bc1, compilerSource)',i:0},
+    {t:'assert(bc1 == bc2) // 两轮一致',i:0},
+    {t:'io.println("Self-hosting: PASS")',i:0},
+  ];
+  const c=document.getElementById('typewriter');
+  let li=0,ci=0,cur=null;
+  function hl(s){return s.replace(/\b(fn|let|mut|const|if|else|while|for|return|import|from|pub|struct|enum|interface|impl|async|await|defer|match|true|false|null|assert)\b/g,'<span class="tok-keyword">$1</span>').replace(/\b(int|float|str|bool|char|List|Map|Option|Result|void)\b/g,'<span class="tok-type">$1</span>').replace(/"([^"]*)"/g,'<span class="tok-string">"$1"</span>').replace(/(\/\/.*)/g,'<span class="tok-comment">$1</span>').replace(/\b(\d+)\b/g,'<span class="tok-number">$1</span>')}
+  function type(){
+    if(li>=lines.length){setTimeout(()=>{c.innerHTML='<span class="cursor"></span>';li=0;ci=0;cur=null;type()},4000);return}
+    const line=lines[li];
+    if(ci===0){cur=document.createElement('span');cur.className='code-line';if(line.i){const ind=document.createElement('span');ind.style.display='inline-block';ind.style.width=(line.i*24)+'px';cur.appendChild(ind)}const cursor=c.querySelector('.cursor');c.insertBefore(cur,cursor)}
+    if(ci<line.t.length){const ts=cur.querySelector('.code-text')||(()=>{const s=document.createElement('span');s.className='code-text';cur.appendChild(s);return s})();ts.innerHTML=hl(line.t.substring(0,ci+1));ci++;setTimeout(type,25)}
+    else{li++;ci=0;setTimeout(type,200)}
+  }
+  setTimeout(type,1500)
+})();
+(function(){
+  const fill=document.getElementById('progressFill'),pct=document.getElementById('progressPct');
+  let done=false;
+  const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(e.isIntersecting&&!done){done=true;let w=0;const t=setInterval(()=>{w++;fill.style.width=w+'%';pct.textContent=w+'%';if(w>=100)clearInterval(t)},15)}})},{threshold:.3});
+  obs.observe(fill)
+})();
+</script>
+</body>
+</html>

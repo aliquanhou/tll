@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>入门指南 — TLL Documentation</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{--cyan:#00d4ff;--purple:#7b2ffc;--green:#00ff88;--bg:#0a0e17;--bg2:#0f1420;--bg3:#1a1f2e;--text:#e8edf5;--muted:#8892a6;--border:rgba(0,212,255,.12);--code-bg:#131722}
+  body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);line-height:1.7}
+  nav{position:fixed;top:0;left:0;right:0;z-index:100;padding:12px 32px;display:flex;justify-content:space-between;align-items:center;background:rgba(10,14,23,.92);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+  .nav-logo{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:2px;text-decoration:none}
+  .nav-links{display:flex;gap:24px;align-items:center}
+  .nav-links a{color:var(--muted);text-decoration:none;font-size:13px;font-weight:500;transition:color .3s}
+  .nav-links a:hover,.nav-links a.active{color:var(--cyan)}
+  .layout{display:flex;padding-top:52px;min-height:100vh}
+  .sidebar{width:260px;flex-shrink:0;position:fixed;top:52px;left:0;bottom:0;overflow-y:auto;padding:24px 20px;border-right:1px solid var(--border);background:rgba(15,20,32,.6)}
+  .sidebar::-webkit-scrollbar{width:4px}
+  .sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+  .sidebar-title{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+  .sidebar-nav{list-style:none;margin-bottom:24px}
+  .sidebar-nav li{margin-bottom:2px}
+  .sidebar-nav a{display:block;padding:7px 10px;color:var(--muted);text-decoration:none;font-size:13px;border-radius:6px;transition:all .2s;font-family:'JetBrains Mono',monospace}
+  .sidebar-nav a:hover{color:var(--cyan);background:rgba(0,212,255,.05)}
+  .sidebar-nav a.active{color:var(--cyan);background:rgba(0,212,255,.08);font-weight:600}
+  .content{flex:1;margin-left:260px;padding:40px 48px 80px;max-width:860px}
+  .content h1{font-size:32px;font-weight:700;margin-bottom:8px;background:linear-gradient(135deg,var(--text),var(--muted));-webkit-background-clip:text;-webkit-text-fill-color:transparent;padding-bottom:16px;border-bottom:2px solid var(--border)}
+  .content h2{font-size:24px;font-weight:700;margin-top:40px;margin-bottom:14px;color:var(--cyan);padding-bottom:8px;border-bottom:1px solid var(--border)}
+  .content h3{font-size:18px;font-weight:600;margin-top:28px;margin-bottom:10px;color:var(--text)}
+  .content p{margin-bottom:14px;color:var(--text);font-size:15px}
+  .content ul,.content ol{margin-bottom:14px;padding-left:24px}
+  .content li{margin-bottom:5px;font-size:14px;color:var(--text)}
+  .content code{font-family:'JetBrains Mono',monospace;font-size:13px;background:var(--code-bg);padding:2px 6px;border-radius:4px;color:var(--cyan);border:1px solid var(--border)}
+  .content pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:18px 20px;margin-bottom:18px;overflow-x:auto}
+  .content pre code{background:none;border:none;padding:0;color:var(--text);font-size:13px;line-height:1.7}
+  .content blockquote{border-left:3px solid var(--purple);padding:10px 18px;margin-bottom:16px;background:rgba(123,47,252,.05);border-radius:0 8px 8px 0;color:var(--muted)}
+  .content table{width:100%;border-collapse:collapse;margin-bottom:18px;font-size:14px}
+  .content th{text-align:left;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);color:var(--cyan);font-weight:600;font-family:'JetBrains Mono',monospace;font-size:13px}
+  .content td{padding:10px 14px;border:1px solid var(--border);color:var(--text)}
+  .content tr:nth-child(even) td{background:rgba(255,255,255,.02)}
+  .content a{color:var(--cyan);text-decoration:none;border-bottom:1px solid rgba(0,212,255,.3)}
+  .content a:hover{border-bottom-color:var(--cyan)}
+  .content strong{color:var(--green);font-weight:600}
+  .breadcrumb{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);margin-bottom:20px}
+  .breadcrumb a{color:var(--muted);text-decoration:none}
+  .breadcrumb a:hover{color:var(--cyan)}
+  .next-prev{display:flex;justify-content:space-between;margin-top:48px;padding-top:24px;border-top:1px solid var(--border)}
+  .next-prev a{display:block;padding:14px 20px;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:var(--text);transition:all .3s;max-width:45%}
+  .next-prev a:hover{border-color:var(--cyan);background:rgba(0,212,255,.05)}
+  .next-prev .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+  .next-prev .title{font-size:14px;font-weight:600;color:var(--cyan)}
+  @media(max-width:1024px){.sidebar{transform:translateX(-100%);transition:transform .3s;z-index:99}.sidebar.open{transform:translateX(0)}.content{margin-left:0;padding:24px 20px}}
+</style>
+</head>
+<body>
+<nav>
+  <a href="/" class="nav-logo">TLL</a>
+  <div class="nav-links">
+    <a href="/">首页</a>
+    <a href="/docs/" class="active">文档</a>
+    <a href="/playground/">Playground</a>
+    <a href="https://github.com/aliquanhou/tll" target="_blank">GitHub</a>
+  </div>
+</nav>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-title">Documentation</div>
+    <ul class="sidebar-nav">
+      <li><a href="/docs/getting-started.html" class="active">🚀 入门指南</a></li>
+      <li><a href="/docs/language.html">📖 语言基础</a></li>
+      <li><a href="/docs/first-class.html">⭐ 一等公民</a></li>
+      <li><a href="/docs/stdlib.html">📚 标准库</a></li>
+      <li><a href="/docs/compiler.html">⚙️ 编译器</a></li>
+      <li><a href="/docs/ecosystem.html">🌐 生态系统</a></li>
+    </ul>
+    <div class="sidebar-title">Reference</div>
+    <ul class="sidebar-nav">
+      <li><a href="/docs/spec/0.1.html">📄 语言规范 0.1</a></li>
+    </ul>
+  </aside>
+  <main class="content">
+    <div class="breadcrumb"><a href="/docs/">文档</a> / 入门指南</div>
+    <h1>🚀 入门指南</h1>
+    <p>5 分钟上手 TLL 编程语言。本指南将带你完成环境配置、编写第一个程序、了解项目结构。</p>
+
+    <h2>1. 安装</h2>
+    <p>TLL <strong>v1.0 Self-hosting 已完成</strong>，编译器由 TLL 自己编写。当前 Bootstrap 编译器（TypeScript）用于编译 TLL 编译器源码，最终目标是完全摆脱 TypeScript。需要 Node.js 18+ 环境运行 Bootstrap 编译器。</p>
+    <h3>从源码安装</h3>
+    <pre><code># 克隆仓库
+git clone https://github.com/aliquanhou/tll.git
+cd tll/tll-compiler
+
+# 安装依赖
+npm install
+
+# 编译 TypeScript
+npx tsc
+
+# 验证安装
+node dist/src/cli.js --version
+# tll version 0.1.0-bootstrap</code></pre>
+
+    <h3>创建别名（可选）</h3>
+    <pre><code># Linux / macOS
+echo 'alias tll="node /path/to/tll/tll-compiler/dist/src/cli.js"' >> ~/.bashrc
+source ~/.bashrc
+
+# 验证
+tll --version</code></pre>
+
+    <h2>2. Hello World</h2>
+    <p>创建你的第一个 TLL 程序：</p>
+    <pre><code># hello.tll
+fn main() {
+    io.println("Hello, TLL World!")
+
+    let name = "TLL"
+    let version = "0.1"
+    io.println("Language: " + name + " v" + version)
+}
+
+main()</code></pre>
+    <p>运行程序：</p>
+    <pre><code>tll run hello.tll
+# Hello, TLL World!
+# Language: TLL v1.0</code></pre>
+
+    <h2>3. 项目结构</h2>
+    <p>一个标准的 TLL 项目结构：</p>
+    <pre><code>myapp/
+├── tll.toml          # 包清单
+├── src/
+│   ├── main.tll      # 入口文件
+│   ├── utils.tll     # 工具模块
+│   └── models/
+│       ├── user.tll
+│       └── product.tll
+├── tests/
+│   └── main_test.tll
+└── docs/
+    └── README.md</code></pre>
+
+    <h3>tll.toml 包清单</h3>
+    <pre><code>[package]
+name = "myapp"
+version = "0.1.0"
+license = "MIT"
+authors = ["Your Name <you@example.com>"]
+
+[dependencies]
+http = "1.0.0"
+json = "2.1.0"</code></pre>
+
+    <h2>4. CLI 命令参考</h2>
+    <table>
+      <tr><th>命令</th><th>说明</th></tr>
+      <tr><td><code>tll new &lt;name&gt;</code></td><td>创建新项目</td></tr>
+      <tr><td><code>tll run &lt;file&gt;</code></td><td>编译并运行</td></tr>
+      <tr><td><code>tll build &lt;file&gt;</code></td><td>编译为字节码 (.tllbc)</td></tr>
+      <tr><td><code>tll check &lt;file&gt;</code></td><td>仅类型检查，不生成代码</td></tr>
+      <tr><td><code>tll lex &lt;file&gt;</code></td><td>输出 Token 流</td></tr>
+      <tr><td><code>tll parse &lt;file&gt;</code></td><td>输出 AST（JSON 格式）</td></tr>
+      <tr><td><code>tll test</code></td><td>运行测试</td></tr>
+      <tr><td><code>tll fmt</code></td><td>格式化代码</td></tr>
+      <tr><td><code>tll add &lt;pkg&gt;</code></td><td>添加依赖</td></tr>
+      <tr><td><code>tll --version</code></td><td>显示版本</td></tr>
+    </table>
+
+    <h2>5. 下一步</h2>
+    <ul>
+      <li>阅读 <a href="/docs/language.html">语言基础</a> — 掌握变量、类型、函数、控制流</li>
+      <li>探索 <a href="/docs/first-class.html">一等公民</a> — TLL 独特的 Entity/API/Agent 设计</li>
+      <li>查阅 <a href="/docs/spec/0.1.html">语言规范 0.1</a> — 完整技术规范</li>
+      <li>访问 <a href="/playground/">Playground</a> — 在线体验（开发中）</li>
+    </ul>
+
+    <div class="next-prev">
+      <a href="/docs/" style="text-align:left">
+        <div class="label">← 上一页</div>
+        <div class="title">文档首页</div>
+      </a>
+      <a href="/docs/language.html" style="text-align:right">
+        <div class="label">下一页 →</div>
+        <div class="title">语言基础</div>
+      </a>
+    </div>
+  </main>
+</div>
+</body>
+</html>
