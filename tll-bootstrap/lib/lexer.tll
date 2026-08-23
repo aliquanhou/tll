@@ -220,7 +220,7 @@ export fn tokenize(input: string) -> list {
                 pos = pos + 1; column = column + 1
                 if c == "\n" { line = line + 1; column = 1 }
                 if c == "\"" {
-                    arrays.push(tokens, { type: TK_STRING, value: value, line: startLine, column: startCol })
+                    arrays.push(tokens, { tkType: TK_STRING, tkValue: value, line: startLine, column: startCol })
                     break
                 } else if c == "\\" {
                     if pos < inputLen {
@@ -248,7 +248,7 @@ export fn tokenize(input: string) -> list {
                 pos = pos + 1; column = column + 1
                 if c == "\n" { line = line + 1; column = 1 }
                 if c == "\"" {
-                    arrays.push(tokens, { type: TK_RAW_STRING, value: value, line: startLine, column: startCol })
+                    arrays.push(tokens, { tkType: TK_RAW_STRING, tkValue: value, line: startLine, column: startCol })
                     break
                 }
                 value = value + c
@@ -265,7 +265,7 @@ export fn tokenize(input: string) -> list {
                     while pos < inputLen && isHexDigit(strings.charAt(input, pos)) {
                         value = value + strings.charAt(input, pos); pos = pos + 1; column = column + 1
                     }
-                    arrays.push(tokens, { type: TK_INT, value: value, line: startLine, column: startCol })
+                    arrays.push(tokens, { tkType: TK_INT, tkValue: value, line: startLine, column: startCol })
                     continue
                 }
                 if next == "o" || next == "O" {
@@ -274,7 +274,7 @@ export fn tokenize(input: string) -> list {
                     while pos < inputLen && strings.charAt(input, pos) >= "0" && strings.charAt(input, pos) <= "7" {
                         value = value + strings.charAt(input, pos); pos = pos + 1; column = column + 1
                     }
-                    arrays.push(tokens, { type: TK_INT, value: value, line: startLine, column: startCol })
+                    arrays.push(tokens, { tkType: TK_INT, tkValue: value, line: startLine, column: startCol })
                     continue
                 }
                 if next == "b" || next == "B" {
@@ -283,7 +283,7 @@ export fn tokenize(input: string) -> list {
                     while pos < inputLen && (strings.charAt(input, pos) == "0" || strings.charAt(input, pos) == "1") {
                         value = value + strings.charAt(input, pos); pos = pos + 1; column = column + 1
                     }
-                    arrays.push(tokens, { type: TK_INT, value: value, line: startLine, column: startCol })
+                    arrays.push(tokens, { tkType: TK_INT, tkValue: value, line: startLine, column: startCol })
                     continue
                 }
             }
@@ -308,7 +308,7 @@ export fn tokenize(input: string) -> list {
             }
             let tkType = TK_INT
             if isFloat { tkType = TK_FLOAT }
-            arrays.push(tokens, { type: tkType, value: value, line: startLine, column: startCol })
+            arrays.push(tokens, { tkType: tkType, tkValue: value, line: startLine, column: startCol })
         } else if isAlpha(ch) || ch == "_" {
             // read ident (inlined)
             let value = ""
@@ -318,7 +318,7 @@ export fn tokenize(input: string) -> list {
             let keywordType = getKeywordType(value)
             let tkType = TK_IDENT
             if keywordType != "" { tkType = keywordType }
-            arrays.push(tokens, { type: tkType, value: value, line: startLine, column: startCol })
+            arrays.push(tokens, { tkType: tkType, tkValue: value, line: startLine, column: startCol })
         } else {
             // read operator (inlined)
             let opCh = strings.charAt(input, pos)
@@ -333,55 +333,55 @@ export fn tokenize(input: string) -> list {
             if threeChar == "..=" {
                 pos = pos + 1; column = column + 1
                 pos = pos + 1; column = column + 1
-                arrays.push(tokens, { type: TK_RANGE_INCLUSIVE, value: "..=", line: startLine, column: startCol })
+                arrays.push(tokens, { tkType: TK_RANGE_INCLUSIVE, tkValue: "..=", line: startLine, column: startCol })
                 continue
             }
 
             let matched = false
-            if twoChar == "->" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_ARROW, value: "->", line: startLine, column: startCol }); matched = true }
-            else if twoChar == "=>" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_FAT_ARROW, value: "=>", line: startLine, column: startCol }); matched = true }
-            else if twoChar == "|>" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_PIPE, value: "|>", line: startLine, column: startCol }); matched = true }
-            else if twoChar == "==" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_EQEQ, value: "==", line: startLine, column: startCol }); matched = true }
-            else if twoChar == "!=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_NEQ, value: "!=", line: startLine, column: startCol }); matched = true }
-            else if twoChar == "<=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_LE, value: "<=", line: startLine, column: startCol }); matched = true }
-            else if twoChar == ">=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_GE, value: ">=", line: startLine, column: startCol }); matched = true }
-            else if twoChar == "&&" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_AND, value: "&&", line: startLine, column: startCol }); matched = true }
-            else if twoChar == "||" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_OR, value: "||", line: startLine, column: startCol }); matched = true }
-            else if twoChar == ".." { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_RANGE, value: "..", line: startLine, column: startCol }); matched = true }
-            else if twoChar == "+=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_PLUS_EQ, value: "+=", line: startLine, column: startCol }); matched = true }
-            else if twoChar == "-=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_MINUS_EQ, value: "-=", line: startLine, column: startCol }); matched = true }
-            else if twoChar == "*=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_STAR_EQ, value: "*=", line: startLine, column: startCol }); matched = true }
-            else if twoChar == "/=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_SLASH_EQ, value: "/=", line: startLine, column: startCol }); matched = true }
-            else if twoChar == "%=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_PERCENT_EQ, value: "%=", line: startLine, column: startCol }); matched = true }
-            else if twoChar == "**" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_POWER, value: "**", line: startLine, column: startCol }); matched = true }
+            if twoChar == "->" { pos = pos + 1; column = column + 1; arrays.push(tokens, { tkType: TK_ARROW, tkValue: "->", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "=>" { pos = pos + 1; column = column + 1; arrays.push(tokens, { tkType: TK_FAT_ARROW, tkValue: "=>", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "|>" { pos = pos + 1; column = column + 1; arrays.push(tokens, { tkType: TK_PIPE, tkValue: "|>", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "==" { pos = pos + 1; column = column + 1; arrays.push(tokens, { tkType: TK_EQEQ, tkValue: "==", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "!=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { tkType: TK_NEQ, tkValue: "!=", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "<=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { tkType: TK_LE, tkValue: "<=", line: startLine, column: startCol }); matched = true }
+            else if twoChar == ">=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { tkType: TK_GE, tkValue: ">=", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "&&" { pos = pos + 1; column = column + 1; arrays.push(tokens, { tkType: TK_AND, tkValue: "&&", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "||" { pos = pos + 1; column = column + 1; arrays.push(tokens, { tkType: TK_OR, tkValue: "||", line: startLine, column: startCol }); matched = true }
+            else if twoChar == ".." { pos = pos + 1; column = column + 1; arrays.push(tokens, { tkType: TK_RANGE, tkValue: "..", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "+=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { tkType: TK_PLUS_EQ, tkValue: "+=", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "-=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { tkType: TK_MINUS_EQ, tkValue: "-=", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "*=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { tkType: TK_STAR_EQ, tkValue: "*=", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "/=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { tkType: TK_SLASH_EQ, tkValue: "/=", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "%=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { tkType: TK_PERCENT_EQ, tkValue: "%=", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "**" { pos = pos + 1; column = column + 1; arrays.push(tokens, { tkType: TK_POWER, tkValue: "**", line: startLine, column: startCol }); matched = true }
 
             if !matched {
-                if opCh == "+" { arrays.push(tokens, { type: TK_PLUS, value: "+", line: startLine, column: startCol }) }
-                else if opCh == "-" { arrays.push(tokens, { type: TK_MINUS, value: "-", line: startLine, column: startCol }) }
-                else if opCh == "*" { arrays.push(tokens, { type: TK_STAR, value: "*", line: startLine, column: startCol }) }
-                else if opCh == "/" { arrays.push(tokens, { type: TK_SLASH, value: "/", line: startLine, column: startCol }) }
-                else if opCh == "%" { arrays.push(tokens, { type: TK_PERCENT, value: "%", line: startLine, column: startCol }) }
-                else if opCh == "=" { arrays.push(tokens, { type: TK_EQ, value: "=", line: startLine, column: startCol }) }
-                else if opCh == "!" { arrays.push(tokens, { type: TK_BANG, value: "!", line: startLine, column: startCol }) }
-                else if opCh == "<" { arrays.push(tokens, { type: TK_LT, value: "<", line: startLine, column: startCol }) }
-                else if opCh == ">" { arrays.push(tokens, { type: TK_GT, value: ">", line: startLine, column: startCol }) }
-                else if opCh == "." { arrays.push(tokens, { type: TK_DOT, value: ".", line: startLine, column: startCol }) }
-                else if opCh == "," { arrays.push(tokens, { type: TK_COMMA, value: ",", line: startLine, column: startCol }) }
-                else if opCh == ":" { arrays.push(tokens, { type: TK_COLON, value: ":", line: startLine, column: startCol }) }
-                else if opCh == ";" { arrays.push(tokens, { type: TK_SEMICOLON, value: ";", line: startLine, column: startCol }) }
-                else if opCh == "(" { arrays.push(tokens, { type: TK_LPAREN, value: "(", line: startLine, column: startCol }) }
-                else if opCh == ")" { arrays.push(tokens, { type: TK_RPAREN, value: ")", line: startLine, column: startCol }) }
-                else if opCh == "{" { arrays.push(tokens, { type: TK_LBRACE, value: "{", line: startLine, column: startCol }) }
-                else if opCh == "}" { arrays.push(tokens, { type: TK_RBRACE, value: "}", line: startLine, column: startCol }) }
-                else if opCh == "[" { arrays.push(tokens, { type: TK_LBRACKET, value: "[", line: startLine, column: startCol }) }
-                else if opCh == "]" { arrays.push(tokens, { type: TK_RBRACKET, value: "]", line: startLine, column: startCol }) }
-                else if opCh == "@" { arrays.push(tokens, { type: TK_AT, value: "@", line: startLine, column: startCol }) }
-                else if opCh == "?" { arrays.push(tokens, { type: TK_QUESTION, value: "?", line: startLine, column: startCol }) }
+                if opCh == "+" { arrays.push(tokens, { tkType: TK_PLUS, tkValue: "+", line: startLine, column: startCol }) }
+                else if opCh == "-" { arrays.push(tokens, { tkType: TK_MINUS, tkValue: "-", line: startLine, column: startCol }) }
+                else if opCh == "*" { arrays.push(tokens, { tkType: TK_STAR, tkValue: "*", line: startLine, column: startCol }) }
+                else if opCh == "/" { arrays.push(tokens, { tkType: TK_SLASH, tkValue: "/", line: startLine, column: startCol }) }
+                else if opCh == "%" { arrays.push(tokens, { tkType: TK_PERCENT, tkValue: "%", line: startLine, column: startCol }) }
+                else if opCh == "=" { arrays.push(tokens, { tkType: TK_EQ, tkValue: "=", line: startLine, column: startCol }) }
+                else if opCh == "!" { arrays.push(tokens, { tkType: TK_BANG, tkValue: "!", line: startLine, column: startCol }) }
+                else if opCh == "<" { arrays.push(tokens, { tkType: TK_LT, tkValue: "<", line: startLine, column: startCol }) }
+                else if opCh == ">" { arrays.push(tokens, { tkType: TK_GT, tkValue: ">", line: startLine, column: startCol }) }
+                else if opCh == "." { arrays.push(tokens, { tkType: TK_DOT, tkValue: ".", line: startLine, column: startCol }) }
+                else if opCh == "," { arrays.push(tokens, { tkType: TK_COMMA, tkValue: ",", line: startLine, column: startCol }) }
+                else if opCh == ":" { arrays.push(tokens, { tkType: TK_COLON, tkValue: ":", line: startLine, column: startCol }) }
+                else if opCh == ";" { arrays.push(tokens, { tkType: TK_SEMICOLON, tkValue: ";", line: startLine, column: startCol }) }
+                else if opCh == "(" { arrays.push(tokens, { tkType: TK_LPAREN, tkValue: "(", line: startLine, column: startCol }) }
+                else if opCh == ")" { arrays.push(tokens, { tkType: TK_RPAREN, tkValue: ")", line: startLine, column: startCol }) }
+                else if opCh == "{" { arrays.push(tokens, { tkType: TK_LBRACE, tkValue: "{", line: startLine, column: startCol }) }
+                else if opCh == "}" { arrays.push(tokens, { tkType: TK_RBRACE, tkValue: "}", line: startLine, column: startCol }) }
+                else if opCh == "[" { arrays.push(tokens, { tkType: TK_LBRACKET, tkValue: "[", line: startLine, column: startCol }) }
+                else if opCh == "]" { arrays.push(tokens, { tkType: TK_RBRACKET, tkValue: "]", line: startLine, column: startCol }) }
+                else if opCh == "@" { arrays.push(tokens, { tkType: TK_AT, tkValue: "@", line: startLine, column: startCol }) }
+                else if opCh == "?" { arrays.push(tokens, { tkType: TK_QUESTION, tkValue: "?", line: startLine, column: startCol }) }
                 else { throw "Lexer error: unexpected char '" + opCh + "'" }
             }
         }
     }
 
-    arrays.push(tokens, { type: TK_EOF, value: "", line: line, column: column })
+    arrays.push(tokens, { tkType: TK_EOF, tkValue: "", line: line, column: column })
     return tokens
 }

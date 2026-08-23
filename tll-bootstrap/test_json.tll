@@ -1,0 +1,7 @@
+let s = json.stringify("hello")
+io.println("stringify string: " + s)
+let n = json.stringify(42)
+io.println("stringify number: " + n)
+let parsed = json.parse("{\"name\":\"TLL\",\"age\":1}")
+io.println("parsed type: " + convert.typeOf(parsed))
+io.println("parsed.name: " + parsed.name)

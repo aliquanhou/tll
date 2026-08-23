@@ -1,0 +1,387 @@
+// TLL Lexer - Self-hosting Bootstrap (v1.0 Phase 1)
+// All state-mutating logic inlined into tokenize() due to TLL's
+// current limitation: functions cannot modify global/captured variables.
+
+let TK_LET = "LET"
+let TK_FN = "FN"
+let TK_RETURN = "RETURN"
+let TK_IF = "IF"
+let TK_ELSE = "ELSE"
+let TK_WHILE = "WHILE"
+let TK_FOR = "FOR"
+let TK_IN = "IN"
+let TK_BREAK = "BREAK"
+let TK_CONTINUE = "CONTINUE"
+let TK_TRUE = "TRUE"
+let TK_FALSE = "FALSE"
+let TK_NULL = "NULL"
+let TK_IMPORT = "IMPORT"
+let TK_FROM = "FROM"
+let TK_EXPORT = "EXPORT"
+let TK_AS = "AS"
+let TK_TYPE = "TYPE"
+let TK_STRUCT = "STRUCT"
+let TK_ENUM = "ENUM"
+let TK_ENTITY = "ENTITY"
+let TK_API = "API"
+let TK_APPLICATION = "APPLICATION"
+let TK_ASYNC = "ASYNC"
+let TK_AWAIT = "AWAIT"
+let TK_TRY = "TRY"
+let TK_CATCH = "CATCH"
+let TK_FINALLY = "FINALLY"
+let TK_THROW = "THROW"
+let TK_AGENT = "AGENT"
+let TK_TOOL = "TOOL"
+let TK_WORKFLOW = "WORKFLOW"
+let TK_SPAWN = "SPAWN"
+let TK_SELF = "SELF"
+let TK_SUPER = "SUPER"
+let TK_PACKAGE = "PACKAGE"
+let TK_MOVE = "MOVE"
+let TK_MUT = "MUT"
+let TK_CONST = "CONST"
+let TK_MATCH = "MATCH"
+let TK_CASE = "CASE"
+let TK_DEFAULT = "DEFAULT"
+let TK_UNDEFINED = "UNDEFINED"
+let TK_MODULE = "MODULE"
+let TK_PUB = "PUB"
+let TK_PRIV = "PRIV"
+let TK_INTERFACE = "INTERFACE"
+let TK_IMPL = "IMPL"
+let TK_DEFER = "DEFER"
+let TK_RESULT = "RESULT"
+let TK_OPTION = "OPTION"
+let TK_SOME = "SOME"
+let TK_NONE = "NONE"
+let TK_OK = "OK"
+let TK_ERR = "ERR"
+let TK_INTENT = "INTENT"
+let TK_SEND = "SEND"
+let TK_IDENT = "IDENT"
+let TK_INT = "INT"
+let TK_FLOAT = "FLOAT"
+let TK_STRING = "STRING"
+let TK_RAW_STRING = "RAW_STRING"
+let TK_PLUS = "PLUS"
+let TK_MINUS = "MINUS"
+let TK_STAR = "STAR"
+let TK_SLASH = "SLASH"
+let TK_PERCENT = "PERCENT"
+let TK_POWER = "POWER"
+let TK_EQ = "EQ"
+let TK_EQEQ = "EQEQ"
+let TK_NEQ = "NEQ"
+let TK_LT = "LT"
+let TK_GT = "GT"
+let TK_LE = "LE"
+let TK_GE = "GE"
+let TK_AND = "AND"
+let TK_OR = "OR"
+let TK_BANG = "BANG"
+let TK_DOT = "DOT"
+let TK_COMMA = "COMMA"
+let TK_COLON = "COLON"
+let TK_SEMICOLON = "SEMICOLON"
+let TK_LPAREN = "LPAREN"
+let TK_RPAREN = "RPAREN"
+let TK_LBRACE = "LBRACE"
+let TK_RBRACE = "RBRACE"
+let TK_LBRACKET = "LBRACKET"
+let TK_RBRACKET = "RBRACKET"
+let TK_ARROW = "ARROW"
+let TK_FAT_ARROW = "FAT_ARROW"
+let TK_PIPE = "PIPE"
+let TK_AT = "AT"
+let TK_QUESTION = "QUESTION"
+let TK_RANGE = "RANGE"
+let TK_RANGE_INCLUSIVE = "RANGE_INCLUSIVE"
+let TK_PLUS_EQ = "PLUS_EQ"
+let TK_MINUS_EQ = "MINUS_EQ"
+let TK_STAR_EQ = "STAR_EQ"
+let TK_SLASH_EQ = "SLASH_EQ"
+let TK_PERCENT_EQ = "PERCENT_EQ"
+let TK_EOF = "EOF"
+
+fn isDigit(ch: string) -> bool {
+    return ch >= "0" && ch <= "9"
+}
+
+fn isAlpha(ch: string) -> bool {
+    return (ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z")
+}
+
+fn isAlphanumeric(ch: string) -> bool {
+    return isAlpha(ch) || isDigit(ch) || ch == "_"
+}
+
+fn isHexDigit(ch: string) -> bool {
+    return isDigit(ch) || (ch >= "a" && ch <= "f") || (ch >= "A" && ch <= "F")
+}
+
+fn getKeywordType(word: string) -> string {
+    if word == "let" { return TK_LET }
+    if word == "mut" { return TK_MUT }
+    if word == "const" { return TK_CONST }
+    if word == "fn" { return TK_FN }
+    if word == "return" { return TK_RETURN }
+    if word == "if" { return TK_IF }
+    if word == "else" { return TK_ELSE }
+    if word == "while" { return TK_WHILE }
+    if word == "for" { return TK_FOR }
+    if word == "in" { return TK_IN }
+    if word == "break" { return TK_BREAK }
+    if word == "continue" { return TK_CONTINUE }
+    if word == "match" { return TK_MATCH }
+    if word == "case" { return TK_CASE }
+    if word == "default" { return TK_DEFAULT }
+    if word == "true" { return TK_TRUE }
+    if word == "false" { return TK_FALSE }
+    if word == "null" { return TK_NULL }
+    if word == "undefined" { return TK_UNDEFINED }
+    if word == "import" { return TK_IMPORT }
+    if word == "from" { return TK_FROM }
+    if word == "export" { return TK_EXPORT }
+    if word == "as" { return TK_AS }
+    if word == "module" { return TK_MODULE }
+    if word == "pub" { return TK_PUB }
+    if word == "priv" { return TK_PRIV }
+    if word == "type" { return TK_TYPE }
+    if word == "struct" { return TK_STRUCT }
+    if word == "enum" { return TK_ENUM }
+    if word == "interface" { return TK_INTERFACE }
+    if word == "impl" { return TK_IMPL }
+    if word == "entity" { return TK_ENTITY }
+    if word == "api" { return TK_API }
+    if word == "application" { return TK_APPLICATION }
+    if word == "async" { return TK_ASYNC }
+    if word == "await" { return TK_AWAIT }
+    if word == "defer" { return TK_DEFER }
+    if word == "try" { return TK_TRY }
+    if word == "catch" { return TK_CATCH }
+    if word == "finally" { return TK_FINALLY }
+    if word == "throw" { return TK_THROW }
+    if word == "Result" { return TK_RESULT }
+    if word == "Option" { return TK_OPTION }
+    if word == "Some" { return TK_SOME }
+    if word == "None" { return TK_NONE }
+    if word == "Ok" { return TK_OK }
+    if word == "Err" { return TK_ERR }
+    if word == "agent" { return TK_AGENT }
+    if word == "intent" { return TK_INTENT }
+    if word == "tool" { return TK_TOOL }
+    if word == "workflow" { return TK_WORKFLOW }
+    if word == "spawn" { return TK_SPAWN }
+    if word == "send" { return TK_SEND }
+    if word == "self" { return TK_SELF }
+    if word == "Self" { return TK_SELF }
+    if word == "super" { return TK_SUPER }
+    if word == "package" { return TK_PACKAGE }
+    if word == "move" { return TK_MOVE }
+    return ""
+}
+
+export fn tokenize(input: string) -> list {
+    let pos = 0
+    let line = 1
+    let column = 1
+    let tokens: list = []
+    let inputLen = strings.length(input)
+
+    while pos < inputLen {
+        // skip whitespace and comments (inlined)
+        while pos < inputLen {
+            let ch = strings.charAt(input, pos)
+            if ch == " " || ch == "\t" || ch == "\r" || ch == "\n" {
+                pos = pos + 1
+                if ch == "\n" { line = line + 1; column = 1 } else { column = column + 1 }
+            } else if ch == "/" && pos + 1 < inputLen && strings.charAt(input, pos + 1) == "/" {
+                while pos < inputLen && strings.charAt(input, pos) != "\n" {
+                    pos = pos + 1
+                    column = column + 1
+                }
+            } else {
+                break
+            }
+        }
+        if pos >= inputLen { break }
+
+        let ch = strings.charAt(input, pos)
+        let startLine = line
+        let startCol = column
+
+        if ch == "\"" {
+            // read string (inlined)
+            pos = pos + 1; column = column + 1
+            let value = ""
+            while pos < inputLen {
+                let c = strings.charAt(input, pos)
+                pos = pos + 1; column = column + 1
+                if c == "\n" { line = line + 1; column = 1 }
+                if c == "\"" {
+                    arrays.push(tokens, { type: TK_STRING, value: value, line: startLine, column: startCol })
+                    break
+                } else if c == "\\" {
+                    if pos < inputLen {
+                        let next = strings.charAt(input, pos)
+                        pos = pos + 1; column = column + 1
+                        if next == "n" { value = value + "\n" }
+                        else if next == "t" { value = value + "\t" }
+                        else if next == "r" { value = value + "\r" }
+                        else if next == "\\" { value = value + "\\" }
+                        else if next == "\"" { value = value + "\"" }
+                        else if next == "0" { value = value + "\0" }
+                        else { value = value + next }
+                    }
+                } else {
+                    value = value + c
+                }
+            }
+        } else if ch == "r" && pos + 1 < inputLen && strings.charAt(input, pos + 1) == "\"" {
+            // read raw string (inlined)
+            pos = pos + 1; column = column + 1
+            pos = pos + 1; column = column + 1
+            let value = ""
+            while pos < inputLen {
+                let c = strings.charAt(input, pos)
+                pos = pos + 1; column = column + 1
+                if c == "\n" { line = line + 1; column = 1 }
+                if c == "\"" {
+                    arrays.push(tokens, { type: TK_RAW_STRING, value: value, line: startLine, column: startCol })
+                    break
+                }
+                value = value + c
+            }
+        } else if isDigit(ch) {
+            // read number (inlined)
+            let value = ""
+            let isFloat = false
+            if ch == "0" && pos + 1 < inputLen {
+                let next = strings.charAt(input, pos + 1)
+                if next == "x" || next == "X" {
+                    value = value + strings.charAt(input, pos); pos = pos + 1; column = column + 1
+                    value = value + strings.charAt(input, pos); pos = pos + 1; column = column + 1
+                    while pos < inputLen && isHexDigit(strings.charAt(input, pos)) {
+                        value = value + strings.charAt(input, pos); pos = pos + 1; column = column + 1
+                    }
+                    arrays.push(tokens, { type: TK_INT, value: value, line: startLine, column: startCol })
+                    continue
+                }
+                if next == "o" || next == "O" {
+                    value = value + strings.charAt(input, pos); pos = pos + 1; column = column + 1
+                    value = value + strings.charAt(input, pos); pos = pos + 1; column = column + 1
+                    while pos < inputLen && strings.charAt(input, pos) >= "0" && strings.charAt(input, pos) <= "7" {
+                        value = value + strings.charAt(input, pos); pos = pos + 1; column = column + 1
+                    }
+                    arrays.push(tokens, { type: TK_INT, value: value, line: startLine, column: startCol })
+                    continue
+                }
+                if next == "b" || next == "B" {
+                    value = value + strings.charAt(input, pos); pos = pos + 1; column = column + 1
+                    value = value + strings.charAt(input, pos); pos = pos + 1; column = column + 1
+                    while pos < inputLen && (strings.charAt(input, pos) == "0" || strings.charAt(input, pos) == "1") {
+                        value = value + strings.charAt(input, pos); pos = pos + 1; column = column + 1
+                    }
+                    arrays.push(tokens, { type: TK_INT, value: value, line: startLine, column: startCol })
+                    continue
+                }
+            }
+            while pos < inputLen {
+                let c = strings.charAt(input, pos)
+                if isDigit(c) {
+                    value = value + c; pos = pos + 1; column = column + 1
+                } else if c == "_" && pos + 1 < inputLen && isDigit(strings.charAt(input, pos + 1)) {
+                    pos = pos + 1; column = column + 1
+                } else if c == "." && !isFloat && pos + 1 < inputLen && isDigit(strings.charAt(input, pos + 1)) {
+                    isFloat = true
+                    value = value + c; pos = pos + 1; column = column + 1
+                } else if c == "e" || c == "E" {
+                    isFloat = true
+                    value = value + c; pos = pos + 1; column = column + 1
+                    if pos < inputLen && (strings.charAt(input, pos) == "+" || strings.charAt(input, pos) == "-") {
+                        value = value + strings.charAt(input, pos); pos = pos + 1; column = column + 1
+                    }
+                } else {
+                    break
+                }
+            }
+            let tkType = TK_INT
+            if isFloat { tkType = TK_FLOAT }
+            arrays.push(tokens, { type: tkType, value: value, line: startLine, column: startCol })
+        } else if isAlpha(ch) || ch == "_" {
+            // read ident (inlined)
+            let value = ""
+            while pos < inputLen && isAlphanumeric(strings.charAt(input, pos)) {
+                value = value + strings.charAt(input, pos); pos = pos + 1; column = column + 1
+            }
+            let keywordType = getKeywordType(value)
+            let tkType = TK_IDENT
+            if keywordType != "" { tkType = keywordType }
+            arrays.push(tokens, { type: tkType, value: value, line: startLine, column: startCol })
+        } else {
+            // read operator (inlined)
+            let opCh = strings.charAt(input, pos)
+            pos = pos + 1; column = column + 1
+            let nextCh = " "
+            if pos < inputLen { nextCh = strings.charAt(input, pos) }
+            let twoChar = opCh + nextCh
+            let thirdCh = " "
+            if pos + 1 < inputLen { thirdCh = strings.charAt(input, pos + 1) }
+            let threeChar = twoChar + thirdCh
+
+            if threeChar == "..=" {
+                pos = pos + 1; column = column + 1
+                pos = pos + 1; column = column + 1
+                arrays.push(tokens, { type: TK_RANGE_INCLUSIVE, value: "..=", line: startLine, column: startCol })
+                continue
+            }
+
+            let matched = false
+            if twoChar == "->" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_ARROW, value: "->", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "=>" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_FAT_ARROW, value: "=>", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "|>" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_PIPE, value: "|>", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "==" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_EQEQ, value: "==", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "!=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_NEQ, value: "!=", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "<=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_LE, value: "<=", line: startLine, column: startCol }); matched = true }
+            else if twoChar == ">=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_GE, value: ">=", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "&&" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_AND, value: "&&", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "||" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_OR, value: "||", line: startLine, column: startCol }); matched = true }
+            else if twoChar == ".." { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_RANGE, value: "..", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "+=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_PLUS_EQ, value: "+=", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "-=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_MINUS_EQ, value: "-=", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "*=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_STAR_EQ, value: "*=", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "/=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_SLASH_EQ, value: "/=", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "%=" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_PERCENT_EQ, value: "%=", line: startLine, column: startCol }); matched = true }
+            else if twoChar == "**" { pos = pos + 1; column = column + 1; arrays.push(tokens, { type: TK_POWER, value: "**", line: startLine, column: startCol }); matched = true }
+
+            if !matched {
+                if opCh == "+" { arrays.push(tokens, { type: TK_PLUS, value: "+", line: startLine, column: startCol }) }
+                else if opCh == "-" { arrays.push(tokens, { type: TK_MINUS, value: "-", line: startLine, column: startCol }) }
+                else if opCh == "*" { arrays.push(tokens, { type: TK_STAR, value: "*", line: startLine, column: startCol }) }
+                else if opCh == "/" { arrays.push(tokens, { type: TK_SLASH, value: "/", line: startLine, column: startCol }) }
+                else if opCh == "%" { arrays.push(tokens, { type: TK_PERCENT, value: "%", line: startLine, column: startCol }) }
+                else if opCh == "=" { arrays.push(tokens, { type: TK_EQ, value: "=", line: startLine, column: startCol }) }
+                else if opCh == "!" { arrays.push(tokens, { type: TK_BANG, value: "!", line: startLine, column: startCol }) }
+                else if opCh == "<" { arrays.push(tokens, { type: TK_LT, value: "<", line: startLine, column: startCol }) }
+                else if opCh == ">" { arrays.push(tokens, { type: TK_GT, value: ">", line: startLine, column: startCol }) }
+                else if opCh == "." { arrays.push(tokens, { type: TK_DOT, value: ".", line: startLine, column: startCol }) }
+                else if opCh == "," { arrays.push(tokens, { type: TK_COMMA, value: ",", line: startLine, column: startCol }) }
+                else if opCh == ":" { arrays.push(tokens, { type: TK_COLON, value: ":", line: startLine, column: startCol }) }
+                else if opCh == ";" { arrays.push(tokens, { type: TK_SEMICOLON, value: ";", line: startLine, column: startCol }) }
+                else if opCh == "(" { arrays.push(tokens, { type: TK_LPAREN, value: "(", line: startLine, column: startCol }) }
+                else if opCh == ")" { arrays.push(tokens, { type: TK_RPAREN, value: ")", line: startLine, column: startCol }) }
+                else if opCh == "{" { arrays.push(tokens, { type: TK_LBRACE, value: "{", line: startLine, column: startCol }) }
+                else if opCh == "}" { arrays.push(tokens, { type: TK_RBRACE, value: "}", line: startLine, column: startCol }) }
+                else if opCh == "[" { arrays.push(tokens, { type: TK_LBRACKET, value: "[", line: startLine, column: startCol }) }
+                else if opCh == "]" { arrays.push(tokens, { type: TK_RBRACKET, value: "]", line: startLine, column: startCol }) }
+                else if opCh == "@" { arrays.push(tokens, { type: TK_AT, value: "@", line: startLine, column: startCol }) }
+                else if opCh == "?" { arrays.push(tokens, { type: TK_QUESTION, value: "?", line: startLine, column: startCol }) }
+                else { throw "Lexer error: unexpected char '" + opCh + "'" }
+            }
+        }
+    }
+
+    arrays.push(tokens, { type: TK_EOF, value: "", line: line, column: column })
+    return tokens
+}

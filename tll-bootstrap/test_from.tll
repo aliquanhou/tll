@@ -1,0 +1,3 @@
+from "./lib/lexer" import tokenize
+let tokens = tokenize("let x = 1")
+io.println("tokens count: " + convert.toString(arrays.length(tokens)))

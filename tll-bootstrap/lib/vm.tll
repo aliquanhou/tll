@@ -360,17 +360,37 @@ fn vm_executeMakeArray(resultReg: int, count: int) -> void {
 }
 
 // ============ MAKE_MAP ============
+// Use JSON serialization to create map dynamically, because TLL's
+// index assignment (map["key"] = value) is currently broken.
 fn vm_executeMakeMap(resultReg: int, count: int) -> void {
-    let m: map = {}
+    // Pop all entries from stack (order: value_n, key_n, ..., value_1, key_1)
+    let keys: list = []
+    let values: list = []
     let i = 0
     while i < count {
         let v = arrays.get(vm_argStack, arrays.length(vm_argStack) - 1)
         arrays.pop(vm_argStack)
         let k = arrays.get(vm_argStack, arrays.length(vm_argStack) - 1)
         arrays.pop(vm_argStack)
-        m[convert.toString(k)] = v
+        arrays.push(keys, convert.toString(k))
+        arrays.push(values, v)
         i = i + 1
     }
+    // Build JSON string: {"key1": val1, "key2": val2, ...}
+    // entries are in reverse order (last pushed first), so iterate backwards
+    let jsonStr = "{"
+    let j = count - 1
+    while j >= 0 {
+        let k = arrays.get(keys, j)
+        let v = arrays.get(values, j)
+        if j < count - 1 {
+            jsonStr = jsonStr + ","
+        }
+        jsonStr = jsonStr + "\"" + k + "\":" + json.stringify(v)
+        j = j - 1
+    }
+    jsonStr = jsonStr + "}"
+    let m = json.parse(jsonStr)
     vm_setReg(resultReg, m)
 }
 

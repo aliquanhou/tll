@@ -64,27 +64,58 @@ let cg_varMapVals: list = []
 let cg_globalMapKeys: list = []
 let cg_globalMapVals: list = []
 
-// ============ Map helpers (parallel lists) ============
-fn cg_mapGet(keys: list, vals: list, key: string) -> any {
+// ============ Map helpers (direct global access, no param passing) ============
+fn cg_fnMapGet(key: string) -> any {
     let i = 0
-    while i < arrays.length(keys) {
-        if arrays.get(keys, i) == key {
-            return arrays.get(vals, i)
+    while i < arrays.length(cg_fnMapKeys) {
+        if arrays.get(cg_fnMapKeys, i) == key {
+            return arrays.get(cg_fnMapVals, i)
         }
         i = i + 1
     }
     return null
 }
 
-fn cg_mapSet(keys: list, vals: list, key: string, value: any) -> void {
-    // Simplified: only add new keys (our use cases don't need replacement)
-    arrays.push(keys, key)
-    arrays.push(vals, value)
+fn cg_fnMapSet(key: string, value: any) -> void {
+    arrays.push(cg_fnMapKeys, key)
+    arrays.push(cg_fnMapVals, value)
+}
+
+fn cg_varMapGet(key: string) -> any {
+    let i = 0
+    while i < arrays.length(cg_varMapKeys) {
+        if arrays.get(cg_varMapKeys, i) == key {
+            return arrays.get(cg_varMapVals, i)
+        }
+        i = i + 1
+    }
+    return null
+}
+
+fn cg_varMapSet(key: string, value: any) -> void {
+    arrays.push(cg_varMapKeys, key)
+    arrays.push(cg_varMapVals, value)
+}
+
+fn cg_globalMapGet(key: string) -> any {
+    let i = 0
+    while i < arrays.length(cg_globalMapKeys) {
+        if arrays.get(cg_globalMapKeys, i) == key {
+            return arrays.get(cg_globalMapVals, i)
+        }
+        i = i + 1
+    }
+    return null
+}
+
+fn cg_globalMapSet(key: string, value: any) -> void {
+    arrays.push(cg_globalMapKeys, key)
+    arrays.push(cg_globalMapVals, value)
 }
 
 // ============ Simple helpers ============
-fn cg_emit(op: int, operands: list) -> void {
-    let inst = { op: op, operands: operands }
+fn cg_emit(opCode: int, opOperands: list) -> void {
+    let inst = { op: opCode, operands: opOperands }
     arrays.push(cg_instructions, inst)
 }
 
@@ -105,32 +136,41 @@ fn cg_newLabel() -> int {
     return l
 }
 
-fn cg_patchLabel(label: int) -> void {
-    // Simplified: just record position (full label patching not needed for basic tests)
+fn cg_patchJump(instrIndex: int) -> void {
+    let inst = arrays.get(cg_instructions, instrIndex)
+    let operands = inst.operands
+    let newOperands: list = []
+    let i = 0
+    while i < arrays.length(operands) - 1 {
+        arrays.push(newOperands, arrays.get(operands, i))
+        i = i + 1
+    }
+    arrays.push(newOperands, arrays.length(cg_instructions))
+    inst.operands = newOperands
 }
 
 fn cg_getOrCreateVar(name: string) -> int {
-    let idx = cg_mapGet(cg_varMapKeys, cg_varMapVals, name)
+    let idx = cg_varMapGet(name)
     if idx == null {
         idx = cg_currentLocalCount
         cg_currentLocalCount = idx + 1
-        cg_mapSet(cg_varMapKeys, cg_varMapVals, name, idx)
+        cg_varMapSet(name, idx)
     }
     return idx
 }
 
 fn cg_resolveVar(name: string) -> map {
-    let localIdx = cg_mapGet(cg_varMapKeys, cg_varMapVals, name)
+    let localIdx = cg_varMapGet(name)
     if localIdx != null {
         return { index: localIdx, isGlobal: false }
     }
-    let globalIdx = cg_mapGet(cg_globalMapKeys, cg_globalMapVals, name)
+    let globalIdx = cg_globalMapGet(name)
     if globalIdx != null {
         return { index: globalIdx, isGlobal: true }
     }
     let idx = cg_currentLocalCount
     cg_currentLocalCount = idx + 1
-    cg_mapSet(cg_varMapKeys, cg_varMapVals, name, idx)
+    cg_varMapSet(name, idx)
     return { index: idx, isGlobal: false }
 }
 
@@ -152,22 +192,22 @@ export fn compile(program: map) -> map {
     cg_globalMapKeys = []
     cg_globalMapVals = []
 
-    let stmts = program["statements"]
+    let stmts = program.statements
 
     // First pass: collect global variables and function declarations
     let globalCounter = 0
     let i = 0
     while i < arrays.length(stmts) {
         let stmt = arrays.get(stmts, i)
-        let kind = stmt["kind"]
+        let kind = stmt.kind
         if kind == "Let" || kind == "Const" {
-            cg_mapSet(cg_globalMapKeys, cg_globalMapVals, stmt["name"], globalCounter)
+            cg_globalMapSet(stmt.name, globalCounter)
             globalCounter = globalCounter + 1
         }
         if kind == "Fn" {
             let fnIdx = arrays.length(cg_functions)
-            cg_mapSet(cg_fnMapKeys, cg_fnMapVals, stmt["name"], fnIdx)
-            let fnObj = { name: stmt["name"], paramCount: arrays.length(stmt["params"]), instructions: [], localCount: 0 }
+            cg_fnMapSet(stmt.name, fnIdx)
+            let fnObj = { name: stmt.name, paramCount: arrays.length(stmt.params), instructions: [], localCount: 0 }
             arrays.push(cg_functions, fnObj)
         }
         i = i + 1
@@ -182,7 +222,7 @@ export fn compile(program: map) -> map {
     i = 0
     while i < arrays.length(stmts) {
         let stmt = arrays.get(stmts, i)
-        if stmt["kind"] == "Fn" {
+        if stmt.kind == "Fn" {
             cg_compileFunction(stmt)
             arrays.push(cg_allFnInstructions, cg_instructions)
             arrays.push(cg_allFnLocalCounts, cg_currentLocalCount)
@@ -202,7 +242,7 @@ export fn compile(program: map) -> map {
     i = 0
     while i < arrays.length(stmts) {
         let stmt = arrays.get(stmts, i)
-        let kind = stmt["kind"]
+        let kind = stmt.kind
         if kind != "Fn" && kind != "Import" {
             cg_compileStatement(stmt)
         }
@@ -220,7 +260,7 @@ export fn compile(program: map) -> map {
         let func = arrays.get(cg_functions, i)
         let instrs = arrays.get(cg_allFnInstructions, i)
         let localCount = arrays.get(cg_allFnLocalCounts, i)
-        let newFn = { name: func["name"], paramCount: func["paramCount"], instructions: instrs, localCount: localCount }
+        let newFn = { name: func.name, paramCount: func.paramCount, instructions: instrs, localCount: localCount }
         arrays.push(finalFunctions, newFn)
         i = i + 1
     }
@@ -235,7 +275,18 @@ export fn compile(program: map) -> map {
 
 // ============ Function compilation ============
 fn cg_compileFunction(fnDecl: map) -> void {
-    let fnIdx = cg_mapGet(cg_fnMapKeys, cg_fnMapVals, fnDecl["name"])
+    // Search cg_functions list directly (avoid map issues)
+    let fnName = fnDecl.name
+    let fnIdx = -1
+    let fi = 0
+    while fi < arrays.length(cg_functions) {
+        let f = arrays.get(cg_functions, fi)
+        if f.name == fnName {
+            fnIdx = fi
+            fi = arrays.length(cg_functions)
+        }
+        fi = fi + 1
+    }
     cg_currentFn = arrays.get(cg_functions, fnIdx)
     cg_regCount = 0
     cg_varMapKeys = []
@@ -243,15 +294,15 @@ fn cg_compileFunction(fnDecl: map) -> void {
     cg_labelCounter = 0
     cg_instructions = []
 
-    let params = fnDecl["params"]
+    let params = fnDecl.params
     let i = 0
     while i < arrays.length(params) {
-        cg_mapSet(cg_varMapKeys, cg_varMapVals, arrays.get(params, i)["name"], i)
+        cg_varMapSet(arrays.get(params, i)["name"], i)
         i = i + 1
     }
     cg_currentLocalCount = arrays.length(params)
 
-    cg_compileBlock(fnDecl["body"])
+    cg_compileBlock(fnDecl.body)
 
     let voidReg = cg_allocReg()
     cg_emit(OP_LOAD_CONST, [voidReg, cg_addConstant(null)])
@@ -260,7 +311,7 @@ fn cg_compileFunction(fnDecl: map) -> void {
 
 // ============ Block compilation ============
 fn cg_compileBlock(block: map) -> void {
-    let stmts = block["statements"]
+    let stmts = block.statements
     let i = 0
     while i < arrays.length(stmts) {
         cg_compileStatement(arrays.get(stmts, i))
@@ -271,22 +322,22 @@ fn cg_compileBlock(block: map) -> void {
 // ============ Statement compilation ============
 fn cg_compileStatement(stmt: map) -> void {
     if stmt == null { return }
-    let kind = stmt["kind"]
+    let kind = stmt.kind
 
     if kind == "Let" || kind == "Const" {
-        let valueReg = cg_compileExpression(stmt["value"])
-        let resolved = cg_resolveVar(stmt["name"])
-        if resolved["isGlobal"] {
-            cg_emit(OP_STORE_GLOBAL, [resolved["index"], valueReg])
+        let valueReg = cg_compileExpression(stmt.value)
+        let resolved = cg_resolveVar(stmt.name)
+        if resolved.isGlobal {
+            cg_emit(OP_STORE_GLOBAL, [resolved.index, valueReg])
         } else {
-            cg_emit(OP_STORE_VAR, [resolved["index"], valueReg])
+            cg_emit(OP_STORE_VAR, [resolved.index, valueReg])
         }
         return
     }
 
     if kind == "Return" {
-        if stmt["value"] != null {
-            let reg = cg_compileExpression(stmt["value"])
+        if stmt.value != null {
+            let reg = cg_compileExpression(stmt.value)
             cg_emit(OP_RET, [reg])
         } else {
             let reg = cg_allocReg()
@@ -300,36 +351,37 @@ fn cg_compileStatement(stmt: map) -> void {
     if kind == "While" { cg_compileWhile(stmt); return }
     if kind == "Break" { cg_emit(OP_NOP, []); return }
     if kind == "Continue" { cg_emit(OP_NOP, []); return }
-    if kind == "Throw" { let r = cg_compileExpression(stmt["value"]); cg_emit(OP_THROW, [r]); return }
+    if kind == "Throw" { let r = cg_compileExpression(stmt.value); cg_emit(OP_THROW, [r]); return }
     if kind == "Block" { cg_compileBlock(stmt); return }
-    if kind == "ExpressionStatement" { cg_compileExpression(stmt["expression"]); return }
-    if kind == "Export" { cg_compileStatement(stmt["declaration"]); return }
+    if kind == "ExpressionStatement" { cg_compileExpression(stmt.expression); return }
+    if kind == "Export" { cg_compileStatement(stmt.declaration); return }
 }
 
 fn cg_compileIf(stmt: map) -> void {
-    let condReg = cg_compileExpression(stmt["condition"])
-    let elseLabel = cg_newLabel()
-    let endLabel = cg_newLabel()
-    cg_emit(OP_JMP_IF_FALSE, [condReg, elseLabel])
-    cg_compileBlock(stmt["consequent"])
-    cg_emit(OP_JMP, [endLabel])
-    cg_patchLabel(elseLabel)
-    if stmt["alternate"] != null {
-        let alt = stmt["alternate"]
-        if alt["kind"] == "If" { cg_compileIf(alt) } else { cg_compileBlock(alt) }
+    let condReg = cg_compileExpression(stmt.condition)
+    let jmpFalseIdx = arrays.length(cg_instructions)
+    cg_emit(OP_JMP_IF_FALSE, [condReg, -1])
+    cg_compileBlock(stmt.consequent)
+    if stmt.alternate != null {
+        let jmpEndIdx = arrays.length(cg_instructions)
+        cg_emit(OP_JMP, [-1])
+        cg_patchJump(jmpFalseIdx)
+        let alt = stmt.alternate
+        if alt.kind == "If" { cg_compileIf(alt) } else { cg_compileBlock(alt) }
+        cg_patchJump(jmpEndIdx)
+    } else {
+        cg_patchJump(jmpFalseIdx)
     }
-    cg_patchLabel(endLabel)
 }
 
 fn cg_compileWhile(stmt: map) -> void {
-    let startLabel = cg_newLabel()
-    let endLabel = cg_newLabel()
-    cg_patchLabel(startLabel)
-    let condReg = cg_compileExpression(stmt["condition"])
-    cg_emit(OP_JMP_IF_FALSE, [condReg, endLabel])
-    cg_compileBlock(stmt["body"])
-    cg_emit(OP_JMP, [startLabel])
-    cg_patchLabel(endLabel)
+    let startIdx = arrays.length(cg_instructions)
+    let condReg = cg_compileExpression(stmt.condition)
+    let jmpEndIdx = arrays.length(cg_instructions)
+    cg_emit(OP_JMP_IF_FALSE, [condReg, -1])
+    cg_compileBlock(stmt.body)
+    cg_emit(OP_JMP, [startIdx])
+    cg_patchJump(jmpEndIdx)
 }
 
 // ============ Expression compilation ============
@@ -339,26 +391,26 @@ fn cg_compileExpression(expr: map) -> int {
         cg_emit(OP_LOAD_CONST, [reg, cg_addConstant(null)])
         return reg
     }
-    let kind = expr["kind"]
+    let kind = expr.kind
 
     if kind == "Int" {
         let reg = cg_allocReg()
-        cg_emit(OP_LOAD_CONST, [reg, cg_addConstant(cg_parseInt(expr["value"]))])
+        cg_emit(OP_LOAD_CONST, [reg, cg_addConstant(cg_parseInt(expr.value))])
         return reg
     }
     if kind == "Float" {
         let reg = cg_allocReg()
-        cg_emit(OP_LOAD_CONST, [reg, cg_addConstant(convert.toFloat(expr["value"]))])
+        cg_emit(OP_LOAD_CONST, [reg, cg_addConstant(convert.toFloat(expr.value))])
         return reg
     }
     if kind == "String" {
         let reg = cg_allocReg()
-        cg_emit(OP_LOAD_CONST, [reg, cg_addConstant(expr["value"])])
+        cg_emit(OP_LOAD_CONST, [reg, cg_addConstant(expr.value)])
         return reg
     }
     if kind == "Bool" {
         let reg = cg_allocReg()
-        cg_emit(OP_LOAD_CONST, [reg, cg_addConstant(expr["value"])])
+        cg_emit(OP_LOAD_CONST, [reg, cg_addConstant(expr.value)])
         return reg
     }
     if kind == "Null" {
@@ -371,14 +423,14 @@ fn cg_compileExpression(expr: map) -> int {
     if kind == "Unary" { return cg_compileUnary(expr) }
     if kind == "Call" { return cg_compileCall(expr) }
     if kind == "Member" {
-        let objReg = cg_compileExpression(expr["object"])
+        let objReg = cg_compileExpression(expr.object)
         let reg = cg_allocReg()
-        cg_emit(OP_MEMBER_GET, [reg, objReg, cg_addConstant(expr["property"])])
+        cg_emit(OP_MEMBER_GET, [reg, objReg, cg_addConstant(expr.property)])
         return reg
     }
     if kind == "Index" {
-        let objReg = cg_compileExpression(expr["object"])
-        let idxReg = cg_compileExpression(expr["index"])
+        let objReg = cg_compileExpression(expr.object)
+        let idxReg = cg_compileExpression(expr.index)
         let reg = cg_allocReg()
         cg_emit(OP_INDEX_GET, [reg, objReg, idxReg])
         return reg
@@ -393,20 +445,20 @@ fn cg_compileExpression(expr: map) -> int {
 
 fn cg_compileIdent(expr: map) -> int {
     let reg = cg_allocReg()
-    let resolved = cg_resolveVar(expr["name"])
-    if resolved["isGlobal"] {
-        cg_emit(OP_LOAD_GLOBAL, [reg, resolved["index"]])
+    let resolved = cg_resolveVar(expr.name)
+    if resolved.isGlobal {
+        cg_emit(OP_LOAD_GLOBAL, [reg, resolved.index])
     } else {
-        cg_emit(OP_LOAD_VAR, [reg, resolved["index"]])
+        cg_emit(OP_LOAD_VAR, [reg, resolved.index])
     }
     return reg
 }
 
 fn cg_compileBinary(expr: map) -> int {
-    let leftReg = cg_compileExpression(expr["left"])
-    let rightReg = cg_compileExpression(expr["right"])
+    let leftReg = cg_compileExpression(expr.left)
+    let rightReg = cg_compileExpression(expr.right)
     let resultReg = cg_allocReg()
-    let op = expr["operator"]
+    let op = expr.operator
 
     if op == "+" { cg_emit(OP_ADD, [resultReg, leftReg, rightReg]) }
     else if op == "-" { cg_emit(OP_SUB, [resultReg, leftReg, rightReg]) }
@@ -423,10 +475,23 @@ fn cg_compileBinary(expr: map) -> int {
     else if op == "&&" { cg_emit(OP_AND, [resultReg, leftReg, rightReg]) }
     else if op == "||" { cg_emit(OP_OR, [resultReg, leftReg, rightReg]) }
     else if op == "=" {
-        if expr["left"]["kind"] == "Ident" {
-            let resolved = cg_resolveVar(expr["left"]["name"])
-            if resolved["isGlobal"] { cg_emit(OP_STORE_GLOBAL, [resolved["index"], rightReg]) }
-            else { cg_emit(OP_STORE_VAR, [resolved["index"], rightReg]) }
+        let leftKind = expr.left["kind"]
+        if leftKind == "Ident" {
+            let resolved = cg_resolveVar(expr.left["name"])
+            if resolved.isGlobal { cg_emit(OP_STORE_GLOBAL, [resolved.index, rightReg]) }
+            else { cg_emit(OP_STORE_VAR, [resolved.index, rightReg]) }
+            return rightReg
+        }
+        if leftKind == "Member" {
+            let objReg = cg_compileExpression(expr.left["object"])
+            let propConst = cg_addConstant(expr.left["property"])
+            cg_emit(OP_MEMBER_SET, [objReg, propConst, rightReg])
+            return rightReg
+        }
+        if leftKind == "Index" {
+            let objReg = cg_compileExpression(expr.left["object"])
+            let idxReg = cg_compileExpression(expr.left["index"])
+            cg_emit(OP_INDEX_SET, [objReg, idxReg, rightReg])
             return rightReg
         }
         cg_emit(OP_LOAD_CONST, [resultReg, cg_addConstant(null)])
@@ -437,9 +502,9 @@ fn cg_compileBinary(expr: map) -> int {
 }
 
 fn cg_compileUnary(expr: map) -> int {
-    let operandReg = cg_compileExpression(expr["operand"])
+    let operandReg = cg_compileExpression(expr.operand)
     let resultReg = cg_allocReg()
-    let op = expr["operator"]
+    let op = expr.operator
     if op == "-" { cg_emit(OP_NEG, [resultReg, operandReg]) }
     else if op == "!" { cg_emit(OP_NOT, [resultReg, operandReg]) }
     else { cg_emit(OP_LOAD_CONST, [resultReg, cg_addConstant(null)]) }
@@ -448,7 +513,7 @@ fn cg_compileUnary(expr: map) -> int {
 
 fn cg_compileCall(expr: map) -> int {
     let resultReg = cg_allocReg()
-    let args = expr["args"]
+    let args = expr.args
 
     // Push args
     let i = 0
@@ -458,24 +523,34 @@ fn cg_compileCall(expr: map) -> int {
         i = i + 1
     }
 
-    // Check for direct function call
-    if expr["callee"]["kind"] == "Ident" {
-        let fnIdx = cg_mapGet(cg_fnMapKeys, cg_fnMapVals, expr["callee"]["name"])
-        if fnIdx != null {
-            cg_emit(OP_CALL, [resultReg, fnIdx, arrays.length(args)])
+    // Check for direct function call - search cg_functions list directly (avoid map issues)
+    if expr.callee["kind"] == "Ident" {
+        let calleeName = expr.callee["name"]
+        let foundIdx = -1
+        let fi = 0
+        while fi < arrays.length(cg_functions) {
+            let f = arrays.get(cg_functions, fi)
+            if f.name == calleeName {
+                foundIdx = fi
+                fi = arrays.length(cg_functions)
+            }
+            fi = fi + 1
+        }
+        if foundIdx >= 0 {
+            cg_emit(OP_CALL, [resultReg, foundIdx, arrays.length(args)])
             return resultReg
         }
     }
 
     // Indirect call
-    let calleeReg = cg_compileExpression(expr["callee"])
+    let calleeReg = cg_compileExpression(expr.callee)
     cg_emit(OP_CALL, [resultReg, calleeReg, arrays.length(args)])
     return resultReg
 }
 
 fn cg_compileArray(expr: map) -> int {
     let reg = cg_allocReg()
-    let elements = expr["elements"]
+    let elements = expr.elements
     let i = 0
     while i < arrays.length(elements) {
         let elemReg = cg_compileExpression(arrays.get(elements, i))
@@ -488,12 +563,14 @@ fn cg_compileArray(expr: map) -> int {
 
 fn cg_compileMap(expr: map) -> int {
     let reg = cg_allocReg()
-    let entries = expr["entries"]
+    let entries = expr.entries
     let i = 0
     while i < arrays.length(entries) {
         let entry = arrays.get(entries, i)
-        let kReg = cg_compileExpression(entry["key"])
-        let vReg = cg_compileExpression(entry["value"])
+        // key is stored as a string by parser, load it as constant
+        let kReg = cg_allocReg()
+        cg_emit(OP_LOAD_CONST, [kReg, cg_addConstant(entry.key)])
+        let vReg = cg_compileExpression(entry.value)
         cg_emit(OP_PUSH, [kReg])
         cg_emit(OP_PUSH, [vReg])
         i = i + 1

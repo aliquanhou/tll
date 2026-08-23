@@ -1,0 +1,6 @@
+fn setField(m: map) -> void {
+    m.value = 42
+}
+let obj = {value: 0}
+setField(obj)
+io.println("obj.value after setField: " + convert.toString(obj.value))

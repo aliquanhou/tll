@@ -1,0 +1,55 @@
+from "./lib/lexer" import tokenize
+from "./lib/parser" import parse
+from "./lib/codegen" import compile
+from "./lib/vm" import run
+
+io.println("=== TLL VM Strict Test: CALL/RET Closure ===")
+io.println("")
+
+fn runStrictTest(name: string, code: string, expected: string) -> void {
+    io.println("--- " + name + " ---")
+    io.println("Code: " + code)
+    let tokens = tokenize(code)
+    let ast = parse(tokens)
+    let program = compile(ast)
+    // Print function info for debugging
+    let funcs = program["functions"]
+    let fi = 0
+    while fi < arrays.length(funcs) {
+        let f = arrays.get(funcs, fi)
+        io.println("  fn[" + convert.toString(fi) + "] " + f["name"] + " locals=" + convert.toString(f["localCount"]) + " instrs=" + convert.toString(arrays.length(f["instructions"])))
+        fi = fi + 1
+    }
+    let result = run(program)
+    io.println("Result: " + convert.toString(result))
+    io.println("Expected: " + expected)
+    if convert.toString(result) == expected {
+        io.println("PASS ✅")
+    } else {
+        io.println("FAIL ❌")
+    }
+    io.println("")
+}
+
+// Test 1: Simple function call
+runStrictTest(
+    "Test 1: add(2, 3)",
+    "fn add(a, b) { return a + b } let r = add(2, 3)",
+    "5"
+)
+
+// Test 2: Recursive function
+runStrictTest(
+    "Test 2: factorial(5)",
+    "fn factorial(n) { if n <= 1 { return 1 } else { return n * factorial(n - 1) } } let r = factorial(5)",
+    "120"
+)
+
+// Test 3: Function returning Map
+runStrictTest(
+    "Test 3: makeUser + map access",
+    "fn makeUser(name, age) { return { name: name, age: age } } let u = makeUser(\"TLL\", 1) let r = u.name",
+    "TLL"
+)
+
+io.println("=== Strict Test Complete ===")
