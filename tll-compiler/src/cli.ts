@@ -20,9 +20,11 @@ function printUsage(): void {
 Usage: tll <command> [options] <file>
 
 Commands:
-  run <file>       Compile and run a TLL program
+  init [name]      Initialize a new TLL project (creates tll.toml)
+  run [file]       Compile and run a TLL program (uses tll.toml entry if no file)
   build <file>     Compile to bytecode (.tllbc)
   check <file>     Type-check only (no codegen)
+  install [pkg]    Install dependencies (registry coming in v0.4)
   lex <file>       Show token stream
   parse <file>     Show AST
   version          Show version
@@ -36,6 +38,122 @@ function readFile(filePath: string): string {
     process.exit(1);
   }
   return fs.readFileSync(filePath, 'utf-8');
+}
+
+// ============ Simple TOML Parser ============
+interface TomlData {
+  [section: string]: { [key: string]: string | number | boolean };
+}
+
+function parseToml(content: string): TomlData {
+  const result: TomlData = {};
+  let currentSection = '';
+  const lines = content.split('\n');
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    // Section header
+    const sectionMatch = trimmed.match(/^\[([^\]]+)\]$/);
+    if (sectionMatch) {
+      currentSection = sectionMatch[1];
+      if (!result[currentSection]) result[currentSection] = {};
+      continue;
+    }
+    // Key = value
+    const kvMatch = trimmed.match(/^([^=]+)=(.*)$/);
+    if (kvMatch) {
+      const key = kvMatch[1].trim();
+      let value: string | number | boolean = kvMatch[2].trim();
+      // String
+      if ((value as string).startsWith('"') && (value as string).endsWith('"')) {
+        value = (value as string).slice(1, -1);
+      } else if (value === 'true') {
+        value = true;
+      } else if (value === 'false') {
+        value = false;
+      } else if (!isNaN(Number(value))) {
+        value = Number(value);
+      }
+      if (currentSection) {
+        result[currentSection][key] = value;
+      }
+    }
+  }
+  return result;
+}
+
+function readTomlConfig(dir: string): TomlData | null {
+  const tomlPath = path.join(dir, 'tll.toml');
+  if (!fs.existsSync(tomlPath)) return null;
+  return parseToml(fs.readFileSync(tomlPath, 'utf-8'));
+}
+
+// ============ Package Commands ============
+function cmdInit(name?: string): void {
+  const cwd = process.cwd();
+  const projectName = name || path.basename(cwd);
+  const tomlPath = path.join(cwd, 'tll.toml');
+
+  if (fs.existsSync(tomlPath)) {
+    console.error(`Error: tll.toml already exists in ${cwd}`);
+    process.exit(1);
+  }
+
+  const tomlContent = `[package]
+name = "${projectName}"
+version = "0.1.0"
+entry = "main.tll"
+
+[dependencies]
+`;
+
+  fs.writeFileSync(tomlPath, tomlContent);
+  console.log(`Created tll.toml for project "${projectName}"`);
+
+  // Create default main.tll if it doesn't exist
+  const mainPath = path.join(cwd, 'main.tll');
+  if (!fs.existsSync(mainPath)) {
+    fs.writeFileSync(mainPath, `// ${projectName} - entry point
+io.println("Hello, ${projectName}!")
+`);
+    console.log(`Created main.tll`);
+  }
+
+  console.log(`\nNext steps:`);
+  console.log(`  tll run          # Run the project`);
+  console.log(`  tll check        # Type-check only`);
+}
+
+function cmdInstall(packageName?: string): void {
+  const cwd = process.cwd();
+  const config = readTomlConfig(cwd);
+
+  if (!config) {
+    console.error('Error: no tll.toml found. Run "tll init" first.');
+    process.exit(1);
+  }
+
+  if (!packageName) {
+    // Install all dependencies from tll.toml
+    const deps = config['dependencies'] || {};
+    const depNames = Object.keys(deps);
+    if (depNames.length === 0) {
+      console.log('No dependencies to install.');
+      return;
+    }
+    console.log(`Installing ${depNames.length} dependency(ies)...`);
+    for (const dep of depNames) {
+      console.log(`  ${dep}@${deps[dep]} (registry not available yet - placeholder)`);
+    }
+    console.log('\nNote: Package registry is not yet implemented in bootstrap.');
+    console.log('Dependencies will be available in TLL v0.4+.');
+    return;
+  }
+
+  // Install a specific package
+  console.log(`Installing ${packageName}...`);
+  console.log('Note: Package registry is not yet implemented in bootstrap.');
+  console.log('Add the dependency manually to tll.toml [dependencies] section.');
 }
 
 function compile(source: string, fileName: string) {
@@ -202,7 +320,23 @@ function resolveDependencies(entryPath: string): string[] {
 function cmdRun(filePaths: string[]): void {
   let filesToCompile: string[];
 
-  if (filePaths.length === 1) {
+  if (filePaths.length === 0) {
+    // No file specified: read entry from tll.toml
+    const config = readTomlConfig(process.cwd());
+    if (!config) {
+      console.error('Error: no input file specified and no tll.toml found');
+      console.error('Usage: tll run <file>  or  run "tll init" to create a project');
+      process.exit(1);
+    }
+    const entry = config['package']?.['entry'] as string | undefined;
+    if (!entry) {
+      console.error('Error: tll.toml has no [package].entry field');
+      process.exit(1);
+    }
+    const entryPath = path.resolve(process.cwd(), entry);
+    console.error(`Using entry from tll.toml: ${entry}`);
+    filesToCompile = resolveDependencies(entryPath);
+  } else if (filePaths.length === 1) {
     // Single entry file: auto-resolve dependencies
     filesToCompile = resolveDependencies(filePaths[0]);
     if (filesToCompile.length > 1) {
@@ -222,7 +356,7 @@ function cmdRun(filePaths: string[]): void {
   try {
     runtime.run();
   } catch (e: any) {
-    console.error(`${filePaths[0]}: ${e.message}`);
+    console.error(`${filePaths[0] || 'tll.toml'}: ${e.message}`);
     process.exit(1);
   }
 }
@@ -283,11 +417,16 @@ function main(): void {
 
   switch (command) {
     case 'run':
-      if (args.length < 2) {
-        console.error('Error: no input file specified');
-        process.exit(1);
-      }
       cmdRun(args.slice(1));
+      break;
+
+    case 'init':
+      cmdInit(args[1]);
+      break;
+
+    case 'install':
+    case 'i':
+      cmdInstall(args[1]);
       break;
 
     case 'build':
