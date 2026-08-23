@@ -126,6 +126,7 @@ const strings: StdLibModule = {
 // ─── arrays ───────────────────────────────────────────────────────────────
 const arrays: StdLibModule = {
   length: (arr: any) => Array.isArray(arr) ? arr.length : 0,
+  get: (arr: any, index: any) => Array.isArray(arr) ? arr[Number(index)] : undefined,
   push: (arr: any, ...items: any[]) => {
     if (Array.isArray(arr)) {
       for (const item of items) arr.push(item);

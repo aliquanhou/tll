@@ -238,7 +238,16 @@ export class Runtime {
           args.unshift(frame.argStack.pop());
         }
 
-        if (fnIdx >= 0 && fnIdx < this.program.functions.length) {
+        // Check for indirect call first (register holds a function value, e.g. builtin)
+        const possibleFn = regs[b];
+        if (typeof possibleFn === 'function') {
+          try {
+            regs[a] = possibleFn(...args);
+          } catch (e: any) {
+            const errMsg = e instanceof Error ? e.message : String(e);
+            this.throwException(frame, errMsg);
+          }
+        } else if (fnIdx >= 0 && fnIdx < this.program.functions.length) {
           const fn = this.program.functions[fnIdx];
           const newFrame: CallFrame = {
             function: fn,
@@ -253,17 +262,6 @@ export class Runtime {
             newFrame.locals[i] = args[i];
           }
           this.callStack.push(newFrame);
-        } else {
-          // Indirect call (function value, e.g. builtin functions)
-          const fnValue = regs[b] as Function;
-          if (typeof fnValue === 'function') {
-            try {
-              regs[a] = fnValue(...args);
-            } catch (e: any) {
-              const errMsg = e instanceof Error ? e.message : String(e);
-              this.throwException(frame, errMsg);
-            }
-          }
         }
         break;
       }

@@ -80,6 +80,7 @@ export class Compiler {
   private labelCounter = 0;
   private variableMap = new Map<string, number>(); // name -> local index
   private functionMap = new Map<string, number>(); // name -> function index
+  private loopContexts: { breakLabel: number; continueLabel: number }[] = [];
 
   public compile(program: AST.Program): CompiledProgram {
     this.constants = [];
@@ -257,11 +258,24 @@ export class Compiler {
       case 'Block':
         this.compileBlock(stmt);
         break;
-      case 'Break':
-      case 'Continue':
-        // Handled by loop context (simplified: just NOP)
-        this.emit(OpCode.NOP, []);
+      case 'Break': {
+        const ctx = this.loopContexts[this.loopContexts.length - 1];
+        if (ctx) {
+          this.emit(OpCode.JMP, [ctx.breakLabel]);
+        } else {
+          this.emit(OpCode.NOP, []);
+        }
         break;
+      }
+      case 'Continue': {
+        const ctx = this.loopContexts[this.loopContexts.length - 1];
+        if (ctx) {
+          this.emit(OpCode.JMP, [ctx.continueLabel]);
+        } else {
+          this.emit(OpCode.NOP, []);
+        }
+        break;
+      }
       case 'Defer':
         // Simplified: execute immediately
         this.compileExpression(stmt.expression);
@@ -327,12 +341,18 @@ export class Compiler {
     const startLabel = this.newLabel();
     const endLabel = this.newLabel();
 
+    // Push loop context for break/continue
+    this.loopContexts.push({ breakLabel: endLabel, continueLabel: startLabel });
+
     this.patchLabel(startLabel);
     const condReg = this.compileExpression(stmt.condition);
     this.emit(OpCode.JMP_IF_FALSE, [condReg, endLabel]);
     this.compileBlock(stmt.body);
     this.emit(OpCode.JMP, [startLabel]);
     this.patchLabel(endLabel);
+
+    // Pop loop context
+    this.loopContexts.pop();
   }
 
   private compileFor(stmt: AST.ForStatement): void {

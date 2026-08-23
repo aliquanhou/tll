@@ -1066,8 +1066,14 @@ export class Parser {
       case TokenType.Ident:
         this.advance();
         // Check for struct literal: TypeName { field: value }
+        // Only treat as struct literal if { is followed by ident: pattern
+        // This avoids misparsing `len { let ... }` as struct literal
         if (this.check(TokenType.LBrace)) {
-          return this.parseStructLiteral(token.value, token.line, token.column);
+          const next1 = this.tokens[this.pos + 1];
+          const next2 = this.tokens[this.pos + 2];
+          if (next1 && next1.type === TokenType.Ident && next2 && next2.type === TokenType.Colon) {
+            return this.parseStructLiteral(token.value, token.line, token.column);
+          }
         }
         return { kind: 'Ident', name: token.value, line: token.line, column: token.column };
 
