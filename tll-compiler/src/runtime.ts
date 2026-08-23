@@ -19,7 +19,7 @@ interface CallFrame {
 export class Runtime {
   private program: CompiledProgram;
   private callStack: CallFrame[] = [];
-  private globals: Map<string, any> = new Map();
+  private globals: any[] = [];
   private toolRegistry: Map<string, number> = new Map(); // tool name -> function index
 
   // Global runtime instance for stdlib callbacks (e.g. agent tool calling)
@@ -27,6 +27,7 @@ export class Runtime {
 
   constructor(program: CompiledProgram) {
     this.program = program;
+    this.globals = new Array(program.globalCount || 0).fill(undefined);
     Runtime.current = this;
     // Expose to stdlib via global (avoids circular dependency)
     (globalThis as any).__tll_runtime = this;
@@ -154,6 +155,14 @@ export class Runtime {
 
       case OpCode.STORE_VAR:
         frame.locals[a] = regs[b];
+        break;
+
+      case OpCode.LOAD_GLOBAL:
+        regs[a] = this.globals[b];
+        break;
+
+      case OpCode.STORE_GLOBAL:
+        this.globals[a] = regs[b];
         break;
 
       case OpCode.ADD:

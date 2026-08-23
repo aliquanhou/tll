@@ -49,6 +49,8 @@ export enum OpCode {
   THROW = 37,          // r (throw value in register)
   TRY_START = 38,      // catch_offset (record try handler)
   TRY_END = 39,        // (clear try handler)
+  LOAD_GLOBAL = 40,    // r, global_index
+  STORE_GLOBAL = 41,   // global_index, r
 }
 
 export interface Instruction {
@@ -68,6 +70,7 @@ export interface CompiledProgram {
   constants: any[];
   functions: CompiledFunction[];
   mainFunctionIndex: number;
+  globalCount: number;
 }
 
 // ============ Compiler ============
@@ -79,8 +82,10 @@ export class Compiler {
   private registerCount = 0;
   private labelCounter = 0;
   private variableMap = new Map<string, number>(); // name -> local index
+  private globalVariables = new Map<string, number>(); // name -> global index
   private functionMap = new Map<string, number>(); // name -> function index
   private loopContexts: { breakLabel: number; continueLabel: number }[] = [];
+  private isInMain = false;
 
   public compile(program: AST.Program): CompiledProgram {
     this.constants = [];
@@ -119,6 +124,16 @@ export class Compiler {
           localCount: 0,
           isTool,
         });
+      }
+    }
+
+    // Collect global variables from top-level statements first
+    for (const stmt of program.statements) {
+      if (stmt.kind === 'Let' || stmt.kind === 'Const') {
+        const letStmt = stmt as AST.LetStatement;
+        if (!this.globalVariables.has(letStmt.name)) {
+          this.globalVariables.set(letStmt.name, this.globalVariables.size);
+        }
       }
     }
 
@@ -162,6 +177,7 @@ export class Compiler {
     this.registerCount = 0;
     this.variableMap = new Map();
     this.labelCounter = 0;
+    this.isInMain = true;
 
     for (const stmt of program.statements) {
       if (stmt.kind !== 'Fn' && stmt.kind !== 'Struct' && stmt.kind !== 'Enum' &&
@@ -181,6 +197,7 @@ export class Compiler {
       constants: this.constants,
       functions: this.functions,
       mainFunctionIndex: mainIdx,
+      globalCount: this.globalVariables.size,
     };
   }
 
@@ -189,6 +206,7 @@ export class Compiler {
     this.registerCount = 0;
     this.variableMap = new Map();
     this.labelCounter = 0;
+    this.isInMain = false;
 
     // Map parameters to local variables
     for (let i = 0; i < fn.params.length; i++) {
@@ -302,8 +320,12 @@ export class Compiler {
 
   private compileLet(stmt: AST.LetStatement | AST.ConstStatement): void {
     const valueReg = this.compileExpression(stmt.value);
-    const varIdx = this.getOrCreateVar(stmt.name);
-    this.emit(OpCode.STORE_VAR, [varIdx, valueReg]);
+    const { index, isGlobal } = this.resolveVar(stmt.name);
+    if (isGlobal) {
+      this.emit(OpCode.STORE_GLOBAL, [index, valueReg]);
+    } else {
+      this.emit(OpCode.STORE_VAR, [index, valueReg]);
+    }
   }
 
   private compileReturn(stmt: AST.ReturnStatement): void {
@@ -477,9 +499,11 @@ export class Compiler {
       }
       case 'Ident': {
         const reg = this.allocReg();
-        const varIdx = this.variableMap.get(expr.name);
-        if (varIdx !== undefined) {
-          this.emit(OpCode.LOAD_VAR, [reg, varIdx]);
+        const { index, isGlobal } = this.resolveVar(expr.name);
+        if (isGlobal) {
+          this.emit(OpCode.LOAD_GLOBAL, [reg, index]);
+        } else if (this.variableMap.has(expr.name) || this.globalVariables.has(expr.name)) {
+          this.emit(OpCode.LOAD_VAR, [reg, index]);
         } else {
           // Could be a function reference or undefined
           this.emit(OpCode.LOAD_CONST, [reg, this.addConstant(undefined)]);
@@ -625,8 +649,24 @@ export class Compiler {
     } else if (expr.operator === '=') {
       // Assignment
       if (expr.left.kind === 'Ident') {
-        const varIdx = this.getOrCreateVar(expr.left.name);
-        this.emit(OpCode.STORE_VAR, [varIdx, rightReg]);
+        const { index, isGlobal } = this.resolveVar(expr.left.name);
+        if (isGlobal) {
+          this.emit(OpCode.STORE_GLOBAL, [index, rightReg]);
+        } else {
+          this.emit(OpCode.STORE_VAR, [index, rightReg]);
+        }
+        return rightReg;
+      } else if (expr.left.kind === 'Index') {
+        // Index assignment: obj[idx] = value
+        const objReg = this.compileExpression(expr.left.object);
+        const idxReg = this.compileExpression(expr.left.index);
+        this.emit(OpCode.INDEX_SET, [objReg, idxReg, rightReg]);
+        return rightReg;
+      } else if (expr.left.kind === 'Member') {
+        // Member assignment: obj.prop = value
+        const objReg = this.compileExpression(expr.left.object);
+        const nameIdx = this.addConstant(expr.left.property);
+        this.emit(OpCode.MEMBER_SET, [objReg, nameIdx, rightReg]);
         return rightReg;
       }
     } else {
@@ -738,13 +778,24 @@ export class Compiler {
     return idx;
   }
 
-  private getOrCreateVar(name: string): number {
-    let idx = this.variableMap.get(name);
-    if (idx === undefined) {
-      idx = this.currentFn!.localCount++;
-      this.variableMap.set(name, idx);
+  private resolveVar(name: string): { index: number; isGlobal: boolean } {
+    const localIdx = this.variableMap.get(name);
+    if (localIdx !== undefined) {
+      return { index: localIdx, isGlobal: false };
     }
-    return idx;
+    const globalIdx = this.globalVariables.get(name);
+    if (globalIdx !== undefined) {
+      return { index: globalIdx, isGlobal: true };
+    }
+    // Not found - create as local
+    const idx = this.currentFn!.localCount++;
+    this.variableMap.set(name, idx);
+    return { index: idx, isGlobal: false };
+  }
+
+  private getOrCreateVar(name: string): number {
+    const { index } = this.resolveVar(name);
+    return index;
   }
 
   private newLabel(): number {
