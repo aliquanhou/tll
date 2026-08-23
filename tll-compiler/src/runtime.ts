@@ -4,6 +4,7 @@
  */
 
 import { CompiledProgram, OpCode, Instruction, CompiledFunction } from './compiler';
+import { builtinFunctions } from './stdlib';
 
 interface CallFrame {
   function: CompiledFunction;
@@ -264,6 +265,16 @@ export class Runtime {
 
       case OpCode.NOP:
         break;
+
+      case OpCode.LOAD_BUILTIN: {
+        const fn = builtinFunctions[b];
+        if (typeof fn === 'function') {
+          regs[a] = fn;
+        } else {
+          throw new RuntimeError('Unknown builtin index: ' + b);
+        }
+        break;
+      }
 
       default:
         throw new RuntimeError(`Unknown opcode: ${inst.op}`);

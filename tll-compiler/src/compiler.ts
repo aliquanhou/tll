@@ -4,6 +4,7 @@
  */
 
 import * as AST from './ast';
+import { getBuiltinIndex } from './stdlib';
 
 // ============ Bytecode Definitions ============
 
@@ -44,6 +45,7 @@ export enum OpCode {
   NOP = 33,
   PUSH = 34,         // r (push to stack for call args)
   CONCAT = 35,       // r1, r2, r3 (string concat)
+  LOAD_BUILTIN = 36,  // r, builtin_index
 }
 
 export interface Instruction {
@@ -532,6 +534,25 @@ export class Compiler {
       return resultReg;
     }
 
+
+    // Standard library function call (module.function)
+    if (expr.callee.kind === 'Member' &&
+        expr.callee.object.kind === 'Ident') {
+      const modName = expr.callee.object.name;
+      const fnName = expr.callee.property;
+      const builtinIdx = getBuiltinIndex(modName, fnName);
+      if (builtinIdx >= 0) {
+        const argRegs = expr.args.map(a => this.compileExpression(a));
+        for (const ar of argRegs) {
+          this.emit(OpCode.PUSH, [ar]);
+        }
+        const fnReg = this.allocReg();
+        this.emit(OpCode.LOAD_BUILTIN, [fnReg, builtinIdx]);
+        this.emit(OpCode.CALL, [resultReg, fnReg, expr.args.length]);
+        return resultReg;
+      }
+    }
+
     // User function call
     if (expr.callee.kind === 'Ident') {
       const fnIdx = this.functionMap.get(expr.callee.name);
@@ -551,7 +572,7 @@ export class Compiler {
     for (const ar of argRegs) {
       this.emit(OpCode.PUSH, [ar]);
     }
-    this.emit(OpCode.CALL, [resultReg, -1, expr.args.length]); // -1 = indirect call
+    this.emit(OpCode.CALL, [resultReg, calleeReg, expr.args.length]); // indirect call via register
     return resultReg;
   }
 

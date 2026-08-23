@@ -1,0 +1,48 @@
+// TLL Standard Library Test
+fn main() {
+    io.println("=== TLL Standard Library Test ===")
+
+    // math
+    io.println("--- math ---")
+    io.println("sqrt(16) = " + math.sqrt(16))
+    io.println("abs(-5) = " + math.abs(-5))
+    io.println("floor(3.7) = " + math.floor(3.7))
+    io.println("ceil(3.2) = " + math.ceil(3.2))
+    io.println("round(3.5) = " + math.round(3.5))
+    io.println("min(3,7) = " + math.min(3, 7))
+    io.println("max(3,7) = " + math.max(3, 7))
+    io.println("pow(2,10) = " + math.pow(2, 10))
+    io.println("pi = " + math.pi())
+
+    // strings
+    io.println("--- strings ---")
+    let s = "Hello, TLL!"
+    io.println("length = " + strings.length(s))
+    io.println("toUpper = " + strings.toUpper(s))
+    io.println("toLower = " + strings.toLower(s))
+    io.println("contains('TLL') = " + strings.contains(s, "TLL"))
+    io.println("startsWith('Hello') = " + strings.startsWith(s, "Hello"))
+    io.println("substring(0,5) = " + strings.substring(s, 0, 5))
+    io.println("replace('TLL','World') = " + strings.replace(s, "TLL", "World"))
+
+    // json
+    io.println("--- json ---")
+    let jsonStr = "{\"name\":\"Alice\",\"age\":30}"
+    let obj = json.parse(jsonStr)
+    io.println("parsed name = " + obj.name)
+    io.println("parsed age = " + obj.age)
+    io.println("stringify = " + json.stringify(obj))
+
+    // convert
+    io.println("--- convert ---")
+    io.println("toInt('42') = " + convert.toInt("42"))
+    io.println("toFloat('3.14') = " + convert.toFloat("3.14"))
+    io.println("toString(123) = " + convert.toString(123))
+    io.println("toBool(1) = " + convert.toBool(1))
+    io.println("typeOf('hello') = " + convert.typeOf("hello"))
+    io.println("typeOf(42) = " + convert.typeOf(42))
+
+    io.println("=== All tests passed ===")
+}
+
+main()
