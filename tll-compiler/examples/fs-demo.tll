@@ -1,0 +1,75 @@
+// TLL fs Module Test
+fn main() {
+    io.println("=== TLL fs Module Test ===")
+
+    // writeFile
+    io.println("--- writeFile ---")
+    fs.writeFile("/tmp/tll-test.txt", "Hello, TLL fs!\nLine 2\n")
+    io.println("written to /tmp/tll-test.txt")
+
+    // exists
+    io.println("--- exists ---")
+    io.println("exists(/tmp/tll-test.txt) = " + fs.exists("/tmp/tll-test.txt"))
+    io.println("exists(/tmp/nonexistent.txt) = " + fs.exists("/tmp/nonexistent.txt"))
+
+    // readFile
+    io.println("--- readFile ---")
+    let content = fs.readFile("/tmp/tll-test.txt")
+    io.println("content:")
+    io.print(content)
+
+    // appendFile
+    io.println("--- appendFile ---")
+    fs.appendFile("/tmp/tll-test.txt", "Appended line\n")
+    let content2 = fs.readFile("/tmp/tll-test.txt")
+    io.println("after append:")
+    io.print(content2)
+
+    // fileSize
+    io.println("--- fileSize ---")
+    io.println("fileSize = " + fs.fileSize("/tmp/tll-test.txt") + " bytes")
+
+    // isFile / isDir
+    io.println("--- isFile / isDir ---")
+    io.println("isFile(/tmp/tll-test.txt) = " + fs.isFile("/tmp/tll-test.txt"))
+    io.println("isDir(/tmp/tll-test.txt) = " + fs.isDir("/tmp/tll-test.txt"))
+
+    // mkdir
+    io.println("--- mkdir ---")
+    fs.mkdir("/tmp/tll-test-dir")
+    io.println("created /tmp/tll-test-dir")
+    io.println("isDir(/tmp/tll-test-dir) = " + fs.isDir("/tmp/tll-test-dir"))
+
+    // listDir
+    io.println("--- listDir ---")
+    fs.writeFile("/tmp/tll-test-dir/a.txt", "A")
+    fs.writeFile("/tmp/tll-test-dir/b.txt", "B")
+    let files = fs.listDir("/tmp/tll-test-dir")
+    io.println("files in dir: " + arrays.join(files, ", "))
+
+    // copyFile
+    io.println("--- copyFile ---")
+    fs.copyFile("/tmp/tll-test.txt", "/tmp/tll-test-copy.txt")
+    io.println("copied to /tmp/tll-test-copy.txt")
+    io.println("copy exists = " + fs.exists("/tmp/tll-test-copy.txt"))
+
+    // rename
+    io.println("--- rename ---")
+    fs.rename("/tmp/tll-test-copy.txt", "/tmp/tll-test-renamed.txt")
+    io.println("renamed to /tmp/tll-test-renamed.txt")
+    io.println("old exists = " + fs.exists("/tmp/tll-test-copy.txt"))
+    io.println("new exists = " + fs.exists("/tmp/tll-test-renamed.txt"))
+
+    // remove
+    io.println("--- remove ---")
+    fs.remove("/tmp/tll-test.txt")
+    fs.remove("/tmp/tll-test-renamed.txt")
+    fs.remove("/tmp/tll-test-dir")
+    io.println("cleaned up test files")
+    io.println("tll-test.txt exists = " + fs.exists("/tmp/tll-test.txt"))
+    io.println("tll-test-dir exists = " + fs.exists("/tmp/tll-test-dir"))
+
+    io.println("=== All fs tests passed ===")
+}
+
+main()

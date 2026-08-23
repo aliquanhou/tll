@@ -101,12 +101,12 @@ export class TypeChecker {
   }
 
   private inferStdlibReturnType(modName: string, fnName: string): TypeInfo {
-    const voidFns = ['println', 'print', 'forEach', 'fill'];
-    const strFns = ['toUpper', 'toLower', 'trim', 'trimStart', 'trimEnd', 'substring', 'replace', 'replaceAll', 'repeat', 'padStart', 'padEnd', 'charAt', 'stringify', 'join', 'toString', 'toChar', 'readLine'];
-    const intFns = ['length', 'indexOf', 'lastIndexOf', 'toInt', 'charCode', 'randomInt'];
+    const voidFns = ['println', 'print', 'forEach', 'fill', 'writeFile', 'appendFile', 'mkdir', 'remove', 'copyFile', 'rename'];
+    const strFns = ['toUpper', 'toLower', 'trim', 'trimStart', 'trimEnd', 'substring', 'replace', 'replaceAll', 'repeat', 'padStart', 'padEnd', 'charAt', 'stringify', 'join', 'toString', 'toChar', 'readLine', 'readFile'];
+    const intFns = ['length', 'indexOf', 'lastIndexOf', 'toInt', 'charCode', 'randomInt', 'fileSize'];
     const floatFns = ['sqrt', 'abs', 'floor', 'ceil', 'round', 'min', 'max', 'pow', 'sin', 'cos', 'tan', 'log', 'log2', 'log10', 'exp', 'pi', 'e', 'random', 'toFloat'];
-    const boolFns = ['contains', 'startsWith', 'endsWith', 'isEmpty', 'some', 'every', 'includes', 'toBool'];
-    const listFns = ['split', 'lines', 'words', 'map', 'filter', 'sort', 'reverse', 'slice', 'concat', 'flat', 'range', 'push', 'pop', 'shift', 'unshift'];
+    const boolFns = ['contains', 'startsWith', 'endsWith', 'isEmpty', 'some', 'every', 'includes', 'toBool', 'exists', 'isFile', 'isDir'];
+    const listFns = ['split', 'lines', 'words', 'map', 'filter', 'sort', 'reverse', 'slice', 'concat', 'flat', 'range', 'push', 'pop', 'shift', 'unshift', 'listDir'];
 
     if (voidFns.includes(fnName)) return { name: 'void', kind: 'primitive' };
     if (strFns.includes(fnName)) return { name: 'str', kind: 'primitive' };

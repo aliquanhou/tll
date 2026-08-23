@@ -239,6 +239,111 @@ const convert: StdLibModule = {
   },
 };
 
+// ─── fs ────────────────────────────────────────────────────────────────────
+const nodeFs = require('fs');
+const nodePath = require('path');
+
+const fs: StdLibModule = {
+  readFile: (filePath: any) => {
+    try {
+      return nodeFs.readFileSync(String(filePath), 'utf8');
+    } catch (e: any) {
+      throw new Error('fs.readFile error: ' + e.message);
+    }
+  },
+  writeFile: (filePath: any, content: any) => {
+    try {
+      const dir = nodePath.dirname(String(filePath));
+      if (dir && dir !== '.' && !nodeFs.existsSync(dir)) {
+        nodeFs.mkdirSync(dir, { recursive: true });
+      }
+      nodeFs.writeFileSync(String(filePath), String(content), 'utf8');
+      return null;
+    } catch (e: any) {
+      throw new Error('fs.writeFile error: ' + e.message);
+    }
+  },
+  appendFile: (filePath: any, content: any) => {
+    try {
+      nodeFs.appendFileSync(String(filePath), String(content), 'utf8');
+      return null;
+    } catch (e: any) {
+      throw new Error('fs.appendFile error: ' + e.message);
+    }
+  },
+  exists: (filePath: any) => {
+    return nodeFs.existsSync(String(filePath));
+  },
+  mkdir: (dirPath: any) => {
+    try {
+      nodeFs.mkdirSync(String(dirPath), { recursive: true });
+      return null;
+    } catch (e: any) {
+      throw new Error('fs.mkdir error: ' + e.message);
+    }
+  },
+  remove: (targetPath: any) => {
+    try {
+      const p = String(targetPath);
+      if (nodeFs.existsSync(p)) {
+        const stat = nodeFs.statSync(p);
+        if (stat.isDirectory()) {
+          nodeFs.rmSync(p, { recursive: true, force: true });
+        } else {
+          nodeFs.unlinkSync(p);
+        }
+      }
+      return null;
+    } catch (e: any) {
+      throw new Error('fs.remove error: ' + e.message);
+    }
+  },
+  listDir: (dirPath: any) => {
+    try {
+      return nodeFs.readdirSync(String(dirPath));
+    } catch (e: any) {
+      throw new Error('fs.listDir error: ' + e.message);
+    }
+  },
+  isFile: (filePath: any) => {
+    try {
+      return nodeFs.statSync(String(filePath)).isFile();
+    } catch {
+      return false;
+    }
+  },
+  isDir: (dirPath: any) => {
+    try {
+      return nodeFs.statSync(String(dirPath)).isDirectory();
+    } catch {
+      return false;
+    }
+  },
+  fileSize: (filePath: any) => {
+    try {
+      return nodeFs.statSync(String(filePath)).size;
+    } catch (e: any) {
+      throw new Error('fs.fileSize error: ' + e.message);
+    }
+  },
+  copyFile: (src: any, dest: any) => {
+    try {
+      nodeFs.copyFileSync(String(src), String(dest));
+      return null;
+    } catch (e: any) {
+      throw new Error('fs.copyFile error: ' + e.message);
+    }
+  },
+  rename: (oldPath: any, newPath: any) => {
+    try {
+      nodeFs.renameSync(String(oldPath), String(newPath));
+      return null;
+    } catch (e: any) {
+      throw new Error('fs.rename error: ' + e.message);
+    }
+  },
+};
+
 // ─── Module Registry ───────────────────────────────────────────────────────
 export const stdlibModules: Record<string, StdLibModule> = {
   io,
@@ -247,6 +352,7 @@ export const stdlibModules: Record<string, StdLibModule> = {
   strings,
   arrays,
   convert,
+  fs,
 };
 
 /**
