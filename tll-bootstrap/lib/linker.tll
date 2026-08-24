@@ -459,11 +459,7 @@ export fn linkAndCompile(entryFile: string) -> map {
     let files = resolveDependencies(entryFile)
     if circularDependencyError != "" {
         io.println("Compilation aborted due to circular dependency.")
-        let errorResult: map = {}
-        errorResult.error = circularDependencyError
-        errorResult.functions = []
-        errorResult.constants = []
-        errorResult.mainFunctionIndex = 0
+        let errorResult = { hasError: true, error: circularDependencyError, functions: [], constants: [], mainFunctionIndex: 0 }
         return errorResult
     }
     io.println("Resolved " + convert.toString(arrays.length(files)) + " module(s):")

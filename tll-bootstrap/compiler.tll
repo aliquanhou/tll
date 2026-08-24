@@ -46,6 +46,15 @@ fn main() -> void {
 
     // Compile compiler.tll itself using Module Linker
     let bytecode = linkAndCompile("compiler.tll")
+    // Check for compilation errors (e.g., circular dependencies)
+    if bytecode.hasError == true {
+        io.println("")
+        io.println("=== COMPILATION FAILED ===")
+        io.println("Error: " + bytecode.error)
+        io.println("")
+        return
+    }
+
     let bytecodeJson = json.stringify(bytecode)
 
     io.println("Compilation successful!")
