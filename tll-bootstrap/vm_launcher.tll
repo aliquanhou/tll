@@ -1,0 +1,30 @@
+// TLL VM Launcher - Runtime Independence Test
+// Loads compiler bytecode from file and executes it via TLL VM (vm.tll)
+// This proves: TS Runtime -> vm.tll -> TLL Compiler -> bytecode
+
+from "./lib/vm" import run
+
+fn main() -> void {
+    io.println("=== TLL VM Launcher (Runtime Independence) ===")
+    io.println("Loading compiler bytecode...")
+
+    let bytecodePath = "compiler_for_vm.tllbc"
+    let source = fs.readFile(bytecodePath)
+    io.println("Bytecode file size: " + convert.toString(strings.length(source)))
+
+    let program = json.parse(source)
+    io.println("Parsed: functions=" + convert.toString(arrays.length(program["functions"]))
+        + " constants=" + convert.toString(arrays.length(program["constants"])))
+
+    io.println("")
+    io.println("Starting TLL VM execution...")
+    io.println("")
+
+    let result = run(program)
+
+    io.println("")
+    io.println("=== TLL VM execution finished ===")
+    io.println("Result: " + convert.toString(result))
+}
+
+main()
