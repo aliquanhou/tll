@@ -1,0 +1,16 @@
+{
+  "name": "tll-bootstrap",
+  "version": "1.1.0",
+  "description": "TLL Programming Language - Self-hosted Compiler (pure TLL)",
+  "main": "compiler.tll",
+  "scripts": {
+    "build:bootstrap": "cd ../tll-compiler && npm run build",
+    "test:modules": "node tests/run-tests.js",
+    "test:selfhost": "node tests/selfhost.js",
+    "pretest": "npm run build:bootstrap",
+    "test": "npm run test:modules && npm run test:selfhost"
+  },
+  "keywords": ["tll", "compiler", "programming-language", "ai-native", "self-hosting"],
+  "author": "TLL Team",
+  "license": "MIT"
+}

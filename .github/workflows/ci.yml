@@ -1,0 +1,58 @@
+name: TLL Compiler CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install bootstrap compiler dependencies
+        working-directory: tll-compiler
+        run: npm install
+
+      - name: Build bootstrap compiler (TypeScript)
+        working-directory: tll-compiler
+        run: npm run build
+
+      - name: Verify build artifacts exist
+        run: |
+          test -f tll-compiler/dist/src/cli.js || (echo "cli.js not found" && exit 1)
+          test -f tll-compiler/dist/src/runtime.js || (echo "runtime.js not found" && exit 1)
+          echo "Build artifacts verified"
+
+      - name: Run module system regression tests (10 tests)
+        working-directory: tll-bootstrap
+        run: node tests/run-tests.js
+
+      - name: Run self-hosting verification (L4 + L5 + determinism)
+        working-directory: tll-bootstrap
+        run: node tests/selfhost.js
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+
+      - name: CI Summary
+        if: always()
+        run: |
+          echo "========================================"
+          echo "TLL CI Complete"
+          echo "========================================"
+          echo "Build: TypeScript bootstrap compiler"
+          echo "Tests: Module system regression (10 tests)"
+          echo "Self-host: L4 (bootstrap->bytecode A->B)"
+          echo "Self-host: L5 (bytecode B->C, B==C determinism)"
+          echo "========================================"

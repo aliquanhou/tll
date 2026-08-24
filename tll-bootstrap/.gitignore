@@ -31,3 +31,25 @@ bytecode_*.tllbc
 compiler_generated.tllbc
 compiler_self_compiled.tllbc
 compiler_a3_*.tllbc
+
+# Temporary compile/inspect/gen scripts
+compile_*.tll
+compile_*.js
+inspect_*.tll
+inspect_*.js
+gen_*.tll
+gen_*.js
+exec_bytecode*.js
+compare_rounds.js
+bytecode_b.json
+bootstrap_level*.tll
+
+# Temporary fix scripts
+fix_*.py
+fix_*.js
+
+# Test temp directory
+tests/.tmp/
+
+# Selfhost work directory
+tests/.tmp/selfhost_work/

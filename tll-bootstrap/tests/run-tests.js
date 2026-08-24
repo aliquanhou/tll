@@ -1,15 +1,23 @@
 // TLL Module System Test Runner
 // Usage: node tests/run-tests.js [test-name]
+// Portable: resolves paths relative to repo root, no /opt/tll dependency.
+// Environment overrides:
+//   TLL_COMPILER_DIST  - path to tll-compiler dist/src directory
+//   TLL_BOOTSTRAP_DIR  - path to tll-bootstrap directory
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
-const BOOTSTRAP_CLI = '/opt/tll/tll-compiler/dist/src/cli.js';
-const RUNTIME_PATH = '/opt/tll/tll-compiler/dist/src/runtime.js';
+// Path resolution: this file lives at <repo>/tll-bootstrap/tests/run-tests.js
+const TESTS_DIR = __dirname;
+const BOOTSTRAP_DIR = process.env.TLL_BOOTSTRAP_DIR || path.resolve(TESTS_DIR, '..');
+const REPO_ROOT = path.resolve(BOOTSTRAP_DIR, '..');
+const TLL_COMPILER_DIST = process.env.TLL_COMPILER_DIST || path.join(REPO_ROOT, 'tll-compiler', 'dist', 'src');
+const BOOTSTRAP_CLI = path.join(TLL_COMPILER_DIST, 'cli.js');
+const RUNTIME_PATH = path.join(TLL_COMPILER_DIST, 'runtime.js');
 const { Runtime } = require(RUNTIME_PATH);
 
-const TESTS_DIR = path.join(__dirname);
-const TMP_DIR = path.join(__dirname, '.tmp');
+const TMP_DIR = path.join(TESTS_DIR, '.tmp');
 
 function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -30,12 +38,12 @@ function runTest(testName) {
   }
 
   const config = fs.existsSync(configFile) ? JSON.parse(fs.readFileSync(configFile, 'utf8')) : {};
-  const expected = fs.existsSync(expectedFile) ? fs.readFileSync(expectedFile, 'utf8').trim() : '';
+  const expected = fs.existsSync(expectedFile) ? fs.readFileSync(expectedFile, 'utf8').replace(/\r\n/g, '\n').trim() : '';
   const expectError = config.expectError || false;
 
   ensureDir(TMP_DIR);
   const safeName = testName.replace(/\//g, '_');
-  const driverFile = path.join('/opt/tll/tll-bootstrap', `.test_${safeName}_driver.tll`);
+  const driverFile = path.join(BOOTSTRAP_DIR, `.test_${safeName}_driver.tll`);
   const bytecodeFile = path.join(TMP_DIR, `${safeName}.tllbc`);
 
   // Generate driver script that calls linkAndCompile
@@ -59,7 +67,7 @@ main()
     // Stage 1: Compile test file using TLL compiler (via bootstrap)
     const compileResult = execSync(
       `node --max-old-space-size=4096 ${BOOTSTRAP_CLI} run ${driverFile}`,
-      { cwd: '/opt/tll/tll-bootstrap', encoding: 'utf8', timeout: 60000, stdio: ['pipe', 'pipe', 'pipe'] }
+      { cwd: BOOTSTRAP_DIR, encoding: 'utf8', timeout: 60000, stdio: ['pipe', 'pipe', 'pipe'] }
     );
 
     if (compileResult.includes('COMPILE_ERROR')) {
