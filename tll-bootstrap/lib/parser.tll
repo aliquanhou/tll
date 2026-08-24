@@ -278,10 +278,22 @@ fn parseImportStatement() -> map {
     let names: list = []
     if parse_check("IDENT") {
         let nt = parse_advance()
-        arrays.push(names, nt.tkValue)
+        let nm = nt.tkValue
+        let al = nm
+        if parse_match("AS") {
+            let at = parse_expect("IDENT", "alias name")
+            al = at.tkValue
+        }
+        arrays.push(names, { name: nm, alias: al })
         while parse_match("COMMA") {
             let nt2 = parse_expect("IDENT", "import name")
-            arrays.push(names, nt2.tkValue)
+            let nm2 = nt2.tkValue
+            let al2 = nm2
+            if parse_match("AS") {
+                let at2 = parse_expect("IDENT", "alias name")
+                al2 = at2.tkValue
+            }
+            arrays.push(names, { name: nm2, alias: al2 })
         }
     }
     let modulePath = ""
@@ -306,10 +318,22 @@ fn parseFromImportStatement() -> map {
     let names: list = []
     if parse_check("IDENT") {
         let nt = parse_advance()
-        arrays.push(names, nt.tkValue)
+        let nm = nt.tkValue
+        let al = nm
+        if parse_match("AS") {
+            let at = parse_expect("IDENT", "alias name")
+            al = at.tkValue
+        }
+        arrays.push(names, { name: nm, alias: al })
         while parse_match("COMMA") {
             let nt2 = parse_expect("IDENT", "import name")
-            arrays.push(names, nt2.tkValue)
+            let nm2 = nt2.tkValue
+            let al2 = nm2
+            if parse_match("AS") {
+                let at2 = parse_expect("IDENT", "alias name")
+                al2 = at2.tkValue
+            }
+            arrays.push(names, { name: nm2, alias: al2 })
         }
     }
     let node = makeNode("Import", t.line, t.column)

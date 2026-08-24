@@ -164,6 +164,113 @@ export fn resolveDependencies(entryFile: string) -> list {
     return resolvedFiles
 }
 
+
+// Extract import aliases from source: returns two parallel lists (aliasNames, originalNames)
+fn extractImportAliases(source: string) -> list {
+    let aliasNames: list = []
+    let originalNames: list = []
+    let lines = strings.split(source, "\n")
+    let i = 0
+    while i < arrays.length(lines) {
+        let line = arrays.get(lines, i)
+        if strings.startsWith(line, "from ") || strings.startsWith(line, "import ") {
+            // Find the import list after 'import'
+            let importIdx = strings.indexOf(line, "import ")
+            if importIdx >= 0 {
+                let rest = strings.substring(line, importIdx + 7, strings.length(line))
+                // Split by comma
+                let parts = strings.split(rest, ",")
+                let p = 0
+                while p < arrays.length(parts) {
+                    let part = arrays.get(parts, p)
+                    part = strings.trim(part)
+                    if strings.length(part) > 0 {
+                        let asIdx = strings.indexOf(part, " as ")
+                        if asIdx >= 0 {
+                            let orig = strings.trim(strings.substring(part, 0, asIdx))
+                            let alias = strings.trim(strings.substring(part, asIdx + 4, strings.length(part)))
+                            arrays.push(aliasNames, alias)
+                            arrays.push(originalNames, orig)
+                        }
+                    }
+                    p = p + 1
+                }
+            }
+        }
+        i = i + 1
+    }
+    // Return as a 2-element list [aliasNames, originalNames]
+    let result: list = []
+    arrays.push(result, aliasNames)
+    arrays.push(result, originalNames)
+    return result
+}
+
+// Replace alias identifiers in a line with original names (lexical replacement, skips strings)
+fn replaceAliasesInLine(line: string, aliasNames: list, originalNames: list) -> string {
+    if arrays.length(aliasNames) == 0 {
+        return line
+    }
+    let result = ""
+    let pos = 0
+    let lineLen = strings.length(line)
+    while pos < lineLen {
+        let ch = strings.charAt(line, pos)
+        // Skip string literals
+        if ch == "\"" {
+            result = result + ch
+            pos = pos + 1
+            while pos < lineLen {
+                let c2 = strings.charAt(line, pos)
+                result = result + c2
+                pos = pos + 1
+                if c2 == "\"" {
+                    break
+                }
+            }
+            continue
+        }
+        // Skip line comments
+        if ch == "/" && pos + 1 < lineLen && strings.charAt(line, pos + 1) == "/" {
+            result = result + strings.substring(line, pos, lineLen)
+            pos = lineLen
+            continue
+        }
+        // Read identifier
+        if (ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z") || ch == "_" {
+            let start = pos
+            pos = pos + 1
+            while pos < lineLen {
+                let c3 = strings.charAt(line, pos)
+                if (c3 >= "a" && c3 <= "z") || (c3 >= "A" && c3 <= "Z") || (c3 >= "0" && c3 <= "9") || c3 == "_" {
+                    pos = pos + 1
+                } else {
+                    break
+                }
+            }
+            let ident = strings.substring(line, start, pos)
+            // Check if it's an alias
+            let found = false
+            let a = 0
+            while a < arrays.length(aliasNames) {
+                if arrays.get(aliasNames, a) == ident {
+                    result = result + arrays.get(originalNames, a)
+                    found = true
+                    break
+                }
+                a = a + 1
+            }
+            if !found {
+                result = result + ident
+            }
+        } else {
+            result = result + ch
+            pos = pos + 1
+        }
+    }
+    return result
+}
+
 // ============ Full Link and Compile ============
 
 // Link all modules and compile to bytecode
@@ -186,13 +293,18 @@ export fn linkAndCompile(entryFile: string) -> map {
         source = strings.replaceAll(source, "export fn ", "fn ")
         source = strings.replaceAll(source, "export const ", "const ")
         source = strings.replaceAll(source, "export let ", "let ")
+        // Extract import aliases for this file
+        let aliasData = extractImportAliases(source)
+        let fileAliasNames = arrays.get(aliasData, 0)
+        let fileOriginalNames = arrays.get(aliasData, 1)
         let lines = strings.split(source, "\n")
         let k = 0
         while k < arrays.length(lines) {
             let line = arrays.get(lines, k)
             // Skip import statements (functions are now in the same combined file)
             if !strings.startsWith(line, "from ") && !strings.startsWith(line, "import ") {
-                arrays.push(allLines, line)
+                let replacedLine = replaceAliasesInLine(line, fileAliasNames, fileOriginalNames)
+                arrays.push(allLines, replacedLine)
             }
             k = k + 1
         }
