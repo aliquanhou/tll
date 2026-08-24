@@ -274,6 +274,184 @@ fn replaceAliasesInLine(line: string, aliasNames: list, originalNames: list) -> 
     return result
 }
 
+
+// ============ AST-level Import Alias Resolution ============
+
+// Find alias index in parallel list, return -1 if not found
+fn findAliasIndex(name: string, aliasNames: list) -> int {
+    let i = 0
+    while i < arrays.length(aliasNames) {
+        if arrays.get(aliasNames, i) == name {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+// Rename identifiers in an expression (AST-level, does not touch Member.property)
+fn renameInExpr(expr: map, aliasNames: list, originalNames: list) -> void {
+    if expr == null { return }
+    let kind = expr.kind
+    if kind == "Ident" {
+        let idx = findAliasIndex(expr.name, aliasNames)
+        if idx >= 0 {
+            expr.name = arrays.get(originalNames, idx)
+        }
+        return
+    }
+    if kind == "Member" {
+        renameInExpr(expr.object, aliasNames, originalNames)
+        return
+    }
+    if kind == "Call" {
+        renameInExpr(expr.callee, aliasNames, originalNames)
+        let i = 0
+        while i < arrays.length(expr.args) {
+            renameInExpr(arrays.get(expr.args, i), aliasNames, originalNames)
+            i = i + 1
+        }
+        return
+    }
+    if kind == "Index" {
+        renameInExpr(expr.object, aliasNames, originalNames)
+        renameInExpr(expr.index, aliasNames, originalNames)
+        return
+    }
+    if kind == "Binary" {
+        renameInExpr(expr.left, aliasNames, originalNames)
+        renameInExpr(expr.right, aliasNames, originalNames)
+        return
+    }
+    if kind == "Unary" {
+        renameInExpr(expr.argument, aliasNames, originalNames)
+        return
+    }
+    if kind == "Array" {
+        let i = 0
+        while i < arrays.length(expr.elements) {
+            renameInExpr(arrays.get(expr.elements, i), aliasNames, originalNames)
+            i = i + 1
+        }
+        return
+    }
+    if kind == "Map" {
+        let i = 0
+        while i < arrays.length(expr.entries) {
+            let entry = arrays.get(expr.entries, i)
+            renameInExpr(entry.value, aliasNames, originalNames)
+            i = i + 1
+        }
+        return
+    }
+    if kind == "Pipe" {
+        renameInExpr(expr.left, aliasNames, originalNames)
+        renameInExpr(expr.right, aliasNames, originalNames)
+        return
+    }
+    if kind == "Assignment" {
+        renameInExpr(expr.value, aliasNames, originalNames)
+        return
+    }
+    if kind == "Ternary" {
+        renameInExpr(expr.condition, aliasNames, originalNames)
+        renameInExpr(expr.consequent, aliasNames, originalNames)
+        renameInExpr(expr.alternate, aliasNames, originalNames)
+        return
+    }
+    // Int, Float, String, Bool, Null - no action
+}
+
+// Rename identifiers in top-level statements (does NOT enter function bodies)
+fn renameTopLevelStmts(stmts: list, aliasNames: list, originalNames: list) -> void {
+    let i = 0
+    while i < arrays.length(stmts) {
+        let stmt = arrays.get(stmts, i)
+        if stmt == null { i = i + 1; continue }
+        let kind = stmt.kind
+        if kind == "Let" || kind == "Const" {
+            renameInExpr(stmt.value, aliasNames, originalNames)
+        } else if kind == "Expression" || kind == "ExpressionStatement" {
+            renameInExpr(stmt.expression, aliasNames, originalNames)
+        } else if kind == "If" {
+            renameInExpr(stmt.condition, aliasNames, originalNames)
+            if stmt.consequent != null && stmt.consequent.statements != null {
+                renameTopLevelStmts(stmt.consequent.statements, aliasNames, originalNames)
+            }
+            if stmt.alternate != null {
+                if stmt.alternate.statements != null {
+                    renameTopLevelStmts(stmt.alternate.statements, aliasNames, originalNames)
+                } else {
+                    let altList: list = []
+                    arrays.push(altList, stmt.alternate)
+                    renameTopLevelStmts(altList, aliasNames, originalNames)
+                }
+            }
+        } else if kind == "While" {
+            renameInExpr(stmt.condition, aliasNames, originalNames)
+            if stmt.body != null && stmt.body.statements != null {
+                renameTopLevelStmts(stmt.body.statements, aliasNames, originalNames)
+            }
+        } else if kind == "For" {
+            renameInExpr(stmt.init, aliasNames, originalNames)
+            renameInExpr(stmt.condition, aliasNames, originalNames)
+            renameInExpr(stmt.update, aliasNames, originalNames)
+            if stmt.body != null && stmt.body.statements != null {
+                renameTopLevelStmts(stmt.body.statements, aliasNames, originalNames)
+            }
+        } else if kind == "Block" {
+            if stmt.statements != null {
+                renameTopLevelStmts(stmt.statements, aliasNames, originalNames)
+            }
+        } else if kind == "Return" {
+            renameInExpr(stmt.argument, aliasNames, originalNames)
+        } else if kind == "Throw" {
+            renameInExpr(stmt.argument, aliasNames, originalNames)
+        } else if kind == "Try" {
+            if stmt.block != null && stmt.block.statements != null {
+                renameTopLevelStmts(stmt.block.statements, aliasNames, originalNames)
+            }
+            if stmt.handler != null && stmt.handler.body != null && stmt.handler.body.statements != null {
+                renameTopLevelStmts(stmt.handler.body.statements, aliasNames, originalNames)
+            }
+            if stmt.finalizer != null && stmt.finalizer.statements != null {
+                renameTopLevelStmts(stmt.finalizer.statements, aliasNames, originalNames)
+            }
+        }
+        // Fn, Import, Export, Tool - no action
+        // Fn body is local scope, Import/Export are removed later
+        i = i + 1
+    }
+}
+
+// Extract import aliases from AST (returns [aliasNames, originalNames])
+fn extractAliasesFromAST(ast: map) -> list {
+    let aliasNames: list = []
+    let originalNames: list = []
+    let i = 0
+    while i < arrays.length(ast.statements) {
+        let stmt = arrays.get(ast.statements, i)
+        if stmt != null && stmt.kind == "Import" {
+            let j = 0
+            while j < arrays.length(stmt.names) {
+                let binding = arrays.get(stmt.names, j)
+                // Parser stores {name, alias} map objects
+                let origName = binding.name
+                let aliasName = binding.alias
+                if aliasName == null { aliasName = origName }
+                arrays.push(aliasNames, aliasName)
+                arrays.push(originalNames, origName)
+                j = j + 1
+            }
+        }
+        i = i + 1
+    }
+    let result: list = []
+    arrays.push(result, aliasNames)
+    arrays.push(result, originalNames)
+    return result
+}
+
 // ============ Full Link and Compile ============
 
 // Link all modules and compile to bytecode
@@ -295,39 +473,40 @@ export fn linkAndCompile(entryFile: string) -> map {
         i = i + 1
     }
 
-    // Concatenate all sources in dependency order, removing import/export statements
-    let allLines: list = []
+    // Parse each module to AST, rename top-level import aliases, merge statements
+    let allStatements: list = []
     let j = 0
     while j < arrays.length(files) {
         let filePath = arrays.get(files, j)
         let source = fs.readFile(filePath)
-        // Remove export keyword (functions are now in the same combined file)
+        // Remove export keyword (functions are now in the same combined program)
         source = strings.replaceAll(source, "export fn ", "fn ")
         source = strings.replaceAll(source, "export const ", "const ")
         source = strings.replaceAll(source, "export let ", "let ")
-        // Extract import aliases for this file
-        let aliasData = extractImportAliases(source)
+        // Parse to AST
+        let tokens = tokenize(source)
+        let ast = parse(tokens)
+        // Extract import aliases from AST
+        let aliasData = extractAliasesFromAST(ast)
         let fileAliasNames = arrays.get(aliasData, 0)
         let fileOriginalNames = arrays.get(aliasData, 1)
-        let lines = strings.split(source, "\n")
-        let k = 0
-        while k < arrays.length(lines) {
-            let line = arrays.get(lines, k)
-            // Skip import statements (functions are now in the same combined file)
-            if !strings.startsWith(line, "from ") && !strings.startsWith(line, "import ") {
-                let replacedLine = replaceAliasesInLine(line, fileAliasNames, fileOriginalNames)
-                arrays.push(allLines, replacedLine)
+        // Rename top-level identifiers (AST-level, does not touch local vars or member props)
+        renameTopLevelStmts(ast.statements, fileAliasNames, fileOriginalNames)
+        // Collect non-import statements
+        let i = 0
+        while i < arrays.length(ast.statements) {
+            let stmt = arrays.get(ast.statements, i)
+            if stmt != null && stmt.kind != "Import" {
+                arrays.push(allStatements, stmt)
             }
-            k = k + 1
+            i = i + 1
         }
         j = j + 1
     }
-    let combinedSource = strings.join(allLines, "\n")
 
-    // Parse once and compile
-    let tokens = tokenize(combinedSource)
-    let ast = parse(tokens)
-    let bytecode = compile(ast)
+    // Build combined program AST and compile
+    let program = { statements: allStatements }
+    let bytecode = compile(program)
 
     return bytecode
 }
