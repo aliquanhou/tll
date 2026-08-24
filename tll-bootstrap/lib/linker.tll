@@ -77,6 +77,7 @@ fn extractImports(ast: map) -> list {
 // Global state for dependency resolution
 let resolvedFiles: list = []
 let visitedFiles: list = []
+let circularDependencyError: string = ""
 
 // Check if a file is already in the resolved list
 fn isResolved(filePath: string) -> bool {
@@ -132,7 +133,8 @@ fn load(filePath: string) -> void {
         return
     }
     if isVisited(filePath) {
-        io.println("Warning: circular dependency detected: " + filePath)
+        circularDependencyError = "Circular dependency detected: " + filePath
+        io.println("Error: " + circularDependencyError)
         return
     }
     arrays.push(visitedFiles, filePath)
@@ -160,6 +162,7 @@ fn load(filePath: string) -> void {
 export fn resolveDependencies(entryFile: string) -> list {
     resolvedFiles = []
     visitedFiles = []
+    circularDependencyError = ""
     load(entryFile)
     return resolvedFiles
 }
@@ -276,6 +279,15 @@ fn replaceAliasesInLine(line: string, aliasNames: list, originalNames: list) -> 
 // Link all modules and compile to bytecode
 export fn linkAndCompile(entryFile: string) -> map {
     let files = resolveDependencies(entryFile)
+    if circularDependencyError != "" {
+        io.println("Compilation aborted due to circular dependency.")
+        let errorResult: map = {}
+        errorResult.error = circularDependencyError
+        errorResult.functions = []
+        errorResult.constants = []
+        errorResult.mainFunctionIndex = 0
+        return errorResult
+    }
     io.println("Resolved " + convert.toString(arrays.length(files)) + " module(s):")
     let i = 0
     while i < arrays.length(files) {
