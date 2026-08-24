@@ -359,6 +359,11 @@ fn renameInExpr(expr: map, aliasNames: list, originalNames: list) -> void {
         renameInExpr(expr.alternate, aliasNames, originalNames)
         return
     }
+    if kind == "Range" {
+        renameInExpr(expr.start, aliasNames, originalNames)
+        renameInExpr(expr.end, aliasNames, originalNames)
+        return
+    }
     // Int, Float, String, Bool, Null - no action
 }
 
@@ -504,15 +509,31 @@ fn normalizeModulePath(p: string) -> string {
     return result
 }
 
-// Find module index by path (normalized comparison)
+// Find module index by path (suffix matching to handle relative vs absolute paths)
 fn findModuleIndex(modPath: string, allPaths: list) -> int {
-    let needle = normalizeModulePath(modPath)
+    // Normalize the import path: strip ./ prefix and .tll extension
+    let needle = modPath
+    if strings.length(needle) >= 2 && strings.charAt(needle, 0) == "." && strings.charAt(needle, 1) == "/" {
+        needle = strings.substring(needle, 2, strings.length(needle))
+    }
+    if strings.length(needle) >= 4 && strings.substring(needle, strings.length(needle) - 4, strings.length(needle)) == ".tll" {
+        needle = strings.substring(needle, 0, strings.length(needle) - 4)
+    }
+    // Find the first path that ends with needle (handles directory prefixes)
     let i = 0
     while i < arrays.length(allPaths) {
         let p = arrays.get(allPaths, i)
-        let hay = normalizeModulePath(p)
-        if hay == needle {
-            return i
+        // Strip .tll extension from stored path
+        let pNorm = p
+        if strings.length(pNorm) >= 4 && strings.substring(pNorm, strings.length(pNorm) - 4, strings.length(pNorm)) == ".tll" {
+            pNorm = strings.substring(pNorm, 0, strings.length(pNorm) - 4)
+        }
+        // Check if pNorm ends with needle
+        if strings.length(pNorm) >= strings.length(needle) {
+            let suffix = strings.substring(pNorm, strings.length(pNorm) - strings.length(needle), strings.length(pNorm))
+            if suffix == needle {
+                return i
+            }
         }
         i = i + 1
     }
@@ -691,6 +712,13 @@ fn renameSymbolsInExpr(expr: map, renameNames: list, renameTargets: list, localS
         return
     }
 
+    // Range: start..end, both sides are expressions that may contain identifiers
+    if kind == "Range" {
+        renameSymbolsInExpr(expr.start, renameNames, renameTargets, localScope)
+        renameSymbolsInExpr(expr.end, renameNames, renameTargets, localScope)
+        return
+    }
+
     // Literals (Int, Float, String, Bool, Null) - no renaming needed
 }
 
@@ -839,16 +867,16 @@ fn renameSymbolsInStmt(stmt: map, renameNames: list, renameTargets: list, localS
 }
 
 export fn linkAndCompile(entryFile: string) -> map {
-    // Check for circular dependency
+    // Resolve dependencies
+    let files = resolveDependencies(entryFile)
+
+    // Check for circular dependency (must be AFTER resolveDependencies)
     if circularDependencyError != "" {
         let err = circularDependencyError
         circularDependencyError = ""
         let errorResult = { hasError: true, error: err, functions: [], constants: [], mainFunctionIndex: 0 }
         return errorResult
     }
-
-    // Resolve dependencies
-    let files = resolveDependencies(entryFile)
 
     // Phase 1: Parse all modules to AST
     let moduleASTs: list = []

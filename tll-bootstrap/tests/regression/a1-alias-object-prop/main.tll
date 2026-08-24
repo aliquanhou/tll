@@ -1,0 +1,4 @@
+from "./math" import add as sum
+let obj = { "sum": 200 }
+io.println(sum(1, 2))
+io.println(obj["sum"])

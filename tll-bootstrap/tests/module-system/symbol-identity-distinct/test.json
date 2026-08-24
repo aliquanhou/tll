@@ -1,0 +1,5 @@
+{
+  "checkSymbolIdentity": true,
+  "expectedDistinctFunctions": 2,
+  "expectedFunctionPattern": "__mod_.*__hello"
+}

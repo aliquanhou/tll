@@ -1,0 +1,2 @@
+from "./b" import bFn
+export fn aFn() -> int { return bFn() + 1 }

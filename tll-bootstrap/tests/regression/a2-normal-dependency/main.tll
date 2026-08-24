@@ -1,0 +1,2 @@
+from "./b" import bFn
+io.println(bFn())

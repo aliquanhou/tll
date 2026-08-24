@@ -18,3 +18,16 @@ Thumbs.db
 # Python cache
 __pycache__/
 *.pyc
+
+# Temporary test driver files
+.test_*_driver.tll
+test_*.tll
+debug_*.tll
+run_a3.tll
+*.tllbc
+
+# Temporary bytecode
+bytecode_*.tllbc
+compiler_generated.tllbc
+compiler_self_compiled.tllbc
+compiler_a3_*.tllbc

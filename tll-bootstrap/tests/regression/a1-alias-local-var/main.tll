@@ -1,0 +1,7 @@
+from "./math" import add as sum
+fn test() -> int {
+    let sum = 100
+    return sum
+}
+io.println(sum(1, 2))
+io.println(test())
