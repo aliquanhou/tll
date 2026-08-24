@@ -26,6 +26,8 @@ let OP_JMP = 19
 let OP_JMP_IF_FALSE = 20
 let OP_CALL = 21
 let OP_RET = 22
+let OP_PRINT = 23
+let OP_PRINTLN = 24
 let OP_MAKE_ARRAY = 25
 let OP_MAKE_MAP = 26
 let OP_INDEX_GET = 28
@@ -44,25 +46,25 @@ let OP_LOAD_GLOBAL = 40
 let OP_STORE_GLOBAL = 41
 
 // ============ VM state ============
-let vm_constants: list = []
-let vm_functions: list = []
-let vm_globals: list = []
-let vm_callStack: list = []
-let vm_result: any = null
+let vm_constants: auto = []
+let vm_functions: auto = []
+let vm_globals: auto = []
+let vm_callStack: auto = []
+let vm_result: auto = null
 let vm_halted = false
 let vm_lastResultReg = 0  // track last expression result register for HALT
 
 // Current frame state (global vars)
 let vm_pc = 0
-let vm_registers: list = []
-let vm_locals: list = []
-let vm_argStack: list = []
+let vm_registers: auto = []
+let vm_locals: auto = []
+let vm_argStack: auto = []
 let vm_returnReg = 0
 let vm_fnIdx = 0
 
 // ============ Helper: init registers ============
 fn vm_initRegisters() -> list {
-    let regs: list = []
+    let regs: auto = []
     let i = 0
     while i < 256 {
         arrays.push(regs, null)
@@ -72,8 +74,8 @@ fn vm_initRegisters() -> list {
 }
 
 // ============ Set register (works around TLL list index assignment) ============
-fn vm_setReg(idx: int, value: any) -> void {
-    let newRegs: list = []
+fn vm_setReg(idx: int, value: auto) -> void {
+    let newRegs: auto = []
     let i = 0
     while i < arrays.length(vm_registers) {
         if i == idx {
@@ -92,8 +94,8 @@ fn vm_getReg(idx: int) -> any {
 }
 
 // ============ Set local ============
-fn vm_setLocal(idx: int, value: any) -> void {
-    let newLocals: list = []
+fn vm_setLocal(idx: int, value: auto) -> void {
+    let newLocals: auto = []
     let i = 0
     while i < arrays.length(vm_locals) {
         if i == idx {
@@ -107,8 +109,8 @@ fn vm_setLocal(idx: int, value: any) -> void {
 }
 
 // ============ Set global ============
-fn vm_setGlobal(idx: int, value: any) -> void {
-    let newGlobals: list = []
+fn vm_setGlobal(idx: int, value: auto) -> void {
+    let newGlobals: auto = []
     let i = 0
     while i < arrays.length(vm_globals) {
         if i == idx {
@@ -190,9 +192,7 @@ export fn run(program: map) -> any {
 
 // ============ Instruction loop ============
 fn vm_runLoop() -> void {
-    let safety = 100000
-    while safety > 0 && !vm_halted {
-        safety = safety - 1
+    while !vm_halted {
         let func = arrays.get(vm_functions, vm_fnIdx)
         let instructions = func["instructions"]
         if vm_pc >= arrays.length(instructions) {
@@ -260,6 +260,8 @@ fn vm_executeInstruction(inst: map) -> void {
     if op == OP_JMP_IF_FALSE { if !vm_getReg(a) { vm_pc = b }; return }
     if op == OP_CALL { vm_executeCall(a, b, c); return }
     if op == OP_RET { vm_executeRet(a); return }
+    if op == OP_PRINT { io.print(convert.toString(vm_getReg(a))); return }
+    if op == OP_PRINTLN { io.println(convert.toString(vm_getReg(a))); return }
     if op == OP_PUSH { arrays.push(vm_argStack, vm_getReg(a)); return }
     if op == OP_HALT { vm_halted = true; vm_result = vm_getReg(vm_lastResultReg); return }
     if op == OP_NOP { return }
@@ -278,12 +280,12 @@ fn vm_executeInstruction(inst: map) -> void {
 
 // ============ CALL ============
 fn vm_executeCall(resultReg: int, fnIdxOrReg: int, argCount: int) -> void {
-    let args: list = []
+    let args: auto = []
     let i = 0
     while i < argCount {
         let val = arrays.get(vm_argStack, arrays.length(vm_argStack) - 1)
         arrays.pop(vm_argStack)
-        let newArgs: list = [val]
+        let newArgs: auto = [val]
         let j = 0
         while j < arrays.length(args) {
             arrays.push(newArgs, arrays.get(args, j))
@@ -293,13 +295,22 @@ fn vm_executeCall(resultReg: int, fnIdxOrReg: int, argCount: int) -> void {
         i = i + 1
     }
 
-    let possibleFn = vm_getReg(fnIdxOrReg)
-    if convert.typeOf(possibleFn) == "map" && possibleFn["__builtin"] == true {
+    // Indirect call: fnIdxOrReg >= 100000 means (fnIdxOrReg - 100000) is register number
+    let actualFnIdx = fnIdxOrReg
+    let possibleFn = null
+    if fnIdxOrReg >= 100000 {
+        let regNum = fnIdxOrReg - 100000
+        possibleFn = vm_getReg(regNum)
+    } else {
+        possibleFn = vm_getReg(fnIdxOrReg)
+    }
+
+    if convert.typeOf(possibleFn) == "object" && possibleFn["__builtin"] == true {
         vm_setReg(resultReg, vm_callBuiltin(possibleFn, args))
         return
     }
 
-    if fnIdxOrReg >= 0 && fnIdxOrReg < arrays.length(vm_functions) {
+    if actualFnIdx >= 0 && actualFnIdx < arrays.length(vm_functions) {
         vm_saveFrame()
         let func = arrays.get(vm_functions, fnIdxOrReg)
         vm_fnIdx = fnIdxOrReg
@@ -342,12 +353,12 @@ fn vm_executeRet(regIdx: int) -> void {
 
 // ============ MAKE_ARRAY ============
 fn vm_executeMakeArray(resultReg: int, count: int) -> void {
-    let elements: list = []
+    let elements: auto = []
     let i = 0
     while i < count {
         let val = arrays.get(vm_argStack, arrays.length(vm_argStack) - 1)
         arrays.pop(vm_argStack)
-        let newElems: list = [val]
+        let newElems: auto = [val]
         let j = 0
         while j < arrays.length(elements) {
             arrays.push(newElems, arrays.get(elements, j))
@@ -364,8 +375,8 @@ fn vm_executeMakeArray(resultReg: int, count: int) -> void {
 // index assignment (map["key"] = value) is currently broken.
 fn vm_executeMakeMap(resultReg: int, count: int) -> void {
     // Pop all entries from stack (order: value_n, key_n, ..., value_1, key_1)
-    let keys: list = []
-    let values: list = []
+    let keys: auto = []
+    let values: auto = []
     let i = 0
     while i < count {
         let v = arrays.get(vm_argStack, arrays.length(vm_argStack) - 1)
@@ -442,9 +453,11 @@ fn vm_executeMemberSet(objReg: int, constIdx: int, valReg: int) -> void {
     }
 }
 
-// ============ Call builtin (simplified) ============
-fn vm_callBuiltin(builtin: map, args: list) -> any {
+// ============ Call builtin (full implementation v1.2.1) ============
+fn vm_callBuiltin(builtin: map, args: auto) -> any {
     let idx = builtin["idx"]
+
+    // === io (0-2) ===
     if idx == 0 {
         if arrays.length(args) > 0 { io.println(convert.toString(arrays.get(args, 0))) } else { io.println("") }
         return null
@@ -453,6 +466,114 @@ fn vm_callBuiltin(builtin: map, args: list) -> any {
         if arrays.length(args) > 0 { io.print(convert.toString(arrays.get(args, 0))) }
         return null
     }
+    if idx == 2 {
+        if arrays.length(args) > 0 { return io.readLine(convert.toString(arrays.get(args, 0))) }
+        return io.readLine("")
+    }
+
+    // === strings (24-48) ===
+    if idx == 24 { return strings.length(convert.toString(arrays.get(args, 0))) }
+    if idx == 25 { return strings.toUpper(convert.toString(arrays.get(args, 0))) }
+    if idx == 26 { return strings.toLower(convert.toString(arrays.get(args, 0))) }
+    if idx == 27 { return strings.trim(convert.toString(arrays.get(args, 0))) }
+    if idx == 28 { return strings.trimStart(convert.toString(arrays.get(args, 0))) }
+    if idx == 29 { return strings.trimEnd(convert.toString(arrays.get(args, 0))) }
+    if idx == 30 { return strings.split(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1))) }
+    if idx == 31 { return strings.join(arrays.get(args, 0), convert.toString(arrays.get(args, 1))) }
+    if idx == 32 { return strings.contains(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1))) }
+    if idx == 33 { return strings.startsWith(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1))) }
+    if idx == 34 { return strings.endsWith(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1))) }
+    if idx == 35 {
+        if arrays.length(args) > 2 { return strings.substring(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1)), convert.toInt(arrays.get(args, 2))) }
+        return strings.substring(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1)))
+    }
+    if idx == 36 { return strings.replace(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1)), convert.toString(arrays.get(args, 2))) }
+    if idx == 37 { return strings.replaceAll(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1)), convert.toString(arrays.get(args, 2))) }
+    if idx == 38 { return strings.repeat(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1))) }
+    if idx == 39 {
+        if arrays.length(args) > 2 { return strings.padStart(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1)), convert.toString(arrays.get(args, 2))) }
+        return strings.padStart(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1)))
+    }
+    if idx == 40 {
+        if arrays.length(args) > 2 { return strings.padEnd(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1)), convert.toString(arrays.get(args, 2))) }
+        return strings.padEnd(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1)))
+    }
+    if idx == 41 { return strings.charAt(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1))) }
+    if idx == 42 { return strings.charCodeAt(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1))) }
+    if idx == 43 { return strings.indexOf(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1))) }
+    if idx == 44 { return strings.lastIndexOf(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1))) }
+    if idx == 45 { return strings.isEmpty(convert.toString(arrays.get(args, 0))) }
+    if idx == 46 { return strings.reverse(convert.toString(arrays.get(args, 0))) }
+    if idx == 47 { return strings.lines(convert.toString(arrays.get(args, 0))) }
+    if idx == 48 { return strings.words(convert.toString(arrays.get(args, 0))) }
+
+    // === arrays (49-71) ===
+    if idx == 49 { return arrays.length(arrays.get(args, 0)) }
+    if idx == 50 { return arrays.get(arrays.get(args, 0), convert.toInt(arrays.get(args, 1))) }
+    if idx == 51 {
+        let arr51 = arrays.get(args, 0)
+        let i51 = 1
+        while i51 < arrays.length(args) {
+            arrays.push(arr51, arrays.get(args, i51))
+            i51 = i51 + 1
+        }
+        return arr51
+    }
+    if idx == 52 { return arrays.pop(arrays.get(args, 0)) }
+    if idx == 53 { return arrays.shift(arrays.get(args, 0)) }
+    if idx == 54 {
+        let arr54 = arrays.get(args, 0)
+        let i54 = arrays.length(args) - 1
+        while i54 >= 1 {
+            arrays.unshift(arr54, arrays.get(args, i54))
+            i54 = i54 - 1
+        }
+        return arr54
+    }
+    if idx == 55 { return arrays.concat(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 56 {
+        if arrays.length(args) > 2 { return arrays.slice(arrays.get(args, 0), convert.toInt(arrays.get(args, 1)), convert.toInt(arrays.get(args, 2))) }
+        return arrays.slice(arrays.get(args, 0), convert.toInt(arrays.get(args, 1)))
+    }
+    if idx == 57 { return arrays.includes(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 58 { return arrays.indexOf(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 59 { return arrays.join(arrays.get(args, 0), convert.toString(arrays.get(args, 1))) }
+    if idx == 60 { return arrays.reverse(arrays.get(args, 0)) }
+    if idx == 61 { return arrays.sort(arrays.get(args, 0)) }
+    if idx == 62 { return arrays.filter(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 63 { return arrays.map(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 64 {
+        if arrays.length(args) > 2 { return arrays.reduce(arrays.get(args, 0), arrays.get(args, 1), arrays.get(args, 2)) }
+        return arrays.reduce(arrays.get(args, 0), arrays.get(args, 1))
+    }
+    if idx == 65 { arrays.forEach(arrays.get(args, 0), arrays.get(args, 1)); return null }
+    if idx == 66 { return arrays.find(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 67 { return arrays.some(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 68 { return arrays.every(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 69 {
+        if arrays.length(args) > 1 { return arrays.flat(arrays.get(args, 0), convert.toInt(arrays.get(args, 1))) }
+        return arrays.flat(arrays.get(args, 0))
+    }
+    if idx == 70 {
+        if arrays.length(args) > 3 { return arrays.fill(arrays.get(args, 0), arrays.get(args, 1), convert.toInt(arrays.get(args, 2)), convert.toInt(arrays.get(args, 3))) }
+        if arrays.length(args) > 2 { return arrays.fill(arrays.get(args, 0), arrays.get(args, 1), convert.toInt(arrays.get(args, 2))) }
+        return arrays.fill(arrays.get(args, 0), arrays.get(args, 1))
+    }
+    if idx == 71 {
+        if arrays.length(args) > 2 { return arrays.range(convert.toInt(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1)), convert.toInt(arrays.get(args, 2))) }
+        return arrays.range(convert.toInt(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1)))
+    }
+
+    // === convert (72-78) ===
+    if idx == 72 { return convert.toInt(arrays.get(args, 0)) }
+    if idx == 73 { return convert.toFloat(arrays.get(args, 0)) }
+    if idx == 74 { return convert.toString(arrays.get(args, 0)) }
+    if idx == 75 { return convert.toBool(arrays.get(args, 0)) }
+    if idx == 76 { return convert.toChar(convert.toInt(arrays.get(args, 0))) }
+    if idx == 77 { return convert.charCode(convert.toString(arrays.get(args, 0))) }
+    if idx == 78 { return convert.typeOf(arrays.get(args, 0)) }
+
+    // === Not yet implemented (json 3-4, math 5-23, fs 79-90, http 91-97, agent 98-111, workflow 112-119) ===
     if arrays.length(args) > 0 { return arrays.get(args, 0) }
     return null
 }
