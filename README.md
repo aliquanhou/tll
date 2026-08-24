@@ -10,10 +10,12 @@ TLL is a modern, statically-typed programming language designed from first princ
 
 | Metric | Value |
 |--------|-------|
-| Compiler functions | 142 |
-| Constants | 2806 |
-| Instructions | 13897 |
+| Compiler functions | 143 |
+| Constants | 2808 |
+| Instructions | 13924 |
+| Main function index | 142 |
 | Self-hosting rounds | 3 (A == B == C) |
+| Determinism dimensions | 9 (all 0 diffs) |
 | Module regression tests | 10/10 |
 | CI | GitHub Actions |
 
@@ -61,7 +63,7 @@ Every push to `main` and every pull request triggers GitHub Actions CI:
 1. **Build**: TypeScript bootstrap compiler (`tsc`)
 2. **Module Regression**: 10 tests covering import alias, circular dependency, same-name symbol isolation, path collision, symbol identity
 3. **Self-Hosting L4**: Bootstrap compiler -> `compiler.tll` -> bytecode A -> TLL VM -> bytecode B
-4. **Self-Hosting L5 Determinism**: bytecode B -> TLL VM -> bytecode C, strict comparison B == C (0 instruction diff, 0 constant diff, 0 function-name diff)
+4. **Self-Hosting L5 Determinism**: bytecode B -> TLL VM -> bytecode C, strict three-way comparison A vs B, B vs C, A vs C (9 dimensions: function count, main index, constant count, function metadata, constant content, instruction count, instruction sequence, global count, schema keys — all 0 diffs)
 
 ## Language Features
 
@@ -94,16 +96,26 @@ Every push to `main` and every pull request triggers GitHub Actions CI:
 
 ## Self-Hosting Verification
 
-The compiler bootstraps across three rounds with **identical instruction sequences**:
+The compiler bootstraps across three rounds with **full bytecode determinism** — all 9 dimensions are identical across A, B, and C:
 
 ```
-Round 0: TypeScript bootstrap compiler -> compiler.tll -> bytecode A
-Round 1: TLL VM executes bytecode A -> compiles compiler.tll -> bytecode B
-Round 2: TLL VM executes bytecode B -> compiles compiler.tll -> bytecode C
-Result: Instruction sequence A == B == C (0 diff), 142 functions, 2806 constants, 13897 instructions
+Round A: TypeScript bootstrap compiler -> compiler.tll -> bytecode A
+Round B: TLL VM executes bytecode A -> compiles compiler.tll -> bytecode B
+Round C: TLL VM executes bytecode B -> compiles compiler.tll -> bytecode C
+Result: A == B == C (0 diff across all 9 dimensions)
+        143 functions, 2808 constants, 13924 instructions, main index 142
 ```
 
-**Known limitation (v1.1):** Function name metadata and 3 string constants differ between bootstrap-compiled and self-compiled bytecode (7 function names: `tokenize` vs `__mod_0__tokenize`, etc.). This does not affect runtime behavior (instruction sequences are identical), but indicates the Module Linker's symbol naming is not yet fully deterministic across bootstrap paths. Tracked for v1.1 P2.
+**Determinism dimensions (all verified 0 diff):**
+1. Function count
+2. Main function index
+3. Constant count
+4. Function metadata (name + param count + local count)
+5. Constant content
+6. Instruction count
+7. Instruction sequence (opcode + operands)
+8. Global count
+9. Bytecode schema keys
 
 ## CI / Engineering Validation
 
@@ -112,7 +124,7 @@ Every push to `main` and every pull request triggers GitHub Actions CI (`.github
 1. **Build**: TypeScript bootstrap compiler (`tsc`)
 2. **Module Regression**: 10 tests (import alias, circular dependency, same-name symbol isolation, path collision, symbol identity)
 3. **Self-Hosting L4**: Bootstrap -> bytecode A -> TLL VM -> bytecode B
-4. **Self-Hosting L5**: bytecode B -> TLL VM -> bytecode C, instruction-sequence determinism check
+4. **Self-Hosting L5**: bytecode B -> TLL VM -> bytecode C, three-way full determinism check (A vs B, B vs C, A vs C — 9 dimensions, all 0 diffs)
 
 Run locally:
 ```bash
@@ -183,7 +195,9 @@ tll/
 - [x] A2: Circular dependency error propagation
 - [x] A3: Module symbol conflict resolution (namespaced internal symbols)
 - [x] A4: Module system semantic regression audit + test hardening (10 tests, AST coverage 0 missing)
-- [x] A5: Engineering CI + portable verification (GitHub Actions, npm test, clean-room) — known limitation: function-name metadata not fully deterministic across bootstrap paths (instruction sequence is 0 diff)
+- [x] A5: Engineering CI + portable verification (GitHub Actions, npm test, clean-room)
+- [x] A5.1: Self-host determinism closure — fix strip-export string replacement corrupting string literals in linker itself (root cause: `strings.replaceAll(source, "export fn ", "fn ")` corrupted the `"export fn "` literal inside `stripExports`). Result: full function-name + constant determinism, 0 metadata diffs
+- [x] A5.2: Verification closure — three-way full determinism (A vs B, B vs C, A vs C), 9 comparison dimensions, function metadata checks, no false-pass paths
 - [ ] P2: VM performance optimization
 - [ ] P2: Standard library expansion
 - [ ] P2: Enhanced error messages

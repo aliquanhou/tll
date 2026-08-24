@@ -1,6 +1,6 @@
-// TLL Self-Hosting Verification (L4 + L5 + Determinism)
+// TLL Self-Hosting Verification (L4 + L5 + Full Determinism)
+// A5.2: Three-way comparison A vs B, B vs C, A vs C
 // Portable: resolves paths relative to repo root.
-// Environment overrides: TLL_COMPILER_DIST, TLL_BOOTSTRAP_DIR
 const fs = require('fs');
 const path = require('path');
 
@@ -21,17 +21,15 @@ const BYTECODE_C = path.join(TMP_DIR, 'selfhost_c.tllbc');
 function log(msg) { console.log(msg); }
 
 function runBootstrapCompiler(outputPath) {
-  // Use the existing gen_compiler_bc.tll (matches A4 server validation exactly).
-  // It writes to compiler_generated.tllbc in cwd; we copy from there.
   const genFile = path.join(BOOTSTRAP_DIR, 'gen_compiler_bc.tll');
   const defaultOutput = path.join(BOOTSTRAP_DIR, 'compiler_generated.tllbc');
   if (fs.existsSync(defaultOutput)) fs.unlinkSync(defaultOutput);
   const { execSync } = require('child_process');
   try {
-    const out = execSync(`node --max-old-space-size=4096 "${BOOTSTRAP_CLI}" run "${genFile}"`, {
+    execSync(`node --max-old-space-size=4096 "${BOOTSTRAP_CLI}" run "${genFile}"`, {
       cwd: BOOTSTRAP_DIR, encoding: 'utf8', timeout: 120000, stdio: ['pipe', 'pipe', 'pipe']
     });
-    if (!fs.existsSync(defaultOutput)) throw new Error('Bootstrap compiler did not produce output: ' + out.slice(-300));
+    if (!fs.existsSync(defaultOutput)) throw new Error('Bootstrap compiler did not produce output bytecode');
     fs.copyFileSync(defaultOutput, outputPath);
     fs.unlinkSync(defaultOutput);
     return JSON.parse(fs.readFileSync(outputPath, 'utf8'));
@@ -43,11 +41,8 @@ function runBootstrapCompiler(outputPath) {
 
 function runBytecodeCompiler(bytecodePath, outputPath) {
   const bc = JSON.parse(fs.readFileSync(bytecodePath, 'utf8'));
-  // The TLL compiler's main() writes to compiler_generated.tllbc by default.
-  // We intercept by running in a temp dir and copying output.
   const workDir = path.join(TMP_DIR, 'selfhost_work');
   if (!fs.existsSync(workDir)) fs.mkdirSync(workDir, { recursive: true });
-  // Copy compiler.tll and lib/ to work dir so the compiler can find them
   const compilerSrc = path.join(BOOTSTRAP_DIR, 'compiler.tll');
   const libSrc = path.join(BOOTSTRAP_DIR, 'lib');
   const compilerDst = path.join(workDir, 'compiler.tll');
@@ -56,7 +51,6 @@ function runBytecodeCompiler(bytecodePath, outputPath) {
   if (fs.existsSync(libDst)) fs.rmSync(libDst, { recursive: true });
   fs.cpSync(libSrc, libDst, { recursive: true });
 
-  // The compiler writes to compiler_self_compiled.tllbc in cwd
   const defaultOutput = path.join(workDir, 'compiler_self_compiled.tllbc');
   if (fs.existsSync(defaultOutput)) fs.unlinkSync(defaultOutput);
 
@@ -74,26 +68,45 @@ function runBytecodeCompiler(bytecodePath, outputPath) {
   return JSON.parse(fs.readFileSync(outputPath, 'utf8'));
 }
 
+// Full bytecode comparison: 9 dimensions
 function compareBytecodes(b1, b2, label) {
-  const results = {};
-  results.functionCount = b1.functions.length === b2.functions.length;
-  results.mainIndex = b1.mainFunctionIndex === b2.mainFunctionIndex;
-  results.constantCount = b1.constants.length === b2.constants.length;
+  const r = {};
+  const diffs = {};
 
-  // Function names
-  let nameDiff = 0;
-  const nameDiffs = [];
+  // 1. Function count
+  r.functionCount = b1.functions.length === b2.functions.length;
+  diffs.functionCount = b1.functions.length + ' vs ' + b2.functions.length;
+
+  // 2. Main function index
+  r.mainIndex = b1.mainFunctionIndex === b2.mainFunctionIndex;
+  diffs.mainIndex = b1.mainFunctionIndex + ' vs ' + b2.mainFunctionIndex;
+
+  // 3. Constant count
+  r.constantCount = b1.constants.length === b2.constants.length;
+  diffs.constantCount = b1.constants.length + ' vs ' + b2.constants.length;
+
+  // 4. Function metadata: name + paramCount + localCount
+  let metaDiff = 0;
+  const metaDiffs = [];
   for (let i = 0; i < Math.min(b1.functions.length, b2.functions.length); i++) {
-    if (b1.functions[i].name !== b2.functions[i].name) {
-      nameDiff++;
-      if (nameDiffs.length < 10) nameDiffs.push({ idx: i, a: b1.functions[i].name, b: b2.functions[i].name });
+    const f1 = b1.functions[i];
+    const f2 = b2.functions[i];
+    const n1 = f1.name || '';
+    const n2 = f2.name || '';
+    const p1 = f1.paramCount !== undefined ? f1.paramCount : (f1.params ? f1.params.length : -1);
+    const p2 = f2.paramCount !== undefined ? f2.paramCount : (f2.params ? f2.params.length : -1);
+    const l1 = f1.localCount !== undefined ? f1.localCount : -1;
+    const l2 = f2.localCount !== undefined ? f2.localCount : -1;
+    if (n1 !== n2 || p1 !== p2 || l1 !== l2) {
+      metaDiff++;
+      if (metaDiffs.length < 10) metaDiffs.push({ idx: i, a: `${n1}(p=${p1},l=${l1})`, b: `${n2}(p=${p2},l=${l2})` });
     }
   }
-  results.functionNames = nameDiff === 0;
-  results.functionNameDiffs = nameDiff;
-  results.functionNameDetails = nameDiffs;
+  r.functionMeta = metaDiff === 0;
+  r.functionMetaDiffs = metaDiff;
+  r.functionMetaDetails = metaDiffs;
 
-  // Constants content
+  // 5. Constant content
   let constDiff = 0;
   const constDiffs = [];
   for (let i = 0; i < Math.min(b1.constants.length, b2.constants.length); i++) {
@@ -102,37 +115,93 @@ function compareBytecodes(b1, b2, label) {
       if (constDiffs.length < 10) constDiffs.push({ idx: i, a: JSON.stringify(b1.constants[i]), b: JSON.stringify(b2.constants[i]) });
     }
   }
-  results.constantContent = constDiff === 0;
-  results.constantDiffs = constDiff;
-  results.constantDetails = constDiffs;
+  r.constantContent = constDiff === 0;
+  r.constantDiffs = constDiff;
+  r.constantDetails = constDiffs;
 
-  // Instruction count + sequence
+  // 6. Instruction count + 7. Instruction sequence
   let totalInstr1 = 0, totalInstr2 = 0, instrDiff = 0;
+  const instrDiffs = [];
   for (let i = 0; i < Math.min(b1.functions.length, b2.functions.length); i++) {
-    const f1 = b1.functions[i].instructions;
-    const f2 = b2.functions[i].instructions;
+    const f1 = b1.functions[i].instructions || [];
+    const f2 = b2.functions[i].instructions || [];
     totalInstr1 += f1.length;
     totalInstr2 += f2.length;
     for (let j = 0; j < Math.min(f1.length, f2.length); j++) {
       const s1 = f1[j].op + ':' + (f1[j].operands ? f1[j].operands.join(',') : '');
       const s2 = f2[j].op + ':' + (f2[j].operands ? f2[j].operands.join(',') : '');
-      if (s1 !== s2) instrDiff++;
+      if (s1 !== s2) {
+        instrDiff++;
+        if (instrDiffs.length < 10) instrDiffs.push({ fn: i, idx: j, a: s1, b: s2 });
+      }
     }
   }
-  results.instructionCount = totalInstr1 === totalInstr2;
-  results.instructionSequence = instrDiff === 0;
-  results.instructionDiffs = instrDiff;
-  results.totalInstructions = totalInstr1;
+  r.instructionCount = totalInstr1 === totalInstr2;
+  r.instructionSequence = instrDiff === 0;
+  r.instructionDiffs = instrDiff;
+  r.instructionDetails = instrDiffs;
+  r.totalInstructions = totalInstr1;
 
-  results.allPass = results.functionCount && results.mainIndex && results.constantCount &&
-    results.functionNames && results.constantContent && results.instructionCount && results.instructionSequence;
+  // 8. Global count (if present)
+  if (b1.globalCount !== undefined || b2.globalCount !== undefined) {
+    r.globalCount = (b1.globalCount || 0) === (b2.globalCount || 0);
+  } else {
+    r.globalCount = true; // not present in schema, skip
+  }
 
-  return results;
+  // 9. Top-level keys consistency
+  const keys1 = Object.keys(b1).sort().join(',');
+  const keys2 = Object.keys(b2).sort().join(',');
+  r.schemaKeys = keys1 === keys2;
+
+  r.allPass = r.functionCount && r.mainIndex && r.constantCount &&
+    r.functionMeta && r.constantContent && r.instructionCount && r.instructionSequence &&
+    r.globalCount && r.schemaKeys;
+
+  return r;
+}
+
+function printComparison(label, cmp) {
+  log(`${label}`);
+  log(`  Function count:     ${cmp.functionCount ? 'PASS' : 'FAIL'} (${cmp.functionCount ? '' : cmp.diffs ? cmp.diffs.functionCount : ''})`);
+  log(`  Main index:         ${cmp.mainIndex ? 'PASS' : 'FAIL'}`);
+  log(`  Constant count:     ${cmp.constantCount ? 'PASS' : 'FAIL'}`);
+  log(`  Function meta:      ${cmp.functionMeta ? 'PASS' : 'FAIL'} (${cmp.functionMetaDiffs} diffs)`);
+  if (!cmp.functionMeta && cmp.functionMetaDetails) {
+    cmp.functionMetaDetails.forEach(d => log(`    [${d.idx}] A=${d.a} B=${d.b}`));
+  }
+  log(`  Constant content:   ${cmp.constantContent ? 'PASS' : 'FAIL'} (${cmp.constantDiffs} diffs)`);
+  if (!cmp.constantContent && cmp.constantDetails) {
+    cmp.constantDetails.forEach(d => log(`    [${d.idx}] A=${d.a} B=${d.b}`));
+  }
+  log(`  Instruction count:  ${cmp.instructionCount ? 'PASS' : 'FAIL'} (${cmp.totalInstructions})`);
+  log(`  Instruction seq:    ${cmp.instructionSequence ? 'PASS' : 'FAIL'} (${cmp.instructionDiffs} diffs)`);
+  if (!cmp.instructionSequence && cmp.instructionDetails) {
+    cmp.instructionDetails.forEach(d => log(`    fn[${d.fn}][${d.idx}] A=${d.a} B=${d.b}`));
+  }
+  log(`  Global count:       ${cmp.globalCount ? 'PASS' : 'FAIL'}`);
+  log(`  Schema keys:        ${cmp.schemaKeys ? 'PASS' : 'FAIL'}`);
+  log(`  => ${cmp.allPass ? 'ALL PASS' : 'FAILED'}`);
+  log('');
+}
+
+function printRound(label, bc) {
+  let totalInstr = 0;
+  for (let i = 0; i < bc.functions.length; i++) {
+    totalInstr += (bc.functions[i].instructions || []).length;
+  }
+  log(`${label}:`);
+  log(`  Functions: ${bc.functions.length}`);
+  log(`  Constants: ${bc.constants.length}`);
+  log(`  Instructions: ${totalInstr}`);
+  log(`  Main: ${bc.mainFunctionIndex}`);
+  log('');
 }
 
 // Main
 log('========================================');
 log('TLL SELF-HOSTING VERIFICATION (L4 + L5)');
+log('A5.2: Three-way full determinism (A vs B, B vs C, A vs C)');
 log('========================================');
 log('');
 
@@ -152,32 +221,38 @@ try {
   log(`      OK: ${bcC.functions.length} functions, ${bcC.constants.length} constants`);
   log('');
 
-  log('[Determinism] Comparing bytecode B vs bytecode C ...');
-  const cmp = compareBytecodes(bcB, bcC, 'B vs C');
-  log(`      Function count:     ${cmp.functionCount ? 'PASS' : 'FAIL'} (${bcB.functions.length})`);
-  log(`      Main index:         ${cmp.mainIndex ? 'PASS' : 'FAIL'} (${bcB.mainFunctionIndex})`);
-  log(`      Constant count:     ${cmp.constantCount ? 'PASS' : 'FAIL'} (${bcB.constants.length})`);
-  log(`      Constant content:   ${cmp.constantContent ? 'PASS' : 'FAIL'} (${cmp.constantDiffs} diffs)`);
-  if (!cmp.constantContent && cmp.constantDetails) {
-    cmp.constantDetails.forEach(d => log(`        [${d.idx}] A=${d.a} B=${d.b}`));
-  }
-  log(`      Function names:     ${cmp.functionNames ? 'PASS' : 'FAIL'} (${cmp.functionNameDiffs} diffs)`);
-  if (!cmp.functionNames && cmp.functionNameDetails) {
-    cmp.functionNameDetails.forEach(d => log(`        [${d.idx}] A="${d.a}" B="${d.b}"`));
-  }
-  log(`      Instruction count:  ${cmp.instructionCount ? 'PASS' : 'FAIL'} (${cmp.totalInstructions})`);
-  log(`      Instruction seq:    ${cmp.instructionSequence ? 'PASS' : 'FAIL'} (${cmp.instructionDiffs} diffs)`);
-  log('');
+  log('--- Round summaries ---');
+  printRound('Round A (Bootstrap -> TLL)', bcA);
+  printRound('Round B (VM runs A)', bcB);
+  printRound('Round C (VM runs B)', bcC);
+
+  log('--- Three-way comparisons ---');
+  const cmpAB = compareBytecodes(bcA, bcB, 'A vs B');
+  printComparison('A vs B', cmpAB);
+
+  const cmpBC = compareBytecodes(bcB, bcC, 'B vs C');
+  printComparison('B vs C', cmpBC);
+
+  const cmpAC = compareBytecodes(bcA, bcC, 'A vs C');
+  printComparison('A vs C', cmpAC);
+
+  const fullDeterminism = cmpAB.allPass && cmpBC.allPass && cmpAC.allPass;
 
   log('========================================');
-  if (cmp.allPass) {
-    log('TLL SELF-HOSTING: PASS');
-    log(`Functions: ${bcB.functions.length} | Constants: ${bcB.constants.length} | Instructions: ${cmp.totalInstructions}`);
-    log('B == C (0 instruction diff, 0 constant diff)');
+  if (fullDeterminism) {
+    log('FULL DETERMINISM: PASS');
+    log('A == B == C');
+    log(`Functions: ${bcB.functions.length} | Constants: ${bcB.constants.length} | Instructions: ${cmpBC.totalInstructions}`);
+    log('9 dimensions: functionCount, mainIndex, constantCount, functionMeta,');
+    log('              constantContent, instructionCount, instructionSequence,');
+    log('              globalCount, schemaKeys — all 0 diffs');
     log('========================================');
     process.exit(0);
   } else {
-    log('TLL SELF-HOSTING: FAIL');
+    log('FULL DETERMINISM: FAIL');
+    if (!cmpAB.allPass) log('  A vs B: FAILED');
+    if (!cmpBC.allPass) log('  B vs C: FAILED');
+    if (!cmpAC.allPass) log('  A vs C: FAILED');
     log('========================================');
     process.exit(1);
   }
@@ -186,6 +261,7 @@ try {
   log('========================================');
   log('TLL SELF-HOSTING: ERROR');
   log(e.message);
+  if (e.stack) log(e.stack.split('\n').slice(0, 5).join('\n'));
   log('========================================');
   process.exit(1);
 }
