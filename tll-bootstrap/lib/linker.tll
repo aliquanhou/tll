@@ -866,6 +866,20 @@ fn renameSymbolsInStmt(stmt: map, renameNames: list, renameTargets: list, localS
     // Import - skipped (not part of merged AST)
 }
 
+fn stripExports(source: string) -> string {
+    let exp = "export"
+    let fromFn = exp + " fn "
+    let toFn = "fn "
+    let s = strings.replaceAll(source, fromFn, toFn)
+    let fromConst = exp + " const "
+    let toConst = "const "
+    s = strings.replaceAll(s, fromConst, toConst)
+    let fromLet = exp + " let "
+    let toLet = "let "
+    s = strings.replaceAll(s, fromLet, toLet)
+    return s
+}
+
 export fn linkAndCompile(entryFile: string) -> map {
     // Resolve dependencies
     let files = resolveDependencies(entryFile)
@@ -884,11 +898,8 @@ export fn linkAndCompile(entryFile: string) -> map {
     let i = 0
     while i < arrays.length(files) {
         let filePath = arrays.get(files, i)
-        let source = fs.readFile(filePath)
-        // Strip export keyword (functions become top-level in combined program)
-        source = strings.replaceAll(source, "export fn ", "fn ")
-        source = strings.replaceAll(source, "export const ", "const ")
-        source = strings.replaceAll(source, "export let ", "let ")
+        let rawSource = fs.readFile(filePath)
+        let source = stripExports(rawSource)
         let tokens = tokenize(source)
         let ast = parse(tokens)
         arrays.push(moduleASTs, ast)
