@@ -1,0 +1,18 @@
+fn add(a, b) {
+    return a + b
+}
+
+fn apply(f, a, b) {
+    return f(a, b)
+}
+
+fn main() {
+    let r = apply(add, 2, 3)
+    io.println("r: " + convert.toString(r))
+    if r == 5 {
+        io.println("PASS: function as parameter")
+    } else {
+        io.println("FAIL: expected 5, got " + convert.toString(r))
+    }
+}
+main()
