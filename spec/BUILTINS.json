@@ -1,0 +1,122 @@
+{
+  "version": "1.1",
+  "frozen": true,
+  "modules": {
+    "io": {
+      "functions": [
+        {"name": "println", "index": 0, "params": ["any"], "return": "void"},
+        {"name": "print", "index": 1, "params": ["any"], "return": "void"},
+        {"name": "readLine", "index": 2, "params": [], "return": "string"}
+      ]
+    },
+    "json": {
+      "functions": [
+        {"name": "parse", "index": 3, "params": ["string"], "return": "any"},
+        {"name": "stringify", "index": 4, "params": ["any"], "return": "string"}
+      ]
+    },
+    "math": {
+      "functions": [
+        {"name": "sqrt", "index": 5, "params": ["float"], "return": "float"},
+        {"name": "abs", "index": 6, "params": ["number"], "return": "number"},
+        {"name": "floor", "index": 7, "params": ["float"], "return": "int"},
+        {"name": "ceil", "index": 8, "params": ["float"], "return": "int"},
+        {"name": "round", "index": 9, "params": ["float"], "return": "int"},
+        {"name": "min", "index": 10, "params": ["number", "number"], "return": "number"},
+        {"name": "max", "index": 11, "params": ["number", "number"], "return": "number"},
+        {"name": "pow", "index": 12, "params": ["number", "number"], "return": "number"},
+        {"name": "sin", "index": 13, "params": ["float"], "return": "float"},
+        {"name": "cos", "index": 14, "params": ["float"], "return": "float"},
+        {"name": "tan", "index": 15, "params": ["float"], "return": "float"},
+        {"name": "log", "index": 16, "params": ["float"], "return": "float"},
+        {"name": "log2", "index": 17, "params": ["float"], "return": "float"},
+        {"name": "log10", "index": 18, "params": ["float"], "return": "float"},
+        {"name": "exp", "index": 19, "params": ["float"], "return": "float"},
+        {"name": "pi", "index": 20, "params": [], "return": "float"},
+        {"name": "e", "index": 21, "params": [], "return": "float"},
+        {"name": "random", "index": 22, "params": [], "return": "float"},
+        {"name": "randomInt", "index": 23, "params": ["int", "int"], "return": "int"}
+      ]
+    },
+    "strings": {
+      "functions": [
+        {"name": "length", "index": 24, "params": ["string"], "return": "int"},
+        {"name": "toUpper", "index": 25, "params": ["string"], "return": "string"},
+        {"name": "toLower", "index": 26, "params": ["string"], "return": "string"},
+        {"name": "trim", "index": 27, "params": ["string"], "return": "string"},
+        {"name": "trimStart", "index": 28, "params": ["string"], "return": "string"},
+        {"name": "trimEnd", "index": 29, "params": ["string"], "return": "string"},
+        {"name": "split", "index": 30, "params": ["string", "string"], "return": "array<string>"},
+        {"name": "join", "index": 31, "params": ["array<string>", "string"], "return": "string"},
+        {"name": "contains", "index": 32, "params": ["string", "string"], "return": "bool"},
+        {"name": "startsWith", "index": 33, "params": ["string", "string"], "return": "bool"},
+        {"name": "endsWith", "index": 34, "params": ["string", "string"], "return": "bool"},
+        {"name": "substring", "index": 35, "params": ["string", "int", "int"], "return": "string"},
+        {"name": "replace", "index": 36, "params": ["string", "string", "string"], "return": "string"},
+        {"name": "replaceAll", "index": 37, "params": ["string", "string", "string"], "return": "string"},
+        {"name": "repeat", "index": 38, "params": ["string", "int"], "return": "string"},
+        {"name": "padStart", "index": 39, "params": ["string", "int", "string"], "return": "string"},
+        {"name": "padEnd", "index": 40, "params": ["string", "int", "string"], "return": "string"},
+        {"name": "charAt", "index": 41, "params": ["string", "int"], "return": "string"},
+        {"name": "charCodeAt", "index": 42, "params": ["string", "int"], "return": "int"},
+        {"name": "indexOf", "index": 43, "params": ["string", "string"], "return": "int"},
+        {"name": "lastIndexOf", "index": 44, "params": ["string", "string"], "return": "int"},
+        {"name": "isEmpty", "index": 45, "params": ["string"], "return": "bool"},
+        {"name": "reverse", "index": 46, "params": ["string"], "return": "string"},
+        {"name": "lines", "index": 47, "params": ["string"], "return": "array<string>"},
+        {"name": "words", "index": 48, "params": ["string"], "return": "array<string>"}
+      ]
+    },
+    "arrays": {
+      "note": "No 'set' function. Use direct index assignment: arr[idx] = val",
+      "functions": [
+        {"name": "length", "index": 49, "params": ["array"], "return": "int"},
+        {"name": "get", "index": 50, "params": ["array", "int"], "return": "any"},
+        {"name": "push", "index": 51, "params": ["array", "any"], "return": "int"},
+        {"name": "pop", "index": 52, "params": ["array"], "return": "any"},
+        {"name": "shift", "index": 53, "params": ["array"], "return": "any"},
+        {"name": "unshift", "index": 54, "params": ["array", "any"], "return": "int"},
+        {"name": "concat", "index": 55, "params": ["array", "array"], "return": "array"},
+        {"name": "slice", "index": 56, "params": ["array", "int", "int"], "return": "array"},
+        {"name": "includes", "index": 57, "params": ["array", "any"], "return": "bool"},
+        {"name": "indexOf", "index": 58, "params": ["array", "any"], "return": "int"},
+        {"name": "join", "index": 59, "params": ["array", "string"], "return": "string"},
+        {"name": "reverse", "index": 60, "params": ["array"], "return": "array"},
+        {"name": "sort", "index": 61, "params": ["array"], "return": "array"},
+        {"name": "filter", "index": 62, "params": ["array", "fn"], "return": "array"},
+        {"name": "map", "index": 63, "params": ["array", "fn"], "return": "array"},
+        {"name": "reduce", "index": 64, "params": ["array", "fn", "any"], "return": "any"},
+        {"name": "forEach", "index": 65, "params": ["array", "fn"], "return": "void"},
+        {"name": "find", "index": 66, "params": ["array", "fn"], "return": "any"},
+        {"name": "some", "index": 67, "params": ["array", "fn"], "return": "bool"},
+        {"name": "every", "index": 68, "params": ["array", "fn"], "return": "bool"},
+        {"name": "flat", "index": 69, "params": ["array"], "return": "array"},
+        {"name": "fill", "index": 70, "params": ["array", "any"], "return": "array"}
+      ]
+    },
+    "convert": {
+      "functions": [
+        {"name": "toString", "params": ["any"], "return": "string"},
+        {"name": "toInt", "params": ["any"], "return": "int"},
+        {"name": "toFloat", "params": ["any"], "return": "float"},
+        {"name": "toBool", "params": ["any"], "return": "bool"},
+        {"name": "typeOf", "params": ["any"], "return": "string"}
+      ]
+    },
+    "fs": {
+      "functions": [
+        {"name": "readFile", "params": ["string"], "return": "string"},
+        {"name": "writeFile", "params": ["string", "string"], "return": "void"},
+        {"name": "readDir", "params": ["string"], "return": "array<string>"},
+        {"name": "stat", "params": ["string"], "return": "map"},
+        {"name": "exists", "params": ["string"], "return": "bool"}
+      ]
+    },
+    "http": {
+      "functions": [
+        {"name": "get", "params": ["string"], "return": "map"},
+        {"name": "post", "params": ["string", "string"], "return": "map"}
+      ]
+    }
+  }
+}

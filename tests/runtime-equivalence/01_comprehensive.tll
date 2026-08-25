@@ -1,0 +1,161 @@
+// Runtime Equivalence Test - covers all major opcodes and builtins
+// Output must be identical on TS Runtime and TLL VM
+
+fn double(x: int) -> int { return x * 2 }
+fn isGreater2(x: int) -> bool { return x > 2 }
+fn addInt(acc: int, x: int) -> int { return acc + x }
+
+fn test_arithmetic() -> void {
+    io.println("--- arithmetic ---")
+    io.println(convert.toString(10 + 3))
+    io.println(convert.toString(10 - 3))
+    io.println(convert.toString(10 * 3))
+    io.println(convert.toString(10 / 3))
+    io.println(convert.toString(10 % 3))
+    io.println(convert.toString(2 ** 8))
+    io.println(convert.toString(-5))
+}
+
+fn test_comparison() -> void {
+    io.println("--- comparison ---")
+    io.println(convert.toString(5 == 5))
+    io.println(convert.toString(5 != 3))
+    io.println(convert.toString(5 < 10))
+    io.println(convert.toString(5 > 10))
+    io.println(convert.toString(5 <= 5))
+    io.println(convert.toString(5 >= 10))
+}
+
+fn test_logic() -> void {
+    io.println("--- logic ---")
+    io.println(convert.toString(true && true))
+    io.println(convert.toString(true && false))
+    io.println(convert.toString(true || false))
+    io.println(convert.toString(false || false))
+    io.println(convert.toString(!true))
+    io.println(convert.toString(!false))
+}
+
+fn test_control() -> void {
+    io.println("--- control ---")
+    let i = 0
+    while i < 3 {
+        io.println("while: " + convert.toString(i))
+        i = i + 1
+    }
+    if 5 > 3 {
+        io.println("if true")
+    } else {
+        io.println("if false")
+    }
+}
+
+fn test_strings() -> void {
+    io.println("--- strings ---")
+    let s = "Hello World"
+    io.println(convert.toString(strings.length(s)))
+    io.println(strings.toUpper(s))
+    io.println(strings.toLower(s))
+    io.println(convert.toString(strings.contains(s, "World")))
+    io.println(strings.substring(s, 0, 5))
+    io.println(strings.trim("  spaced  "))
+    io.println(convert.toString(strings.indexOf(s, "W")))
+    io.println(strings.replace(s, "World", "TLL"))
+    io.println(convert.toString(strings.startsWith(s, "Hello")))
+    io.println(convert.toString(strings.endsWith(s, "World")))
+}
+
+fn test_arrays() -> void {
+    io.println("--- arrays ---")
+    let a = [1, 2, 3, 4, 5]
+    io.println(convert.toString(arrays.length(a)))
+    io.println(convert.toString(arrays.get(a, 2)))
+    arrays.push(a, 6)
+    io.println(convert.toString(arrays.length(a)))
+    io.println(convert.toString(arrays.pop(a)))
+    io.println(arrays.join(a, ","))
+    io.println(convert.toString(arrays.includes(a, 3)))
+    io.println(convert.toString(arrays.indexOf(a, 4)))
+    let sliced = arrays.slice(a, 1, 3)
+    io.println(arrays.join(sliced, ","))
+    let reversed = arrays.reverse(a)
+    io.println(arrays.join(reversed, ","))
+}
+
+fn test_maps() -> void {
+    io.println("--- maps ---")
+    let m = {"a": 1, "b": 2}
+    io.println(convert.toString(m["a"]))
+    m["c"] = 3
+    io.println(convert.toString(m["c"]))
+    io.println(convert.toString(m["b"]))
+}
+
+fn test_convert() -> void {
+    io.println("--- convert ---")
+    io.println(convert.toString(convert.toInt("42")))
+    io.println(convert.toString(convert.toFloat("3.14")))
+    io.println(convert.toString(convert.toBool(1)))
+    io.println(convert.typeOf(42))
+    io.println(convert.typeOf("hello"))
+    io.println(convert.typeOf([1,2]))
+    io.println(convert.typeOf(true))
+}
+
+fn test_json() -> void {
+    io.println("--- json ---")
+    let obj = {"name": "test", "value": 42}
+    let s = json.stringify(obj)
+    io.println(s)
+    let parsed = json.parse(s)
+    io.println(convert.toString(parsed["value"]))
+    io.println(parsed["name"])
+}
+
+fn test_math() -> void {
+    io.println("--- math ---")
+    io.println(convert.toString(math.abs(-5)))
+    io.println(convert.toString(math.floor(3.7)))
+    io.println(convert.toString(math.ceil(3.2)))
+    io.println(convert.toString(math.round(3.5)))
+    io.println(convert.toString(math.min(3, 7)))
+    io.println(convert.toString(math.max(3, 7)))
+    io.println(convert.toString(math.sqrt(16)))
+    io.println(convert.toString(math.pow(2, 10)))
+}
+
+fn test_recursion(n: int) -> int {
+    if n <= 1 { return 1 }
+    return n * test_recursion(n - 1)
+}
+
+fn test_exception() -> void {
+    io.println("--- exception ---")
+    try {
+        io.println("in try")
+        throw "test error"
+    } catch e {
+        io.println("caught: " + convert.toString(e))
+    } finally {
+        io.println("finally done")
+    }
+    io.println("after exception")
+}
+
+fn main() -> void {
+    test_arithmetic()
+    test_comparison()
+    test_logic()
+    test_control()
+    test_strings()
+    test_arrays()
+    test_maps()
+    test_convert()
+    test_json()
+    test_math()
+    test_exception()
+    io.println("--- recursion ---")
+    io.println(convert.toString(test_recursion(5)))
+    io.println("=== ALL TESTS DONE ===")
+}
+main()

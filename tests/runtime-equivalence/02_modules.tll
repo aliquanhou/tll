@@ -1,0 +1,13 @@
+// Module system equivalence test
+from "./mod_a" import add, moduleAVar
+from "./mod_b" import compute, getVar
+
+fn main() -> void {
+    io.println("--- module ---")
+    io.println(convert.toString(add(3, 4)))
+    io.println(convert.toString(moduleAVar))
+    io.println(convert.toString(compute(5)))
+    io.println(convert.toString(getVar()))
+    io.println("=== MODULE DONE ===")
+}
+main()

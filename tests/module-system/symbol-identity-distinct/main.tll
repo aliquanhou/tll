@@ -1,0 +1,4 @@
+from "./mod_a" import hello as aHello
+from "./mod_b" import hello as bHello
+io.println(aHello())
+io.println(bHello())

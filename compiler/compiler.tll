@@ -1,0 +1,74 @@
+// TLL Compiler - Self-hosting entry point
+// Compiles TLL source code to TLL bytecode
+// For self-hosting verification: reads its own source and compiles it
+
+from "./lexer" import tokenize
+from "./parser" import parse
+from "./typechecker" import check
+from "./codegen" import compile
+from "./linker" import linkAndCompile
+
+// Main compile function: source string -> bytecode program (as JSON string)
+export fn compileSource(source: string) -> string {
+    io.println("[Phase 1] Lexer: tokenizing...")
+    // Phase 1: Lexer
+    let tokens = tokenize(source)
+    io.println("[Phase 1] Lexer: done, tokens=" + convert.toString(arrays.length(tokens)))
+
+    io.println("[Phase 2] Parser: parsing...")
+    // Phase 2: Parser
+    let ast = parse(tokens)
+    io.println("[Phase 2] Parser: done")
+
+    io.println("[Phase 3] TypeChecker: checking...")
+    // Phase 3: Type Checker (errors are collected, not fatal)
+    let errors = check(ast)
+    io.println("[Phase 3] TypeChecker: done, errors=" + convert.toString(arrays.length(errors)))
+
+    io.println("[Phase 4] Codegen: compiling...")
+    // Phase 4: Codegen
+    let program = compile(ast)
+    io.println("[Phase 4] Codegen: done, functions=" + convert.toString(arrays.length(program.functions)))
+
+    io.println("[Phase 5] Serializing...")
+    // Serialize bytecode program to JSON for comparison
+    let result = json.stringify(program)
+    io.println("[Phase 5] Serialization: done, length=" + convert.toString(strings.length(result)))
+    return result
+}
+
+// Self-hosting verification: compile compiler.tll itself
+fn main() -> void {
+    io.println("=== TLL Compiler Bootstrap Level 5 ===")
+    io.println("")
+    io.println("Compiling compiler.tll with TLL compiler...")
+    io.println("")
+
+    // Compile compiler.tll itself using Module Linker
+    let bytecode = linkAndCompile("compiler.tll")
+    // Check for compilation errors (e.g., circular dependencies)
+    if bytecode.hasError == true {
+        io.println("")
+        io.println("=== COMPILATION FAILED ===")
+        io.println("Error: " + bytecode.error)
+        io.println("")
+        return
+    }
+
+    let bytecodeJson = json.stringify(bytecode)
+
+    io.println("Compilation successful!")
+    io.println("Functions: " + convert.toString(arrays.length(bytecode.functions)))
+    io.println("Constants: " + convert.toString(arrays.length(bytecode.constants)))
+    io.println("mainFunctionIndex: " + convert.toString(bytecode.mainFunctionIndex))
+    io.println("Bytecode JSON length: " + convert.toString(strings.length(bytecodeJson)))
+
+    // Save to file for comparison
+    fs.writeFile("compiler_self_compiled.tllbc", bytecodeJson)
+    io.println("Saved to compiler_self_compiled.tllbc")
+
+    io.println("")
+    io.println("=== Bootstrap Level 5 Complete ===")
+}
+
+main()

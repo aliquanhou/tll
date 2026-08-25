@@ -1,0 +1,27 @@
+// Acceptance Test 7.4: File System builtins
+fn main() -> void {
+    let testFile = "stdlib_fs_test.txt"
+    let content = "Hello from TLL FS test!"
+
+    // writeFile
+    fs.writeFile(testFile, content)
+    io.println("writeFile: done")
+
+    // exists
+    io.println("exists: " + convert.toString(fs.exists(testFile)))
+
+    // readFile
+    let read = fs.readFile(testFile)
+    io.println("readFile matches: " + convert.toString(read == content))
+
+    // isFile
+    io.println("isFile: " + convert.toString(fs.isFile(testFile)))
+
+    // fileSize
+    io.println("fileSize: " + convert.toString(fs.fileSize(testFile)))
+
+    // Cleanup
+    fs.remove(testFile)
+    io.println("after remove exists: " + convert.toString(fs.exists(testFile)))
+}
+main()

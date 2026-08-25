@@ -1,0 +1,4 @@
+from "./foo/a" import hello as fooHello
+from "./bar/a" import hello as barHello
+io.println(fooHello())
+io.println(barHello())

@@ -1,0 +1,43 @@
+fn add(a, b) {
+    return a + b
+}
+
+fn apply(f, a, b) {
+    return f(a, b)
+}
+
+fn makeAdder(x) {
+    fn add(y) {
+        return x + y
+    }
+    return add
+}
+
+fn makeCounter() {
+    let n = 0
+    fn inc() {
+        n = n + 1
+        return n
+    }
+    return inc
+}
+
+fn main() {
+    io.println("Function value:")
+    let f = add
+    io.println(f(1, 2))
+
+    io.println("Higher-order:")
+    io.println(apply(add, 3, 4))
+
+    io.println("Closure:")
+    let add5 = makeAdder(5)
+    io.println(add5(10))
+
+    io.println("Mutable closure:")
+    let c = makeCounter()
+    io.println(c())
+    io.println(c())
+    io.println(c())
+}
+main()

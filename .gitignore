@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+
+# Build output
+bootstrap/dist/
+
+# Bytecode build artifacts (generated on first run)
+*.tllbc
+
+# Temporary test driver files (auto-generated)
+.test_*_driver.tll
+
+# Temporary build outputs
+__tll_cli_driver.tll
+__tll_build_output.tllbc
+vm_run_target.tllbc
+compiler_generated.tllbc
+compiler_self_compiled.tllbc
+bytecode_*.json
+
+# Test temp directories
+tests/.tmp/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Python cache
+__pycache__/
+*.pyc

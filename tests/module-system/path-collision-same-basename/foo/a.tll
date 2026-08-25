@@ -1,0 +1,1 @@
+export fn hello() -> string { return "FOO_A" }

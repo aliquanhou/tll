@@ -1,0 +1,893 @@
+// TLL VM - Self-hosting Bootstrap (v1.0 Phase 5)
+// Bytecode virtual machine, rewritten from TypeScript
+// Uses vm_setReg/vm_setLocal/vm_setGlobal helpers (TLL list index assignment is unreliable)
+
+// ============ OpCode constants ============
+let OP_LOAD_CONST = 0
+let OP_LOAD_VAR = 1
+let OP_STORE_VAR = 2
+let OP_ADD = 3
+let OP_SUB = 4
+let OP_MUL = 5
+let OP_DIV = 6
+let OP_MOD = 7
+let OP_POW = 8
+let OP_EQ = 9
+let OP_NEQ = 10
+let OP_LT = 11
+let OP_GT = 12
+let OP_LE = 13
+let OP_GE = 14
+let OP_AND = 15
+let OP_OR = 16
+let OP_NOT = 17
+let OP_NEG = 18
+let OP_JMP = 19
+let OP_JMP_IF_FALSE = 20
+let OP_CALL = 21
+let OP_RET = 22
+let OP_PRINT = 23
+let OP_PRINTLN = 24
+let OP_MAKE_ARRAY = 25
+let OP_MAKE_MAP = 26
+let OP_INDEX_GET = 28
+let OP_INDEX_SET = 29
+let OP_MEMBER_GET = 30
+let OP_MEMBER_SET = 31
+let OP_HALT = 32
+let OP_NOP = 33
+let OP_PUSH = 34
+let OP_CONCAT = 35
+let OP_LOAD_BUILTIN = 36
+let OP_THROW = 37
+let OP_TRY_START = 38
+let OP_TRY_END = 39
+let OP_LOAD_GLOBAL = 40
+let OP_STORE_GLOBAL = 41
+let OP_CLOSURE = 42
+let OP_GET_UPVALUE = 43
+let OP_SET_UPVALUE = 44
+let OP_BOX_LOCAL = 45
+
+// ============ VM state ============
+let vm_constants: auto = []
+let vm_functions: auto = []
+let vm_globals: auto = []
+// Parallel arrays for call stack (avoids map object creation/access overhead)
+let vm_cs_pc: auto = []
+let vm_cs_registers: auto = []
+let vm_cs_locals: auto = []
+let vm_cs_argStack: auto = []
+let vm_cs_tryStack: auto = []
+let vm_cs_returnReg: auto = []
+let vm_cs_fnIdx: auto = []
+let vm_cs_closureEnv: auto = []
+let vm_result: auto = null
+let vm_halted = false
+let vm_lastResultReg = 0  // track last expression result register for HALT
+
+// Current frame state (global vars)
+let vm_pc = 0
+let vm_registers: auto = []
+let vm_locals: auto = []
+let vm_argStack: auto = []
+let vm_tryStack: auto = []
+let vm_returnReg = 0
+let vm_fnIdx = 0
+let vm_thrownValue: auto = null
+let vm_currentInstructions: auto = []  // cached instructions for current function
+
+// ============ Helper: init registers (lazy - no preallocation, dynamic expansion) ============
+fn vm_initRegisters() -> list {
+    // Return empty array; registers are set before read by correct compiler output
+    // This avoids 2048 null pushes per function call (~2.3M eliminated for compiler bytecode)
+    return []
+}
+
+// ============ Set register (direct index assignment) ============
+fn vm_setReg(idx: int, value: auto) -> void {
+    vm_registers[idx] = value
+    vm_lastResultReg = idx
+}
+
+fn vm_getReg(idx: int) -> any {
+    // Direct access - TLL arrays.get returns null for unset/beyond indices
+    // Correct compiler output always writes before reads
+    return arrays.get(vm_registers, idx)
+}
+
+// ============ Set local ============
+fn vm_setLocal(idx: int, value: auto) -> void {
+    vm_locals[idx] = value
+}
+
+// ============ Set global ============
+fn vm_setGlobal(idx: int, value: auto) -> void {
+    vm_globals[idx] = value
+}
+
+// ============ Save/restore frame (parallel arrays, no map objects) ============
+fn vm_saveFrame() -> void {
+    arrays.push(vm_cs_pc, vm_pc)
+    arrays.push(vm_cs_registers, vm_registers)
+    arrays.push(vm_cs_locals, vm_locals)
+    arrays.push(vm_cs_argStack, vm_argStack)
+    arrays.push(vm_cs_tryStack, vm_tryStack)
+    arrays.push(vm_cs_returnReg, vm_returnReg)
+    arrays.push(vm_cs_fnIdx, vm_fnIdx)
+    arrays.push(vm_cs_closureEnv, arrays.get(vm_cs_closureEnv, arrays.length(vm_cs_closureEnv) - 1))
+}
+
+fn vm_restoreFrame() -> bool {
+    if arrays.length(vm_cs_pc) == 0 {
+        return false
+    }
+    let last = arrays.length(vm_cs_pc) - 1
+    vm_pc = arrays.get(vm_cs_pc, last)
+    vm_registers = arrays.get(vm_cs_registers, last)
+    vm_locals = arrays.get(vm_cs_locals, last)
+    vm_argStack = arrays.get(vm_cs_argStack, last)
+    vm_tryStack = arrays.get(vm_cs_tryStack, last)
+    vm_returnReg = arrays.get(vm_cs_returnReg, last)
+    vm_fnIdx = arrays.get(vm_cs_fnIdx, last)
+    // Pop all parallel arrays
+    arrays.pop(vm_cs_pc)
+    arrays.pop(vm_cs_registers)
+    arrays.pop(vm_cs_locals)
+    arrays.pop(vm_cs_argStack)
+    arrays.pop(vm_cs_tryStack)
+    arrays.pop(vm_cs_returnReg)
+    arrays.pop(vm_cs_fnIdx)
+    arrays.pop(vm_cs_closureEnv)
+    let restoredFn = arrays.get(vm_functions, vm_fnIdx)
+    vm_currentInstructions = restoredFn["instructions"]
+    return true
+}
+
+fn vm_callStackDepth() -> int {
+    return arrays.length(vm_cs_pc)
+}
+
+// ============ Main entry ============
+export fn run(program: map) -> any {
+    vm_constants = program["constants"]
+    vm_functions = program["functions"]
+    vm_globals = []
+    vm_cs_pc = []
+    vm_cs_registers = []
+    vm_cs_locals = []
+    vm_cs_argStack = []
+    vm_cs_tryStack = []
+    vm_cs_returnReg = []
+    vm_cs_fnIdx = []
+    vm_cs_closureEnv = []
+    vm_result = null
+    vm_halted = false
+    vm_lastResultReg = 0
+
+    let globalCount = program["globalCount"]
+    if globalCount == null { globalCount = 0 }
+    let gi = 0
+    while gi < globalCount {
+        arrays.push(vm_globals, null)
+        gi = gi + 1
+    }
+
+    let mainIdx = program["mainFunctionIndex"]
+    if mainIdx == null { mainIdx = arrays.length(vm_functions) - 1 }
+    vm_fnIdx = mainIdx
+    vm_pc = 0
+    vm_registers = vm_initRegisters()
+    let mainFn = arrays.get(vm_functions, mainIdx)
+    vm_currentInstructions = mainFn["instructions"]
+    let localCount = mainFn["localCount"]
+    if localCount == null { localCount = 0 }
+    vm_locals = []
+    let li = 0
+    while li < localCount {
+        arrays.push(vm_locals, null)
+        li = li + 1
+    }
+    vm_argStack = []
+    vm_tryStack = []
+    vm_returnReg = -1
+    arrays.push(vm_cs_closureEnv, null)
+
+    vm_runLoop()
+    return vm_result
+}
+
+// ============ Instruction loop (fully inlined for speed) ============
+fn vm_runLoop() -> void {
+    while !vm_halted {
+        if vm_pc >= arrays.length(vm_currentInstructions) {
+            if arrays.length(vm_cs_pc) == 0 {
+                vm_halted = true
+                vm_result = vm_getReg(vm_lastResultReg)
+                break
+            }
+            let returnValue = null
+            let retReg = vm_returnReg
+            vm_restoreFrame()
+            if retReg >= 0 {
+                vm_setReg(retReg, returnValue)
+            }
+            continue
+        }
+        let inst = arrays.get(vm_currentInstructions, vm_pc)
+        vm_pc = vm_pc + 1
+        let op = inst["op"]
+        let operands = inst["operands"]
+        let a = arrays.get(operands, 0)
+        let b = 0
+        let c = 0
+        if arrays.length(operands) > 1 { b = arrays.get(operands, 1) }
+        if arrays.length(operands) > 2 { c = arrays.get(operands, 2) }
+
+        if op == 0 { vm_setReg(a, arrays.get(vm_constants, b)) }
+        else if op == 1 { vm_setReg(a, arrays.get(vm_locals, b)) }
+        else if op == 2 { vm_setLocal(a, vm_getReg(b)); vm_lastResultReg = b }
+        else if op == 3 {
+            let rv = vm_getReg(b)
+            let lv = vm_getReg(c)
+            if convert.typeOf(rv) == "string" || convert.typeOf(lv) == "string" {
+                vm_setReg(a, convert.toString(rv) + convert.toString(lv))
+            } else {
+                vm_setReg(a, rv + lv)
+            }
+        }
+        else if op == 4 { vm_setReg(a, vm_getReg(b) - vm_getReg(c)) }
+        else if op == 5 { vm_setReg(a, vm_getReg(b) * vm_getReg(c)) }
+        else if op == 6 { vm_setReg(a, vm_getReg(b) / vm_getReg(c)) }
+        else if op == 7 { vm_setReg(a, vm_getReg(b) % vm_getReg(c)) }
+        else if op == 8 { vm_setReg(a, math.pow(vm_getReg(b), vm_getReg(c))) }
+        else if op == 9 { vm_setReg(a, vm_getReg(b) == vm_getReg(c)) }
+        else if op == 10 { vm_setReg(a, vm_getReg(b) != vm_getReg(c)) }
+        else if op == 11 { vm_setReg(a, vm_getReg(b) < vm_getReg(c)) }
+        else if op == 12 { vm_setReg(a, vm_getReg(b) > vm_getReg(c)) }
+        else if op == 13 { vm_setReg(a, vm_getReg(b) <= vm_getReg(c)) }
+        else if op == 14 { vm_setReg(a, vm_getReg(b) >= vm_getReg(c)) }
+        else if op == 15 { vm_setReg(a, vm_getReg(b) && vm_getReg(c)) }
+        else if op == 16 { vm_setReg(a, vm_getReg(b) || vm_getReg(c)) }
+        else if op == 17 { vm_setReg(a, !vm_getReg(b)) }
+        else if op == 18 { vm_setReg(a, -vm_getReg(b)) }
+        else if op == 19 { vm_pc = a }
+        else if op == 20 { if !vm_getReg(a) { vm_pc = b } }
+        else if op == 21 { vm_executeCall(a, b, c) }
+        else if op == 22 { vm_executeRet(a) }
+        else if op == 23 { io.print(convert.toString(vm_getReg(a))) }
+        else if op == 24 { io.println(convert.toString(vm_getReg(a))) }
+        else if op == 25 { vm_executeMakeArray(a, b) }
+        else if op == 26 { vm_executeMakeMap(a, b) }
+        else if op == 28 { vm_executeIndexGet(a, b, c) }
+        else if op == 29 { vm_executeIndexSet(a, b, c) }
+        else if op == 30 { vm_executeMemberGet(a, b, c) }
+        else if op == 31 { vm_executeMemberSet(a, b, c) }
+        else if op == 32 { vm_halted = true; vm_result = vm_getReg(vm_lastResultReg) }
+        else if op == 33 { }
+        else if op == 34 { arrays.push(vm_argStack, vm_getReg(a)) }
+        else if op == 35 { vm_setReg(a, convert.toString(vm_getReg(b)) + convert.toString(vm_getReg(c))) }
+        else if op == 36 { vm_setReg(a, { __builtin: true, idx: b }) }
+        else if op == 37 { vm_throwException(vm_getReg(a)) }
+        else if op == 38 { arrays.push(vm_tryStack, a) }
+        else if op == 39 { arrays.pop(vm_tryStack) }
+        else if op == 40 { vm_setReg(a, arrays.get(vm_globals, b)) }
+        else if op == 41 { vm_setGlobal(a, vm_getReg(b)); vm_lastResultReg = b }
+        else if op == 42 {
+            // OP_CLOSURE: a=resultReg, b=fnIdx, c=captureCount, d...=upvalueSlots
+            let captureCount = c
+            let newEnv = { upvalues: [] }
+            let newUv = newEnv["upvalues"]
+            let curEnv = vm_cs_closureEnv[arrays.length(vm_cs_closureEnv) - 1]
+            if curEnv != null {
+                let curUv = curEnv["upvalues"]
+                if curUv != null {
+                    let i = 0
+                    while i < captureCount {
+                        let slot = arrays.get(operands, 3 + i)
+                        arrays.push(newUv, curUv[slot])
+                        i = i + 1
+                    }
+                }
+            }
+            vm_setReg(a, { __fn: true, fnIdx: b, env: newEnv })
+        }
+        else if op == 43 {
+            // OP_GET_UPVALUE: a=resultReg, b=slot
+            let env2 = arrays.get(vm_cs_closureEnv, arrays.length(vm_cs_closureEnv) - 1)
+            if env2 != null {
+                let uvList2 = env2["upvalues"]
+                if uvList2 != null && arrays.length(uvList2) > b {
+                    let uv2 = arrays.get(uvList2, b)
+                    if uv2 != null { vm_setReg(a, uv2["value"]) } else { vm_setReg(a, null) }
+                } else { vm_setReg(a, null) }
+            } else { vm_setReg(a, null) }
+        }
+        else if op == 44 {
+            // OP_SET_UPVALUE: a=slot, b=valueReg
+            let env4 = arrays.get(vm_cs_closureEnv, arrays.length(vm_cs_closureEnv) - 1)
+            if env4 != null {
+                let uvList4 = env4["upvalues"]
+                if uvList4 != null && arrays.length(uvList4) > a {
+                    let uv4 = arrays.get(uvList4, a)
+                    if uv4 != null { uv4["value"] = vm_getReg(b) }
+                }
+            }
+        }
+        else if op == 45 {
+            // OP_BOX_LOCAL: a=localSlot, b=upvalueSlot
+            let idx3 = arrays.length(vm_cs_closureEnv) - 1
+            let env3 = vm_cs_closureEnv[idx3]
+            if env3 == null {
+                env3 = { upvalues: [] }
+                vm_cs_closureEnv[idx3] = env3
+            }
+            let uvList3 = env3["upvalues"]
+            while arrays.length(uvList3) <= b { arrays.push(uvList3, null) }
+            uvList3[b] = { value: vm_locals[a] }
+        }
+    }
+}
+
+// ============ Execute instruction ============
+fn vm_executeInstruction(inst: map) -> void {
+    let op = inst["op"]
+    let operands = inst["operands"]
+    let a = 0
+    let b = 0
+    let c = 0
+    if arrays.length(operands) > 0 { a = arrays.get(operands, 0) }
+    if arrays.length(operands) > 1 { b = arrays.get(operands, 1) }
+    if arrays.length(operands) > 2 { c = arrays.get(operands, 2) }
+
+    if op == OP_LOAD_CONST { vm_setReg(a, arrays.get(vm_constants, b)); return }
+    if op == OP_LOAD_VAR { vm_setReg(a, arrays.get(vm_locals, b)); return }
+    if op == OP_STORE_VAR { vm_setLocal(a, vm_getReg(b)); vm_lastResultReg = b; return }
+    if op == OP_LOAD_GLOBAL { vm_setReg(a, arrays.get(vm_globals, b)); return }
+    if op == OP_STORE_GLOBAL { vm_setGlobal(a, vm_getReg(b)); vm_lastResultReg = b; return }
+    if op == OP_BOX_LOCAL {
+        // a = localSlot, b = upvalueSlot
+        let idx = arrays.length(vm_cs_closureEnv) - 1
+        let env = vm_cs_closureEnv[idx]
+        if env == null {
+            env = { upvalues: [] }
+            vm_cs_closureEnv[idx] = env
+        }
+        let uvList = env["upvalues"]
+        while arrays.length(uvList) <= b { arrays.push(uvList, null) }
+        uvList[b] = { value: vm_locals[a] }
+        return
+    }
+    if op == OP_GET_UPVALUE {
+        // a = resultReg, b = slot
+        let env = arrays.get(vm_cs_closureEnv, arrays.length(vm_cs_closureEnv) - 1)
+        if env != null {
+            let uvList = env["upvalues"]
+            if uvList != null && arrays.length(uvList) > b {
+                let uv = arrays.get(uvList, b)
+                if uv != null { vm_setReg(a, uv["value"]) } else { vm_setReg(a, null) }
+            } else {
+                vm_setReg(a, null)
+            }
+        } else {
+            vm_setReg(a, null)
+        }
+        return
+    }
+    if op == OP_SET_UPVALUE {
+        // a = slot, b = valueReg
+        let env = arrays.get(vm_cs_closureEnv, arrays.length(vm_cs_closureEnv) - 1)
+        if env != null {
+            let uvList = env["upvalues"]
+            if uvList != null && arrays.length(uvList) > a {
+                let uv = arrays.get(uvList, a)
+                if uv != null { uv["value"] = vm_getReg(b) }
+            }
+        }
+        return
+    }
+    if op == OP_CLOSURE {
+        // a = resultReg, b = fnIdx, c = captureCount, d... = upvalueSlots
+        let captureCount = c
+        let newEnv = { upvalues: [] }
+        let newUvList = newEnv["upvalues"]
+        let curEnv = arrays.get(vm_cs_closureEnv, arrays.length(vm_cs_closureEnv) - 1)
+        if curEnv != null {
+            let curUvList = curEnv["upvalues"]
+            if curUvList != null {
+                let i = 0
+                while i < captureCount {
+                    let slot = arrays.get(inst.operands, 3 + i)
+                    arrays.push(newUvList, arrays.get(curUvList, slot))
+                    i = i + 1
+                }
+            }
+        }
+        vm_setReg(a, { __fn: true, fnIdx: b, env: newEnv })
+        return
+    }
+    if op == OP_ADD {
+        let rv = vm_getReg(b)
+        let lv = vm_getReg(c)
+        if convert.typeOf(rv) == "string" || convert.typeOf(lv) == "string" {
+            vm_setReg(a, convert.toString(rv) + convert.toString(lv))
+        } else {
+            vm_setReg(a, rv + lv)
+        }
+        return
+    }
+    if op == OP_SUB { vm_setReg(a, vm_getReg(b) - vm_getReg(c)); return }
+    if op == OP_MUL { vm_setReg(a, vm_getReg(b) * vm_getReg(c)); return }
+    if op == OP_DIV { vm_setReg(a, vm_getReg(b) / vm_getReg(c)); return }
+    if op == OP_MOD { vm_setReg(a, vm_getReg(b) % vm_getReg(c)); return }
+    if op == OP_POW { vm_setReg(a, math.pow(vm_getReg(b), vm_getReg(c))); return }
+    if op == OP_EQ { vm_setReg(a, vm_getReg(b) == vm_getReg(c)); return }
+    if op == OP_NEQ { vm_setReg(a, vm_getReg(b) != vm_getReg(c)); return }
+    if op == OP_LT { vm_setReg(a, vm_getReg(b) < vm_getReg(c)); return }
+    if op == OP_GT { vm_setReg(a, vm_getReg(b) > vm_getReg(c)); return }
+    if op == OP_LE { vm_setReg(a, vm_getReg(b) <= vm_getReg(c)); return }
+    if op == OP_GE { vm_setReg(a, vm_getReg(b) >= vm_getReg(c)); return }
+    if op == OP_AND { vm_setReg(a, vm_getReg(b) && vm_getReg(c)); return }
+    if op == OP_OR { vm_setReg(a, vm_getReg(b) || vm_getReg(c)); return }
+    if op == OP_NOT { vm_setReg(a, !vm_getReg(b)); return }
+    if op == OP_NEG { vm_setReg(a, -vm_getReg(b)); return }
+    if op == OP_JMP { vm_pc = a; return }
+    if op == OP_JMP_IF_FALSE { if !vm_getReg(a) { vm_pc = b }; return }
+    if op == OP_CALL { vm_executeCall(a, b, c); return }
+    if op == OP_RET { vm_executeRet(a); return }
+    if op == OP_PRINT { io.print(convert.toString(vm_getReg(a))); return }
+    if op == OP_PRINTLN { io.println(convert.toString(vm_getReg(a))); return }
+    if op == OP_PUSH { arrays.push(vm_argStack, vm_getReg(a)); return }
+    if op == OP_HALT { vm_halted = true; vm_result = vm_getReg(vm_lastResultReg); return }
+    if op == OP_NOP { return }
+    if op == OP_MAKE_ARRAY { vm_executeMakeArray(a, b); return }
+    if op == OP_MAKE_MAP { vm_executeMakeMap(a, b); return }
+    if op == OP_INDEX_GET { vm_executeIndexGet(a, b, c); return }
+    if op == OP_INDEX_SET { vm_executeIndexSet(a, b, c); return }
+    if op == OP_MEMBER_GET { vm_executeMemberGet(a, b, c); return }
+    if op == OP_MEMBER_SET { vm_executeMemberSet(a, b, c); return }
+    if op == OP_LOAD_BUILTIN { vm_setReg(a, { __builtin: true, idx: b }); return }
+    if op == OP_CONCAT { vm_setReg(a, convert.toString(vm_getReg(b)) + convert.toString(vm_getReg(c))); return }
+    if op == OP_THROW { vm_throwException(vm_getReg(a)); return }
+    if op == OP_TRY_START { arrays.push(vm_tryStack, a); return }
+    if op == OP_TRY_END { arrays.pop(vm_tryStack); return }
+}
+
+// ============ Exception propagation ============
+fn vm_throwException(errorValue: any) -> void {
+    vm_thrownValue = errorValue
+    // Search current frame's try stack first
+    while arrays.length(vm_tryStack) > 0 {
+        let catchPc = arrays.get(vm_tryStack, arrays.length(vm_tryStack) - 1)
+        arrays.pop(vm_tryStack)
+        vm_pc = catchPc
+        vm_setReg(0, errorValue)
+        return
+    }
+    // Search up the call stack
+    while arrays.length(vm_cs_pc) > 0 {
+        vm_restoreFrame()
+        if arrays.length(vm_tryStack) > 0 {
+            let catchPc = arrays.get(vm_tryStack, arrays.length(vm_tryStack) - 1)
+            arrays.pop(vm_tryStack)
+            vm_pc = catchPc
+            vm_setReg(0, errorValue)
+            return
+        }
+    }
+    // No handler found - fatal
+    vm_halted = true
+    vm_result = null
+    io.println("Uncaught exception: " + convert.toString(errorValue))
+}
+
+// ============ CALL ============
+fn vm_executeCall(resultReg: int, fnIdxOrReg: int, argCount: int) -> void {
+    // Read args from top of argStack (last pushed = last arg)
+    // Supports nested calls: outer args stay below, inner call reads its own args
+    let stackLen = arrays.length(vm_argStack)
+    let startIdx = stackLen - argCount
+    if startIdx < 0 { startIdx = 0 }
+    let args: auto = []
+    let ai = 0
+    while ai < argCount {
+        arrays.push(args, arrays.get(vm_argStack, startIdx + ai))
+        ai = ai + 1
+    }
+    // Remove only the args we consumed, preserve outer args for nested calls
+    if startIdx == 0 {
+        vm_argStack = []
+    } else {
+        vm_argStack = arrays.slice(vm_argStack, 0, startIdx)
+    }
+
+    // Indirect call: fnIdxOrReg >= 100000 means (fnIdxOrReg - 100000) is register number
+    let actualFnIdx = fnIdxOrReg
+    let possibleFn = null
+    let isIndirect = false
+    if fnIdxOrReg >= 100000 {
+        isIndirect = true
+        let regNum = fnIdxOrReg - 100000
+        possibleFn = vm_getReg(regNum)
+    }
+
+    // Only check for builtin on indirect calls
+    if isIndirect && convert.typeOf(possibleFn) == "object" && possibleFn["__builtin"] == true {
+        let bidx = possibleFn["idx"]
+        // Inline most common builtins for speed (avoid 90+ if-else in vm_callBuiltin)
+        if bidx == 51 { // arrays.push
+            let arr = arrays.get(args, 0)
+            let k = 1
+            while k < arrays.length(args) { arrays.push(arr, arrays.get(args, k)); k = k + 1 }
+            vm_setReg(resultReg, arr)
+        } else if bidx == 50 { // arrays.get
+            vm_setReg(resultReg, arrays.get(arrays.get(args, 0), convert.toInt(arrays.get(args, 1))))
+        } else if bidx == 49 { // arrays.length
+            vm_setReg(resultReg, arrays.length(arrays.get(args, 0)))
+        } else if bidx == 74 { // convert.toString
+            vm_setReg(resultReg, convert.toString(arrays.get(args, 0)))
+        } else if bidx == 24 { // strings.length
+            vm_setReg(resultReg, strings.length(convert.toString(arrays.get(args, 0))))
+        } else if bidx == 41 { // strings.charAt
+            vm_setReg(resultReg, strings.charAt(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1))))
+        } else if bidx == 35 { // strings.substring
+            let s = convert.toString(arrays.get(args, 0))
+            if arrays.length(args) > 2 { vm_setReg(resultReg, strings.substring(s, convert.toInt(arrays.get(args, 1)), convert.toInt(arrays.get(args, 2)))) }
+            else { vm_setReg(resultReg, strings.substring(s, convert.toInt(arrays.get(args, 1)))) }
+        } else if bidx == 0 { // io.println
+            if arrays.length(args) > 0 { io.println(convert.toString(arrays.get(args, 0))) } else { io.println("") }
+            vm_setReg(resultReg, null)
+        } else if bidx == 78 { // convert.typeOf
+            vm_setReg(resultReg, convert.typeOf(arrays.get(args, 0)))
+        } else {
+            vm_setReg(resultReg, vm_callBuiltin(possibleFn, args))
+        }
+        return
+    }
+
+    // Indirect call: check for __fn function value object (user function / closure)
+    let callClosureEnv = null
+    if isIndirect && convert.typeOf(possibleFn) == "object" && possibleFn["__fn"] == true {
+        actualFnIdx = possibleFn["fnIdx"]
+        callClosureEnv = possibleFn["env"]
+    }
+
+    if actualFnIdx >= 0 && actualFnIdx < arrays.length(vm_functions) {
+        vm_saveFrame()
+        vm_cs_closureEnv[arrays.length(vm_cs_closureEnv) - 1] = callClosureEnv
+        let func = arrays.get(vm_functions, actualFnIdx)
+        vm_fnIdx = actualFnIdx
+        vm_currentInstructions = func["instructions"]
+        vm_pc = 0
+        vm_registers = vm_initRegisters()
+        let localCount = func["localCount"]
+        if localCount == null { localCount = 0 }
+        vm_locals = []
+        let li = 0
+        while li < localCount {
+            arrays.push(vm_locals, null)
+            li = li + 1
+        }
+        let paramCount = func["paramCount"]
+        if paramCount == null { paramCount = 0 }
+        let pi = 0
+        while pi < argCount && pi < paramCount {
+            vm_setLocal(pi, arrays.get(args, pi))
+            pi = pi + 1
+        }
+        vm_argStack = []
+        vm_tryStack = []
+        vm_returnReg = resultReg
+    }
+}
+
+// ============ RET ============
+fn vm_executeRet(regIdx: int) -> void {
+    let returnValue = vm_getReg(regIdx)
+    let retReg = vm_returnReg
+    if arrays.length(vm_cs_pc) == 0 {
+        vm_halted = true
+        vm_result = returnValue
+        return
+    }
+    vm_restoreFrame()
+    if retReg >= 0 {
+        vm_setReg(retReg, returnValue)
+    }
+}
+
+// ============ MAKE_ARRAY ============
+fn vm_executeMakeArray(resultReg: int, count: int) -> void {
+    let elements: auto = []
+    let i = 0
+    while i < count {
+        let val = arrays.get(vm_argStack, arrays.length(vm_argStack) - 1)
+        arrays.pop(vm_argStack)
+        let newElems: auto = [val]
+        let j = 0
+        while j < arrays.length(elements) {
+            arrays.push(newElems, arrays.get(elements, j))
+            j = j + 1
+        }
+        elements = newElems
+        i = i + 1
+    }
+    vm_setReg(resultReg, elements)
+}
+
+// ============ MAKE_MAP ============
+// Use JSON serialization to create map dynamically, because TLL's
+// index assignment (map["key"] = value) is currently broken.
+fn vm_executeMakeMap(resultReg: int, count: int) -> void {
+    // Pop all entries from stack (order: value_n, key_n, ..., value_1, key_1)
+    let keys: auto = []
+    let values: auto = []
+    let i = 0
+    while i < count {
+        let v = arrays.get(vm_argStack, arrays.length(vm_argStack) - 1)
+        arrays.pop(vm_argStack)
+        let k = arrays.get(vm_argStack, arrays.length(vm_argStack) - 1)
+        arrays.pop(vm_argStack)
+        arrays.push(keys, convert.toString(k))
+        arrays.push(values, v)
+        i = i + 1
+    }
+    // Build JSON string: {"key1": val1, "key2": val2, ...}
+    // entries are in reverse order (last pushed first), so iterate backwards
+    let jsonStr = "{"
+    let j = count - 1
+    while j >= 0 {
+        let k = arrays.get(keys, j)
+        let v = arrays.get(values, j)
+        if j < count - 1 {
+            jsonStr = jsonStr + ","
+        }
+        let valStr = "null"
+        if convert.typeOf(v) != "null" { valStr = json.stringify(v) }
+        jsonStr = jsonStr + "\"" + k + "\":" + valStr
+        j = j - 1
+    }
+    jsonStr = jsonStr + "}"
+    let m = json.parse(jsonStr)
+    vm_setReg(resultReg, m)
+}
+
+// ============ INDEX_GET ============
+fn vm_executeIndexGet(resultReg: int, objReg: int, idxReg: int) -> void {
+    let obj = vm_getReg(objReg)
+    let idx = vm_getReg(idxReg)
+    if convert.typeOf(obj) == "list" {
+        vm_setReg(resultReg, arrays.get(obj, idx))
+    } else {
+        let val = obj[convert.toString(idx)]
+        if convert.typeOf(val) == "null" {
+            vm_setReg(resultReg, null)
+        } else {
+            vm_setReg(resultReg, val)
+        }
+    }
+}
+
+// ============ INDEX_SET ============
+fn vm_executeIndexSet(objReg: int, idxReg: int, valReg: int) -> void {
+    let obj = vm_getReg(objReg)
+    let idx = vm_getReg(idxReg)
+    let val = vm_getReg(valReg)
+    if convert.typeOf(obj) == "list" {
+        obj[idx] = val
+    } else {
+        obj[convert.toString(idx)] = val
+    }
+    vm_setReg(objReg, obj)
+}
+
+// ============ MEMBER_GET ============
+fn vm_executeMemberGet(resultReg: int, objReg: int, constIdx: int) -> void {
+    let obj = vm_getReg(objReg)
+    let propName = arrays.get(vm_constants, constIdx)
+    if propName == "length" && convert.typeOf(obj) == "list" {
+        vm_setReg(resultReg, arrays.length(obj))
+    } else if obj != null {
+        let val = obj[propName]
+        if convert.typeOf(val) == "null" {
+            vm_setReg(resultReg, null)
+        } else {
+            vm_setReg(resultReg, val)
+        }
+    } else {
+        vm_setReg(resultReg, null)
+    }
+}
+
+// ============ MEMBER_SET ============
+fn vm_executeMemberSet(objReg: int, constIdx: int, valReg: int) -> void {
+    let obj = vm_getReg(objReg)
+    let propName = arrays.get(vm_constants, constIdx)
+    let val = vm_getReg(valReg)
+    if obj != null {
+        obj[propName] = val
+        vm_setReg(objReg, obj)
+    }
+}
+
+// ============ Call builtin (full implementation v1.2.1) ============
+fn vm_callBuiltin(builtin: map, args: auto) -> any {
+    let idx = builtin["idx"]
+
+    // === io (0-2) ===
+    if idx == 0 {
+        if arrays.length(args) > 0 { io.println(convert.toString(arrays.get(args, 0))) } else { io.println("") }
+        return null
+    }
+    if idx == 1 {
+        if arrays.length(args) > 0 { io.print(convert.toString(arrays.get(args, 0))) }
+        return null
+    }
+    if idx == 2 {
+        if arrays.length(args) > 0 { return io.readLine(convert.toString(arrays.get(args, 0))) }
+        return io.readLine("")
+    }
+
+    // === strings (24-48) ===
+    if idx == 24 { return strings.length(convert.toString(arrays.get(args, 0))) }
+    if idx == 25 { return strings.toUpper(convert.toString(arrays.get(args, 0))) }
+    if idx == 26 { return strings.toLower(convert.toString(arrays.get(args, 0))) }
+    if idx == 27 { return strings.trim(convert.toString(arrays.get(args, 0))) }
+    if idx == 28 { return strings.trimStart(convert.toString(arrays.get(args, 0))) }
+    if idx == 29 { return strings.trimEnd(convert.toString(arrays.get(args, 0))) }
+    if idx == 30 { return strings.split(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1))) }
+    if idx == 31 { return strings.join(arrays.get(args, 0), convert.toString(arrays.get(args, 1))) }
+    if idx == 32 { return strings.contains(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1))) }
+    if idx == 33 { return strings.startsWith(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1))) }
+    if idx == 34 { return strings.endsWith(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1))) }
+    if idx == 35 {
+        if arrays.length(args) > 2 { return strings.substring(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1)), convert.toInt(arrays.get(args, 2))) }
+        return strings.substring(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1)))
+    }
+    if idx == 36 { return strings.replace(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1)), convert.toString(arrays.get(args, 2))) }
+    if idx == 37 { return strings.replaceAll(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1)), convert.toString(arrays.get(args, 2))) }
+    if idx == 38 { return strings.repeat(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1))) }
+    if idx == 39 {
+        if arrays.length(args) > 2 { return strings.padStart(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1)), convert.toString(arrays.get(args, 2))) }
+        return strings.padStart(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1)))
+    }
+    if idx == 40 {
+        if arrays.length(args) > 2 { return strings.padEnd(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1)), convert.toString(arrays.get(args, 2))) }
+        return strings.padEnd(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1)))
+    }
+    if idx == 41 { return strings.charAt(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1))) }
+    if idx == 42 { return strings.charCodeAt(convert.toString(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1))) }
+    if idx == 43 { return strings.indexOf(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1))) }
+    if idx == 44 { return strings.lastIndexOf(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1))) }
+    if idx == 45 { return strings.isEmpty(convert.toString(arrays.get(args, 0))) }
+    if idx == 46 { return strings.reverse(convert.toString(arrays.get(args, 0))) }
+    if idx == 47 { return strings.lines(convert.toString(arrays.get(args, 0))) }
+    if idx == 48 { return strings.words(convert.toString(arrays.get(args, 0))) }
+
+    // === arrays (49-71) ===
+    if idx == 49 { return arrays.length(arrays.get(args, 0)) }
+    if idx == 50 { return arrays.get(arrays.get(args, 0), convert.toInt(arrays.get(args, 1))) }
+    if idx == 51 {
+        let arr51 = arrays.get(args, 0)
+        let i51 = 1
+        while i51 < arrays.length(args) {
+            arrays.push(arr51, arrays.get(args, i51))
+            i51 = i51 + 1
+        }
+        return arr51
+    }
+    if idx == 52 { return arrays.pop(arrays.get(args, 0)) }
+    if idx == 53 { return arrays.shift(arrays.get(args, 0)) }
+    if idx == 54 {
+        let arr54 = arrays.get(args, 0)
+        let i54 = arrays.length(args) - 1
+        while i54 >= 1 {
+            arrays.unshift(arr54, arrays.get(args, i54))
+            i54 = i54 - 1
+        }
+        return arr54
+    }
+    if idx == 55 { return arrays.concat(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 56 {
+        if arrays.length(args) > 2 { return arrays.slice(arrays.get(args, 0), convert.toInt(arrays.get(args, 1)), convert.toInt(arrays.get(args, 2))) }
+        return arrays.slice(arrays.get(args, 0), convert.toInt(arrays.get(args, 1)))
+    }
+    if idx == 57 { return arrays.includes(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 58 { return arrays.indexOf(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 59 { return arrays.join(arrays.get(args, 0), convert.toString(arrays.get(args, 1))) }
+    if idx == 60 { return arrays.reverse(arrays.get(args, 0)) }
+    if idx == 61 { return arrays.sort(arrays.get(args, 0)) }
+    if idx == 62 { return arrays.filter(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 63 { return arrays.map(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 64 {
+        if arrays.length(args) > 2 { return arrays.reduce(arrays.get(args, 0), arrays.get(args, 1), arrays.get(args, 2)) }
+        return arrays.reduce(arrays.get(args, 0), arrays.get(args, 1))
+    }
+    if idx == 65 { arrays.forEach(arrays.get(args, 0), arrays.get(args, 1)); return null }
+    if idx == 66 { return arrays.find(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 67 { return arrays.some(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 68 { return arrays.every(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 69 {
+        if arrays.length(args) > 1 { return arrays.flat(arrays.get(args, 0), convert.toInt(arrays.get(args, 1))) }
+        return arrays.flat(arrays.get(args, 0))
+    }
+    if idx == 70 {
+        if arrays.length(args) > 3 { return arrays.fill(arrays.get(args, 0), arrays.get(args, 1), convert.toInt(arrays.get(args, 2)), convert.toInt(arrays.get(args, 3))) }
+        if arrays.length(args) > 2 { return arrays.fill(arrays.get(args, 0), arrays.get(args, 1), convert.toInt(arrays.get(args, 2))) }
+        return arrays.fill(arrays.get(args, 0), arrays.get(args, 1))
+    }
+    if idx == 71 {
+        if arrays.length(args) > 2 { return arrays.range(convert.toInt(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1)), convert.toInt(arrays.get(args, 2))) }
+        return arrays.range(convert.toInt(arrays.get(args, 0)), convert.toInt(arrays.get(args, 1)))
+    }
+
+    // === convert (72-78) ===
+    if idx == 72 { return convert.toInt(arrays.get(args, 0)) }
+    if idx == 73 { return convert.toFloat(arrays.get(args, 0)) }
+    if idx == 74 { return convert.toString(arrays.get(args, 0)) }
+    if idx == 75 { return convert.toBool(arrays.get(args, 0)) }
+    if idx == 76 { return convert.toChar(convert.toInt(arrays.get(args, 0))) }
+    if idx == 77 { return convert.charCode(convert.toString(arrays.get(args, 0))) }
+    if idx == 78 { return convert.typeOf(arrays.get(args, 0)) }
+
+    // === json (3-4) ===
+    if idx == 3 { return json.parse(convert.toString(arrays.get(args, 0))) }
+    if idx == 4 {
+        if arrays.length(args) > 1 { return json.stringify(arrays.get(args, 0), arrays.get(args, 1)) }
+        return json.stringify(arrays.get(args, 0))
+    }
+
+    // === math (5-23) ===
+    if idx == 5 { return math.sqrt(arrays.get(args, 0)) }
+    if idx == 6 { return math.abs(arrays.get(args, 0)) }
+    if idx == 7 { return math.floor(arrays.get(args, 0)) }
+    if idx == 8 { return math.ceil(arrays.get(args, 0)) }
+    if idx == 9 { return math.round(arrays.get(args, 0)) }
+    if idx == 10 { return math.min(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 11 { return math.max(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 12 { return math.pow(arrays.get(args, 0), arrays.get(args, 1)) }
+    if idx == 13 { return math.sin(arrays.get(args, 0)) }
+    if idx == 14 { return math.cos(arrays.get(args, 0)) }
+    if idx == 15 { return math.tan(arrays.get(args, 0)) }
+    if idx == 16 { return math.log(arrays.get(args, 0)) }
+    if idx == 17 { return math.log2(arrays.get(args, 0)) }
+    if idx == 18 { return math.log10(arrays.get(args, 0)) }
+    if idx == 19 { return math.exp(arrays.get(args, 0)) }
+    if idx == 20 { return math.pi() }
+    if idx == 21 { return math.e() }
+    if idx == 22 { return math.random() }
+    if idx == 23 { return math.randomInt(arrays.get(args, 0), arrays.get(args, 1)) }
+
+    // === fs (79-90) ===
+    if idx == 79 { return fs.readFile(convert.toString(arrays.get(args, 0))) }
+    if idx == 80 { fs.writeFile(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1))); return null }
+    if idx == 81 { fs.appendFile(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1))); return null }
+    if idx == 82 { return fs.exists(convert.toString(arrays.get(args, 0))) }
+    if idx == 83 { fs.mkdir(convert.toString(arrays.get(args, 0))); return null }
+    if idx == 84 { fs.remove(convert.toString(arrays.get(args, 0))); return null }
+    if idx == 85 { return fs.listDir(convert.toString(arrays.get(args, 0))) }
+    if idx == 86 { return fs.isFile(convert.toString(arrays.get(args, 0))) }
+    if idx == 87 { return fs.isDir(convert.toString(arrays.get(args, 0))) }
+    if idx == 88 { return fs.fileSize(convert.toString(arrays.get(args, 0))) }
+    if idx == 89 { fs.copyFile(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1))); return null }
+    if idx == 90 { fs.rename(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1))); return null }
+
+    // === http (91-97) ===
+    if idx == 91 { return http.get(convert.toString(arrays.get(args, 0))) }
+    if idx == 92 { return http.getText(convert.toString(arrays.get(args, 0))) }
+    if idx == 93 { return http.post(convert.toString(arrays.get(args, 0)), arrays.get(args, 1)) }
+    if idx == 94 { return http.postJson(convert.toString(arrays.get(args, 0)), arrays.get(args, 1)) }
+    if idx == 95 { return http.request(arrays.get(args, 0), arrays.get(args, 1), arrays.get(args, 2), arrays.get(args, 3)) }
+    if idx == 96 { return http.getStatus(convert.toString(arrays.get(args, 0))) }
+    if idx == 97 { http.download(convert.toString(arrays.get(args, 0)), convert.toString(arrays.get(args, 1))); return null }
+
+    // === agent (98-111) / workflow (112-119) — runtime extension, not needed for compiler self-host ===
+    if idx >= 98 && idx <= 119 {
+        io.println("VM warning: agent/workflow builtin " + convert.toString(idx) + " not available in TLL VM self-host mode")
+        return null
+    }
+
+    // Unknown builtin — explicit error
+    io.println("VM error: unknown builtin index " + convert.toString(idx))
+    return null
+}

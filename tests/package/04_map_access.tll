@@ -1,0 +1,31 @@
+// Test map field access reliability in TLL
+fn makeMap() -> map {
+    let r = json.parse("{}")
+    r["x"] = 100
+    r["y"] = 200
+    return r
+}
+
+fn main() -> void {
+    // Test 1: bracket access
+    let m = {"a": 1, "b": 2}
+    io.println("bracket a: " + convert.toString(m["a"]))
+    io.println("bracket b: " + convert.toString(m["b"]))
+
+    // Test 2: member (dot) access
+    let data = {"name": "test", "value": 42}
+    io.println("member name: " + data.name)
+    io.println("member value: " + convert.toString(data.value))
+
+    // Test 3: map as function return + field access
+    let m2 = makeMap()
+    io.println("returned x: " + convert.toString(m2["x"]))
+    io.println("returned y: " + convert.toString(m2["y"]))
+
+    // Test 4: nested map access
+    let nested = {"outer": {"inner": 99}}
+    io.println("nested: " + convert.toString(nested["outer"]["inner"]))
+
+    io.println("=== MAP ACCESS TEST DONE ===")
+}
+main()

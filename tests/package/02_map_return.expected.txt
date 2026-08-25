@@ -1,0 +1,3 @@
+m type: object
+m: {"key":"value"}
+key: value

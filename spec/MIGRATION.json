@@ -1,0 +1,51 @@
+{
+  "migration": {
+    "source_repo": "https://github.com/aliquanhou/tll",
+    "source_tag": "v1.1-language-core-freeze",
+    "source_commit": "2cf1dbd",
+    "target_repo": "https://github.com/aliquanhou/tllos",
+    "date": "2026-08-26",
+    "license": "Apache-2.0"
+  },
+  "files": [
+    {"target": "compiler/compiler.tll", "source": "tll-bootstrap/compiler.tll"},
+    {"target": "compiler/lexer.tll", "source": "tll-bootstrap/lib/lexer.tll"},
+    {"target": "compiler/parser.tll", "source": "tll-bootstrap/lib/parser.tll"},
+    {"target": "compiler/typechecker.tll", "source": "tll-bootstrap/lib/typechecker.tll"},
+    {"target": "compiler/codegen.tll", "source": "tll-bootstrap/lib/codegen.tll"},
+    {"target": "compiler/linker.tll", "source": "tll-bootstrap/lib/linker.tll"},
+    {"target": "runtime/vm.tll", "source": "tll-bootstrap/lib/vm.tll"},
+    {"target": "runtime/vm_run.tll", "source": "tll-bootstrap/vm_run.tll"},
+    {"target": "runtime/vm_launcher.tll", "source": "tll-bootstrap/vm_launcher.tll"},
+    {"target": "package/package.tll", "source": "tll-bootstrap/lib/package.tll"},
+    {"target": "bootstrap/ts/compiler.ts", "source": "tll-compiler/src/compiler.ts"},
+    {"target": "bootstrap/ts/runtime.ts", "source": "tll-compiler/src/runtime.ts"},
+    {"target": "bootstrap/ts/cli.ts", "source": "tll-compiler/src/cli.ts"},
+    {"target": "bootstrap/ts/lexer.ts", "source": "tll-compiler/src/lexer.ts"},
+    {"target": "bootstrap/ts/parser.ts", "source": "tll-compiler/src/parser.ts"},
+    {"target": "bootstrap/ts/typechecker.ts", "source": "tll-compiler/src/typechecker.ts"},
+    {"target": "bootstrap/ts/ast.ts", "source": "tll-compiler/src/ast.ts"},
+    {"target": "bootstrap/ts/stdlib/index.ts", "source": "tll-compiler/src/stdlib/index.ts"},
+    {"target": "tools/tll.js", "source": "tll-bootstrap/bin/tll.js"},
+    {"target": "tools/tll-repl.js", "source": "tll-bootstrap/bin/tll-repl.js"},
+    {"target": "tools/gen_compiler_bc.tll", "source": "tll-bootstrap/gen_compiler_bc.tll"},
+    {"target": "tools/exec_bytecode.js", "source": "tll-bootstrap/exec_bytecode.js"},
+    {"target": "tests/", "source": "tll-bootstrap/tests/"}
+  ],
+  "not_migrated": [
+    "*.tllbc (build artifacts, generated on first run)",
+    ".test_*_driver.tll (auto-generated temp files)",
+    "fix_*.py (one-off fix scripts)",
+    "test_*.tll (root-level ad-hoc tests, superseded by tests/ suite)",
+    "tll-bootstrap/docs/historical audit reports",
+    "Full tll Git history (fresh start for tllos)",
+    "website/ (will be rebuilt for TLL OS brand)",
+    "root docs/ and tools/ (evaluated per-file, none migrated)"
+  ],
+  "path_changes": {
+    "tll-bootstrap/lib/": "compiler/ + runtime/ + package/",
+    "tll-bootstrap/bin/": "tools/",
+    "tll-compiler/src/": "bootstrap/ts/",
+    "tll-bootstrap/": "(root, with subdirectory reorganization)"
+  }
+}

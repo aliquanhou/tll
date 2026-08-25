@@ -1,0 +1,11 @@
+fn outer() {
+    fn a() { return 10 }
+    fn b() { return 20 }
+    return a
+}
+
+fn main() {
+    let f = outer()
+    io.println(f())
+}
+main()

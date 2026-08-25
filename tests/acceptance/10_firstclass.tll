@@ -1,0 +1,28 @@
+// Acceptance Test 1.10: First-class functions (variables, params, returns)
+// Note: TLL does not support anonymous function literals; functions are referenced by name.
+fn add(a: int, b: int) -> int {
+    return a + b
+}
+
+fn multiply(a: int, b: int) -> int {
+    return a * b
+}
+
+fn applyBinary(f: any, a: int, b: int) -> int {
+    return f(a, b)
+}
+
+fn main() -> void {
+    // Function as variable
+    let f = add
+    io.println("f(3,4)=" + convert.toString(f(3, 4)))
+
+    // Reassign variable to another function
+    f = multiply
+    io.println("f(3,4)=" + convert.toString(f(3, 4)))
+
+    // Function as parameter
+    io.println("apply(add,5,6)=" + convert.toString(applyBinary(add, 5, 6)))
+    io.println("apply(mul,5,6)=" + convert.toString(applyBinary(multiply, 5, 6)))
+}
+main()

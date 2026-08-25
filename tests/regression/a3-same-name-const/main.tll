@@ -1,0 +1,4 @@
+from "./mod_a" import VERSION as vA
+from "./mod_b" import VERSION as vB
+io.println(vA)
+io.println(vB)

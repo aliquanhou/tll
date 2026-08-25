@@ -1,0 +1,8 @@
+from "../compiler/linker" import linkAndCompile
+fn main() -> void {
+    let bc = linkAndCompile("compiler/compiler.tll")
+    if bc.hasError == true { io.println("ERR: " + bc.error); return }
+    fs.writeFile("compiler_generated.tllbc", json.stringify(bc))
+    io.println("compiler: " + convert.toString(arrays.length(bc.functions)) + " functions")
+}
+main()

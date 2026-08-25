@@ -1,0 +1,74 @@
+// TLL Package Manifest (tll.toml) Parser
+// Minimal package support for v1.0
+
+fn parseToml(text: string) -> map {
+    let result = json.parse("{}")
+    let currentSection = ""
+    // Normalize line endings (Windows \r\n -> \n)
+    let normalized = strings.replaceAll(text, "\r", "")
+    let lines = strings.split(normalized, "\n")
+    let i = 0
+    while i < arrays.length(lines) {
+        let line = strings.trim(arrays.get(lines, i))
+        if strings.length(line) == 0 || strings.startsWith(line, "#") {
+            i = i + 1
+            continue
+        }
+        if strings.startsWith(line, "[") && strings.endsWith(line, "]") {
+            currentSection = strings.substring(line, 1, strings.length(line) - 1)
+            if currentSection != "package" && currentSection != "dependencies" {
+                result[currentSection] = json.parse("{}")
+            }
+        } else if strings.contains(line, "=") {
+            let parts = strings.split(line, "=")
+            let key = strings.trim(arrays.get(parts, 0))
+            let value = strings.trim(arrays.get(parts, 1))
+            // Remove quotes
+            if strings.startsWith(value, "\"") && strings.endsWith(value, "\"") {
+                value = strings.substring(value, 1, strings.length(value) - 1)
+            }
+            if currentSection == "" || currentSection == "package" {
+                result[key] = value
+            } else if currentSection == "dependencies" {
+                if result["dependencies"] == null { result["dependencies"] = {} }
+                let deps = result["dependencies"]
+                deps[key] = value
+            }
+        }
+        i = i + 1
+    }
+    return result
+}
+
+fn loadManifest(path: string) -> map {
+    if !fs.exists(path) {
+        let err = json.parse("{}")
+        err["hasError"] = true
+        err["error"] = "manifest not found: " + path
+        return err
+    }
+    let text = fs.readFile(path)
+    let parsed = parseToml(text)
+    parsed["hasError"] = false
+    return parsed
+}
+
+fn getEntryPoint(manifest: map) -> string {
+    if manifest["entry"] != null { return manifest["entry"] }
+    return "main.tll"
+}
+
+fn getPackageName(manifest: map) -> string {
+    if manifest["name"] != null { return manifest["name"] }
+    return "unknown"
+}
+
+fn getPackageVersion(manifest: map) -> string {
+    if manifest["version"] != null { return manifest["version"] }
+    return "0.0.0"
+}
+
+fn getDependencies(manifest: map) -> map {
+    if manifest["dependencies"] != null { return manifest["dependencies"] }
+    return json.parse("{}")
+}

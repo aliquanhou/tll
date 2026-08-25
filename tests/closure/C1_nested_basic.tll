@@ -1,0 +1,12 @@
+fn outer() {
+    fn inner() {
+        return 123
+    }
+    return inner
+}
+
+fn main() {
+    let f = outer()
+    io.println(f())
+}
+main()

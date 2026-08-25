@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm install
+      - name: Build bootstrap
+        run: npm run build-bootstrap
+      - name: Generate compiler bytecode
+        run: npm run gen-compiler-bc
+      - name: Run tests
+        run: npm test
+      - name: Self-host verification
+        run: npm run selfhost
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          generate_release_notes: true
+          files: |
+            compiler_generated.tllbc
+            runtime/vm_run.tllbc

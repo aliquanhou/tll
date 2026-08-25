@@ -1,0 +1,19 @@
+// Exception Test 1: nested try/catch
+fn main() -> void {
+    io.println("start")
+    try {
+        io.println("outer try")
+        try {
+            io.println("inner try")
+            throw "inner error"
+        } catch e {
+            io.println("inner catch: " + convert.toString(e))
+        }
+        io.println("after inner")
+        throw "outer error"
+    } catch e {
+        io.println("outer catch: " + convert.toString(e))
+    }
+    io.println("end")
+}
+main()

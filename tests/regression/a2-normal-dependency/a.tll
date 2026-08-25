@@ -1,0 +1,1 @@
+export fn aFn() -> int { return 1 }

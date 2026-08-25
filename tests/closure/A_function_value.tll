@@ -1,0 +1,15 @@
+fn add(a, b) {
+    return a + b
+}
+
+fn main() {
+    let f = add
+    let r = f(1, 2)
+    io.println("r: " + convert.toString(r))
+    if r == 3 {
+        io.println("PASS: function as value")
+    } else {
+        io.println("FAIL: expected 3, got " + convert.toString(r))
+    }
+}
+main()

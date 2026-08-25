@@ -1,0 +1,24 @@
+// Acceptance Test 1.9: Exceptions (try/catch/throw)
+fn risky(shouldFail: bool) -> int {
+    if shouldFail {
+        throw "intentional error"
+    }
+    return 42
+}
+
+fn main() -> void {
+    try {
+        let r = risky(true)
+        io.println("should not reach here: " + convert.toString(r))
+    } catch e {
+        io.println("caught: " + convert.toString(e))
+    }
+
+    try {
+        let r = risky(false)
+        io.println("no error: " + convert.toString(r))
+    } catch e {
+        io.println("unexpected: " + convert.toString(e))
+    }
+}
+main()

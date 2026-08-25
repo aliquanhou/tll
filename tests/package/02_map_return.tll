@@ -1,0 +1,8 @@
+from "./map_helper" import makeMap, getKey
+fn main() -> void {
+    let m = makeMap()
+    io.println("m type: " + convert.typeOf(m))
+    io.println("m: " + json.stringify(m))
+    io.println("key: " + getKey(m))
+}
+main()

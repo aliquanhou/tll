@@ -1,0 +1,5 @@
+input: [[package]
+name = "test"
+]
+result type: object
+result: {"name":"test"}

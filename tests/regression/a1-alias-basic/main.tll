@@ -1,0 +1,2 @@
+from "./math" import add as sum
+io.println(sum(1, 2))

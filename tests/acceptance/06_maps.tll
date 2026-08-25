@@ -1,0 +1,13 @@
+// Acceptance Test 1.6: Maps
+fn main() -> void {
+    let m: map = { name: "TLL", version: 1 }
+    io.println("name=" + convert.toString(m["name"]))
+    io.println("version=" + convert.toString(m["version"]))
+
+    m["year"] = 2026
+    io.println("year=" + convert.toString(m["year"]))
+
+    m["version"] = 2
+    io.println("version now=" + convert.toString(m["version"]))
+}
+main()

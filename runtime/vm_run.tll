@@ -1,0 +1,14 @@
+// TLL VM Runner - Runtime Independence isolation experiment
+// Loads a bytecode file from vm_run_target.tllbc and executes it via pure TLL VM
+// TS Runtime only acts as the initial bytecode loader for vm_run.tllbc itself
+
+from "./vm" import run
+
+fn main() -> void {
+    let bcPath = "vm_run_target.tllbc"
+    let source = fs.readFile(bcPath)
+    let program = json.parse(source)
+    run(program)
+}
+
+main()

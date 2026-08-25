@@ -1,0 +1,39 @@
+{
+  "name": "TLL OS",
+  "version": "1.1.0",
+  "frozen": true,
+  "types": ["int", "float", "string", "bool", "null", "array", "map", "fn"],
+  "statements": ["let", "const", "if", "else", "while", "for", "return", "try", "catch", "finally", "throw", "import", "from", "export", "fn"],
+  "expressions": ["literal", "identifier", "binary", "unary", "call", "member", "index", "array_literal", "map_literal", "assignment"],
+  "operators": ["+", "-", "*", "/", "%", "**", "==", "!=", "<", ">", "<=", ">=", "&&", "||", "!", "??"],
+  "keywords": ["fn", "let", "const", "if", "else", "while", "for", "return", "try", "catch", "finally", "throw", "import", "from", "export", "true", "false", "null"],
+  "modules": ["io", "json", "math", "strings", "arrays", "convert", "fs", "http"],
+  "features": {
+    "first_class_functions": {"supported": true, "frozen": true},
+    "higher_order_functions": {"supported": true, "frozen": true},
+    "nested_functions": {"supported": true, "frozen": true},
+    "closures": {"supported": true, "frozen": true},
+    "mutable_capture": {"supported": true, "frozen": true},
+    "shared_box": {"supported": true, "frozen": true},
+    "closure_isolation": {"supported": true, "frozen": true},
+    "flat_closure": {"supported": true, "frozen": true},
+    "escaping_closures": {"supported": true, "frozen": true},
+    "modules": {"supported": true, "frozen": true},
+    "packages": {"supported": true, "frozen": true},
+    "exceptions": {"supported": true, "frozen": true},
+    "self_hosting": {"supported": true, "frozen": true},
+    "deterministic_builds": {"supported": true, "frozen": true},
+    "runtime_independence": {"supported": true, "frozen": true},
+    "generics": {"supported": false, "note": "Not in v1.1"},
+    "async_await": {"supported": false, "note": "Not in v1.1"},
+    "agent_native": {"supported": false, "note": "Planned for v1.2"}
+  },
+  "import_syntax": "from \"./path\" import name",
+  "cli_commands": ["run", "build", "check", "repl", "version", "help"],
+  "bytecode_format": "JSON",
+  "self_host_baseline": {
+    "functions": 152,
+    "constants": 3867,
+    "instructions": 18463
+  }
+}

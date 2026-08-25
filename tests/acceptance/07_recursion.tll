@@ -1,0 +1,21 @@
+// Acceptance Test 1.7: Recursion
+fn factorial(n: int) -> int {
+    if n <= 1 {
+        return 1
+    }
+    return n * factorial(n - 1)
+}
+
+fn fib(n: int) -> int {
+    if n <= 1 {
+        return n
+    }
+    return fib(n - 1) + fib(n - 2)
+}
+
+fn main() -> void {
+    io.println("factorial(5)=" + convert.toString(factorial(5)))
+    io.println("factorial(10)=" + convert.toString(factorial(10)))
+    io.println("fib(10)=" + convert.toString(fib(10)))
+}
+main()

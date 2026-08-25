@@ -1,0 +1,18 @@
+// G: Nested Closure - three levels: outer -> middle -> inner
+// Verify flat closure: inner directly references outer.x's UpvalueBox
+fn outer(x) {
+    fn middle() {
+        fn inner() {
+            return x
+        }
+        return inner
+    }
+    return middle()
+}
+
+fn main() {
+    let f = outer(42)
+    io.println(f())
+    io.println(outer(99)())
+}
+main()

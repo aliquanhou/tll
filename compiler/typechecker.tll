@@ -1,0 +1,416 @@
+// TLL Type Checker - Self-hosting Bootstrap (v1.0 Phase 3)
+// Name resolution and type checking, rewritten from TypeScript
+// Uses flat lists for symbols/types to avoid nested-map mutation issues
+
+// ============ TypeChecker state ============
+let tc_errors: list = []
+let tc_symbols: list = []   // all symbols: {name, type, mutable, kind, scope}
+let tc_types: list = []     // all types: {name, type, scope}
+let tc_scopeLevel = 0
+
+// ============ TypeInfo helpers ============
+
+fn makeType(name: string, kind: string) -> map {
+    return { name: name, kind: kind }
+}
+
+fn typeInt() -> map { return makeType("int", "primitive") }
+fn typeFloat() -> map { return makeType("float", "primitive") }
+fn typeStr() -> map { return makeType("str", "primitive") }
+fn typeBool() -> map { return makeType("bool", "primitive") }
+fn typeVoid() -> map { return makeType("void", "primitive") }
+fn typeNull() -> map { return makeType("Null", "primitive") }
+fn typeAuto() -> map { return makeType("auto", "primitive") }
+fn typeUnknown() -> map { return makeType("unknown", "primitive") }
+fn typeList() -> map { return makeType("List", "generic") }
+fn typeMap() -> map { return makeType("Map", "generic") }
+
+fn isNumeric(t: map) -> bool {
+    let n = t["name"]
+    return n == "int" || n == "float"
+}
+
+// ============ Scope management (flat lists) ============
+
+fn tc_pushScope() -> void {
+    tc_scopeLevel = tc_scopeLevel + 1
+}
+
+fn tc_popScope() -> void {
+    // Remove all symbols/types at current scope level
+    while arrays.length(tc_symbols) > 0 {
+        let last = arrays.get(tc_symbols, arrays.length(tc_symbols) - 1)
+        if last["scope"] == tc_scopeLevel {
+            arrays.pop(tc_symbols)
+        } else {
+            break
+        }
+    }
+    while arrays.length(tc_types) > 0 {
+        let last = arrays.get(tc_types, arrays.length(tc_types) - 1)
+        if last["scope"] == tc_scopeLevel {
+            arrays.pop(tc_types)
+        } else {
+            break
+        }
+    }
+    tc_scopeLevel = tc_scopeLevel - 1
+}
+
+fn tc_define(name: string, symbol: map) -> void {
+    symbol["scope"] = tc_scopeLevel
+    arrays.push(tc_symbols, symbol)
+}
+
+fn tc_lookup(name: string) -> map {
+    // Search from most recent to oldest (innermost scope first)
+    let i = arrays.length(tc_symbols) - 1
+    while i >= 0 {
+        let sym = arrays.get(tc_symbols, i)
+        if sym["name"] == name {
+            return sym
+        }
+        i = i - 1
+    }
+    return null
+}
+
+fn tc_defineType(name: string, t: map) -> void {
+    let entry = { name: name, type: t, scope: tc_scopeLevel }
+    arrays.push(tc_types, entry)
+}
+
+fn tc_lookupType(name: string) -> map {
+    let i = arrays.length(tc_types) - 1
+    while i >= 0 {
+        let entry = arrays.get(tc_types, i)
+        if entry["name"] == name {
+            return entry["type"]
+        }
+        i = i - 1
+    }
+    return null
+}
+
+fn tc_error(line: int, message: string) -> void {
+    arrays.push(tc_errors, "Line " + convert.toString(line) + ": " + message)
+}
+
+// ============ Builtin registration ============
+
+fn tc_registerBuiltins() -> void {
+    tc_defineType("int", typeInt())
+    tc_defineType("float", typeFloat())
+    tc_defineType("str", typeStr())
+    tc_defineType("string", typeStr())
+    tc_defineType("bool", typeBool())
+    tc_defineType("void", typeVoid())
+    tc_defineType("null", typeNull())
+    tc_defineType("auto", typeAuto())
+    tc_defineType("unknown", typeUnknown())
+    tc_defineType("List", typeList())
+    tc_defineType("Map", typeMap())
+    tc_defineType("any", typeAuto())
+
+    // Stdlib modules as variables with auto type
+    let modules = ["io", "json", "math", "strings", "arrays", "convert", "fs", "http", "agent", "workflow"]
+    let i = 0
+    while i < arrays.length(modules) {
+        let modName = arrays.get(modules, i)
+        let sym = { name: modName, type: typeAuto(), mutable: false, kind: "variable" }
+        tc_define(modName, sym)
+        i = i + 1
+    }
+}
+
+// ============ Main entry ============
+
+export fn check(program: map) -> list {
+    tc_errors = []
+    tc_symbols = []
+    tc_types = []
+    tc_scopeLevel = 0
+    tc_pushScope()
+    tc_registerBuiltins()
+
+    // Pre-register function declarations
+    let stmts = program["statements"]
+    let i = 0
+    while i < arrays.length(stmts) {
+        let stmt = arrays.get(stmts, i)
+        if stmt["kind"] == "Fn" {
+            let fnType = makeType("fn", "function")
+            fnType["returnType"] = typeAuto()
+            let sym = { name: stmt["name"], type: fnType, mutable: false, kind: "function" }
+            tc_define(stmt["name"], sym)
+        }
+        i = i + 1
+    }
+
+    // Check all statements
+    i = 0
+    while i < arrays.length(stmts) {
+        let stmt = arrays.get(stmts, i)
+        tc_checkStatement(stmt)
+        i = i + 1
+    }
+
+    return tc_errors
+}
+
+// ============ Statement checking ============
+
+fn tc_checkStatement(stmt: map) -> void {
+    if stmt == null { return }
+    let kind = stmt["kind"]
+
+    if kind == "Let" { tc_checkLet(stmt); return }
+    if kind == "Const" { tc_checkConst(stmt); return }
+    if kind == "Fn" { tc_checkFn(stmt); return }
+    if kind == "Return" { tc_checkReturn(stmt); return }
+    if kind == "If" { tc_checkIf(stmt); return }
+    if kind == "While" { tc_checkWhile(stmt); return }
+    if kind == "For" { tc_checkFor(stmt); return }
+    if kind == "Break" { return }
+    if kind == "Continue" { return }
+    if kind == "Try" { tc_checkTry(stmt); return }
+    if kind == "Throw" { tc_checkExpression(stmt["value"]); return }
+    if kind == "Import" { return }
+    if kind == "Export" { tc_checkStatement(stmt["declaration"]); return }
+    if kind == "Block" { tc_checkBlock(stmt); return }
+    if kind == "ExpressionStatement" { tc_checkExpression(stmt["expression"]); return }
+}
+
+fn tc_checkLet(stmt: map) -> void {
+    let valueType = tc_checkExpression(stmt["value"])
+    let sym = { name: stmt["name"], type: valueType, mutable: true, kind: "variable" }
+    tc_define(stmt["name"], sym)
+}
+
+fn tc_checkConst(stmt: map) -> void {
+    let valueType = tc_checkExpression(stmt["value"])
+    let sym = { name: stmt["name"], type: valueType, mutable: false, kind: "variable" }
+    tc_define(stmt["name"], sym)
+}
+
+fn tc_checkFn(stmt: map) -> void {
+    tc_pushScope()
+
+    // Define parameters
+    let params = stmt["params"]
+    let i = 0
+    while i < arrays.length(params) {
+        let param = arrays.get(params, i)
+        let paramType = typeAuto()
+        if param["type"] != null {
+            paramType = tc_resolveType(param["type"])
+        }
+        let sym = { name: param["name"], type: paramType, mutable: true, kind: "param" }
+        tc_define(param["name"], sym)
+        i = i + 1
+    }
+
+    // Check body
+    tc_checkBlock(stmt["body"])
+
+    tc_popScope()
+}
+
+fn tc_checkReturn(stmt: map) -> void {
+    if stmt["value"] != null {
+        tc_checkExpression(stmt["value"])
+    }
+}
+
+fn tc_checkIf(stmt: map) -> void {
+    tc_checkExpression(stmt["condition"])
+    tc_checkBlock(stmt["consequent"])
+    if stmt["alternate"] != null {
+        let alt = stmt["alternate"]
+        if alt["kind"] == "If" {
+            tc_checkIf(alt)
+        } else {
+            tc_checkBlock(alt)
+        }
+    }
+}
+
+fn tc_checkWhile(stmt: map) -> void {
+    tc_checkExpression(stmt["condition"])
+    tc_checkBlock(stmt["body"])
+}
+
+fn tc_checkFor(stmt: map) -> void {
+    tc_pushScope()
+    let sym = { name: stmt["variable"], type: typeAuto(), mutable: true, kind: "variable" }
+    tc_define(stmt["variable"], sym)
+    tc_checkExpression(stmt["iterable"])
+    tc_checkBlock(stmt["body"])
+    tc_popScope()
+}
+
+fn tc_checkTry(stmt: map) -> void {
+    tc_checkBlock(stmt["block"])
+    if stmt["catchBlock"] != null {
+        tc_pushScope()
+        if stmt["catchParam"] != "" && stmt["catchParam"] != null {
+            let sym = { name: stmt["catchParam"], type: typeStr(), mutable: true, kind: "param" }
+            tc_define(stmt["catchParam"], sym)
+        }
+        tc_checkBlock(stmt["catchBlock"])
+        tc_popScope()
+    }
+    if stmt["finallyBlock"] != null {
+        tc_checkBlock(stmt["finallyBlock"])
+    }
+}
+
+fn tc_checkBlock(stmt: map) -> void {
+    tc_pushScope()
+    let stmts = stmt["statements"]
+    let i = 0
+    while i < arrays.length(stmts) {
+        tc_checkStatement(arrays.get(stmts, i))
+        i = i + 1
+    }
+    tc_popScope()
+}
+
+// ============ Expression checking ============
+
+fn tc_checkExpression(expr: map) -> map {
+    if expr == null { return typeUnknown() }
+    let kind = expr["kind"]
+
+    if kind == "Int" { return typeInt() }
+    if kind == "Float" { return typeFloat() }
+    if kind == "String" { return typeStr() }
+    if kind == "Bool" { return typeBool() }
+    if kind == "Null" { return typeNull() }
+
+    if kind == "Ident" {
+        let sym = tc_lookup(expr["name"])
+        if sym == null {
+            tc_error(expr["line"], "undefined identifier '" + expr["name"] + "'")
+            return typeUnknown()
+        }
+        return sym["type"]
+    }
+
+    if kind == "Binary" {
+        let left = tc_checkExpression(expr["left"])
+        let right = tc_checkExpression(expr["right"])
+        let op = expr["operator"]
+
+        if op == "+" {
+            if left["name"] == "str" || right["name"] == "str" {
+                return typeStr()
+            }
+            if !isNumeric(left) || !isNumeric(right) {
+                tc_error(expr["line"], "arithmetic operator '+' requires numeric or string operands")
+            }
+            return left
+        }
+        if op == "-" || op == "*" || op == "/" || op == "%" || op == "**" {
+            if !isNumeric(left) || !isNumeric(right) {
+                tc_error(expr["line"], "arithmetic operator '" + op + "' requires numeric operands")
+            }
+            return left
+        }
+        if op == "==" || op == "!=" || op == "<" || op == ">" || op == "<=" || op == ">=" {
+            return typeBool()
+        }
+        if op == "&&" || op == "||" {
+            return typeBool()
+        }
+        // Assignment operators
+        if op == "=" || op == "+=" || op == "-=" || op == "*=" || op == "/=" || op == "%=" {
+            return right
+        }
+        return left
+    }
+
+    if kind == "Unary" {
+        return tc_checkExpression(expr["operand"])
+    }
+
+    if kind == "Call" {
+        let calleeType = tc_checkExpression(expr["callee"])
+        let args = expr["args"]
+        let i = 0
+        while i < arrays.length(args) {
+            tc_checkExpression(arrays.get(args, i))
+            i = i + 1
+        }
+        // Stdlib function calls return auto
+        if calleeType["name"] == "auto" {
+            return typeAuto()
+        }
+        if calleeType["returnType"] != null {
+            return calleeType["returnType"]
+        }
+        return typeVoid()
+    }
+
+    if kind == "Member" {
+        tc_checkExpression(expr["object"])
+        return typeAuto()
+    }
+
+    if kind == "Index" {
+        tc_checkExpression(expr["object"])
+        tc_checkExpression(expr["index"])
+        return typeAuto()
+    }
+
+    if kind == "Array" {
+        let elements = expr["elements"]
+        let i = 0
+        while i < arrays.length(elements) {
+            tc_checkExpression(arrays.get(elements, i))
+            i = i + 1
+        }
+        return typeList()
+    }
+
+    if kind == "Map" {
+        let entries = expr["entries"]
+        let i = 0
+        while i < arrays.length(entries) {
+            let entry = arrays.get(entries, i)
+            tc_checkExpression(entry["key"])
+            tc_checkExpression(entry["value"])
+            i = i + 1
+        }
+        return typeMap()
+    }
+
+    if kind == "Pipe" {
+        tc_checkExpression(expr["left"])
+        tc_checkExpression(expr["right"])
+        return typeAuto()
+    }
+
+    if kind == "Range" {
+        tc_checkExpression(expr["start"])
+        tc_checkExpression(expr["end"])
+        return typeList()
+    }
+
+    if kind == "Await" || kind == "Spawn" {
+        return tc_checkExpression(expr["expression"])
+    }
+
+    return typeAuto()
+}
+
+// ============ Type resolution ============
+
+fn tc_resolveType(typeNode: map) -> map {
+    if typeNode == null { return typeAuto() }
+    let name = typeNode["name"]
+    if name == null { return typeAuto() }
+    let t = tc_lookupType(name)
+    if t != null { return t }
+    return makeType(name, "primitive")
+}

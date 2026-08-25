@@ -1,0 +1,976 @@
+// TLL Module Linker
+// Resolves imports, builds dependency graph, merges ASTs, and compiles
+
+from "./lexer" import tokenize
+from "./parser" import parse
+from "./codegen" import compile
+
+// ============ Path Resolution ============
+
+// Get directory from a file path
+fn getDir(filePath: string) -> string {
+    let lastSlash = strings.lastIndexOf(filePath, "/")
+    if lastSlash < 0 {
+        return "."
+    }
+    return strings.substring(filePath, 0, lastSlash)
+}
+
+// Resolve a module path relative to current file
+fn resolveModulePath(currentFile: string, importPath: string) -> string {
+    let dir = getDir(currentFile)
+    let cleanPath = importPath
+    // Handle ./ prefix
+    if strings.length(cleanPath) >= 2 && strings.substring(cleanPath, 0, 2) == "./" {
+        cleanPath = strings.substring(cleanPath, 2, strings.length(cleanPath))
+    }
+    // Handle ../ prefix (go up one directory)
+    if strings.length(cleanPath) >= 3 && strings.substring(cleanPath, 0, 3) == "../" {
+        cleanPath = strings.substring(cleanPath, 3, strings.length(cleanPath))
+        let lastSlash = strings.lastIndexOf(dir, "/")
+        if lastSlash >= 0 {
+            dir = strings.substring(dir, 0, lastSlash)
+        }
+    }
+    let fullPath = dir + "/" + cleanPath
+    // Add .tll extension if not present
+    if !strings.endsWith(fullPath, ".tll") {
+        fullPath = fullPath + ".tll"
+    }
+    return fullPath
+}
+
+// Check if a module path is relative (starts with ./ or ../)
+fn isRelativeModule(modPath: string) -> bool {
+    if strings.length(modPath) >= 2 {
+        let first = strings.substring(modPath, 0, 1)
+        let second = strings.substring(modPath, 1, 2)
+        if first == "." && second == "/" {
+            return true
+        }
+        if first == "." && second == "." {
+            return true
+        }
+    }
+    return false
+}
+
+// ============ Import Extraction ============
+
+// Extract import module paths from AST
+fn extractImports(ast: map) -> list {
+    let imports: list = []
+    let stmts = ast.statements
+    let i = 0
+    while i < arrays.length(stmts) {
+        let stmt = arrays.get(stmts, i)
+        if stmt.kind == "Import" {
+            arrays.push(imports, stmt.modulePath)
+        }
+        i = i + 1
+    }
+    return imports
+}
+
+// ============ Dependency Resolution ============
+
+// Global state for dependency resolution
+let resolvedFiles: list = []
+let visitedFiles: list = []
+let circularDependencyError: string = ""
+
+// Check if a file is already in the resolved list
+fn isResolved(filePath: string) -> bool {
+    let i = 0
+    while i < arrays.length(resolvedFiles) {
+        if arrays.get(resolvedFiles, i) == filePath {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+// Check if a file is currently being visited (for circular dependency detection)
+fn isVisited(filePath: string) -> bool {
+    let i = 0
+    while i < arrays.length(visitedFiles) {
+        if arrays.get(visitedFiles, i) == filePath {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+// Extract import paths from source code using string matching
+fn extractImportsFromSource(source: string) -> list {
+    let imports: list = []
+    let lines = strings.split(source, "\n")
+    let i = 0
+    while i < arrays.length(lines) {
+        let line = arrays.get(lines, i)
+        // Check for "from ... import" pattern
+        if strings.startsWith(line, "from ") {
+            let firstQuote = strings.indexOf(line, "\"")
+            if firstQuote >= 0 {
+                let rest = strings.substring(line, firstQuote + 1, strings.length(line))
+                let secondQuote = strings.indexOf(rest, "\"")
+                if secondQuote >= 0 {
+                    let modPath = strings.substring(rest, 0, secondQuote)
+                    arrays.push(imports, modPath)
+                }
+            }
+        }
+        i = i + 1
+    }
+    return imports
+}
+
+// Recursively resolve dependencies
+fn load(filePath: string) -> void {
+    if isResolved(filePath) {
+        return
+    }
+    if isVisited(filePath) {
+        circularDependencyError = "Circular dependency detected: " + filePath
+        io.println("Error: " + circularDependencyError)
+        return
+    }
+    arrays.push(visitedFiles, filePath)
+
+    let source = fs.readFile(filePath)
+    let imports = extractImportsFromSource(source)
+
+    // Load dependencies first
+    let i = 0
+    while i < arrays.length(imports) {
+        let modPath = arrays.get(imports, i)
+        if isRelativeModule(modPath) {
+            let depPath = resolveModulePath(filePath, modPath)
+            load(depPath)
+        }
+        // Stdlib modules (io, math, etc.) are built-in, skip
+        i = i + 1
+    }
+
+    // Add current file after dependencies
+    arrays.push(resolvedFiles, filePath)
+}
+
+// Resolve all dependencies for an entry file
+export fn resolveDependencies(entryFile: string) -> list {
+    resolvedFiles = []
+    visitedFiles = []
+    circularDependencyError = ""
+    load(entryFile)
+    return resolvedFiles
+}
+
+
+// Extract import aliases from source: returns two parallel lists (aliasNames, originalNames)
+fn extractImportAliases(source: string) -> list {
+    let aliasNames: list = []
+    let originalNames: list = []
+    let lines = strings.split(source, "\n")
+    let i = 0
+    while i < arrays.length(lines) {
+        let line = arrays.get(lines, i)
+        if strings.startsWith(line, "from ") || strings.startsWith(line, "import ") {
+            // Find the import list after 'import'
+            let importIdx = strings.indexOf(line, "import ")
+            if importIdx >= 0 {
+                let rest = strings.substring(line, importIdx + 7, strings.length(line))
+                // Split by comma
+                let parts = strings.split(rest, ",")
+                let p = 0
+                while p < arrays.length(parts) {
+                    let part = arrays.get(parts, p)
+                    part = strings.trim(part)
+                    if strings.length(part) > 0 {
+                        let asIdx = strings.indexOf(part, " as ")
+                        if asIdx >= 0 {
+                            let orig = strings.trim(strings.substring(part, 0, asIdx))
+                            let alias = strings.trim(strings.substring(part, asIdx + 4, strings.length(part)))
+                            arrays.push(aliasNames, alias)
+                            arrays.push(originalNames, orig)
+                        }
+                    }
+                    p = p + 1
+                }
+            }
+        }
+        i = i + 1
+    }
+    // Return as a 2-element list [aliasNames, originalNames]
+    let result: list = []
+    arrays.push(result, aliasNames)
+    arrays.push(result, originalNames)
+    return result
+}
+
+// Replace alias identifiers in a line with original names (lexical replacement, skips strings)
+fn replaceAliasesInLine(line: string, aliasNames: list, originalNames: list) -> string {
+    if arrays.length(aliasNames) == 0 {
+        return line
+    }
+    let result = ""
+    let pos = 0
+    let lineLen = strings.length(line)
+    while pos < lineLen {
+        let ch = strings.charAt(line, pos)
+        // Skip string literals
+        if ch == "\"" {
+            result = result + ch
+            pos = pos + 1
+            while pos < lineLen {
+                let c2 = strings.charAt(line, pos)
+                result = result + c2
+                pos = pos + 1
+                if c2 == "\"" {
+                    break
+                }
+            }
+            continue
+        }
+        // Skip line comments
+        if ch == "/" && pos + 1 < lineLen && strings.charAt(line, pos + 1) == "/" {
+            result = result + strings.substring(line, pos, lineLen)
+            pos = lineLen
+            continue
+        }
+        // Read identifier
+        if (ch >= "a" && ch <= "z") || (ch >= "A" && ch <= "Z") || ch == "_" {
+            let start = pos
+            pos = pos + 1
+            while pos < lineLen {
+                let c3 = strings.charAt(line, pos)
+                if (c3 >= "a" && c3 <= "z") || (c3 >= "A" && c3 <= "Z") || (c3 >= "0" && c3 <= "9") || c3 == "_" {
+                    pos = pos + 1
+                } else {
+                    break
+                }
+            }
+            let ident = strings.substring(line, start, pos)
+            // Check if it's an alias
+            let found = false
+            let a = 0
+            while a < arrays.length(aliasNames) {
+                if arrays.get(aliasNames, a) == ident {
+                    result = result + arrays.get(originalNames, a)
+                    found = true
+                    break
+                }
+                a = a + 1
+            }
+            if !found {
+                result = result + ident
+            }
+        } else {
+            result = result + ch
+            pos = pos + 1
+        }
+    }
+    return result
+}
+
+
+// ============ AST-level Import Alias Resolution ============
+
+// Find alias index in parallel list, return -1 if not found
+fn findAliasIndex(name: string, aliasNames: list) -> int {
+    let i = 0
+    while i < arrays.length(aliasNames) {
+        if arrays.get(aliasNames, i) == name {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+// Rename identifiers in an expression (AST-level, does not touch Member.property)
+fn renameInExpr(expr: map, aliasNames: list, originalNames: list) -> void {
+    if expr == null { return }
+    let kind = expr.kind
+    if kind == "Ident" {
+        let idx = findAliasIndex(expr.name, aliasNames)
+        if idx >= 0 {
+            expr.name = arrays.get(originalNames, idx)
+        }
+        return
+    }
+    if kind == "Member" {
+        renameInExpr(expr.object, aliasNames, originalNames)
+        return
+    }
+    if kind == "Call" {
+        renameInExpr(expr.callee, aliasNames, originalNames)
+        let i = 0
+        while i < arrays.length(expr.args) {
+            renameInExpr(arrays.get(expr.args, i), aliasNames, originalNames)
+            i = i + 1
+        }
+        return
+    }
+    if kind == "Index" {
+        renameInExpr(expr.object, aliasNames, originalNames)
+        renameInExpr(expr.index, aliasNames, originalNames)
+        return
+    }
+    if kind == "Binary" {
+        renameInExpr(expr.left, aliasNames, originalNames)
+        renameInExpr(expr.right, aliasNames, originalNames)
+        return
+    }
+    if kind == "Unary" {
+        renameInExpr(expr.argument, aliasNames, originalNames)
+        return
+    }
+    if kind == "Array" {
+        let i = 0
+        while i < arrays.length(expr.elements) {
+            renameInExpr(arrays.get(expr.elements, i), aliasNames, originalNames)
+            i = i + 1
+        }
+        return
+    }
+    if kind == "Map" {
+        let i = 0
+        while i < arrays.length(expr.entries) {
+            let entry = arrays.get(expr.entries, i)
+            renameInExpr(entry.value, aliasNames, originalNames)
+            i = i + 1
+        }
+        return
+    }
+    if kind == "Pipe" {
+        renameInExpr(expr.left, aliasNames, originalNames)
+        renameInExpr(expr.right, aliasNames, originalNames)
+        return
+    }
+    if kind == "Assignment" {
+        renameInExpr(expr.value, aliasNames, originalNames)
+        return
+    }
+    if kind == "Ternary" {
+        renameInExpr(expr.condition, aliasNames, originalNames)
+        renameInExpr(expr.consequent, aliasNames, originalNames)
+        renameInExpr(expr.alternate, aliasNames, originalNames)
+        return
+    }
+    if kind == "Range" {
+        renameInExpr(expr.start, aliasNames, originalNames)
+        renameInExpr(expr.end, aliasNames, originalNames)
+        return
+    }
+    // Int, Float, String, Bool, Null - no action
+}
+
+// Rename identifiers in top-level statements (does NOT enter function bodies)
+fn renameTopLevelStmts(stmts: list, aliasNames: list, originalNames: list) -> void {
+    let i = 0
+    while i < arrays.length(stmts) {
+        let stmt = arrays.get(stmts, i)
+        if stmt == null { i = i + 1; continue }
+        let kind = stmt.kind
+        if kind == "Let" || kind == "Const" {
+            renameInExpr(stmt.value, aliasNames, originalNames)
+        } else if kind == "Expression" || kind == "ExpressionStatement" {
+            renameInExpr(stmt.expression, aliasNames, originalNames)
+        } else if kind == "If" {
+            renameInExpr(stmt.condition, aliasNames, originalNames)
+            if stmt.consequent != null && stmt.consequent.statements != null {
+                renameTopLevelStmts(stmt.consequent.statements, aliasNames, originalNames)
+            }
+            if stmt.alternate != null {
+                if stmt.alternate.statements != null {
+                    renameTopLevelStmts(stmt.alternate.statements, aliasNames, originalNames)
+                } else {
+                    let altList: list = []
+                    arrays.push(altList, stmt.alternate)
+                    renameTopLevelStmts(altList, aliasNames, originalNames)
+                }
+            }
+        } else if kind == "While" {
+            renameInExpr(stmt.condition, aliasNames, originalNames)
+            if stmt.body != null && stmt.body.statements != null {
+                renameTopLevelStmts(stmt.body.statements, aliasNames, originalNames)
+            }
+        } else if kind == "For" {
+            renameInExpr(stmt.init, aliasNames, originalNames)
+            renameInExpr(stmt.condition, aliasNames, originalNames)
+            renameInExpr(stmt.update, aliasNames, originalNames)
+            if stmt.body != null && stmt.body.statements != null {
+                renameTopLevelStmts(stmt.body.statements, aliasNames, originalNames)
+            }
+        } else if kind == "Block" {
+            if stmt.statements != null {
+                renameTopLevelStmts(stmt.statements, aliasNames, originalNames)
+            }
+        } else if kind == "Return" {
+            renameInExpr(stmt.argument, aliasNames, originalNames)
+        } else if kind == "Throw" {
+            renameInExpr(stmt.argument, aliasNames, originalNames)
+        } else if kind == "Try" {
+            if stmt.block != null && stmt.block.statements != null {
+                renameTopLevelStmts(stmt.block.statements, aliasNames, originalNames)
+            }
+            if stmt.handler != null && stmt.handler.body != null && stmt.handler.body.statements != null {
+                renameTopLevelStmts(stmt.handler.body.statements, aliasNames, originalNames)
+            }
+            if stmt.finalizer != null && stmt.finalizer.statements != null {
+                renameTopLevelStmts(stmt.finalizer.statements, aliasNames, originalNames)
+            }
+        }
+        // Fn, Import, Export, Tool - no action
+        // Fn body is local scope, Import/Export are removed later
+        i = i + 1
+    }
+}
+
+// Extract import aliases from AST (returns [aliasNames, originalNames])
+fn extractAliasesFromAST(ast: map) -> list {
+    let aliasNames: list = []
+    let originalNames: list = []
+    let i = 0
+    while i < arrays.length(ast.statements) {
+        let stmt = arrays.get(ast.statements, i)
+        if stmt != null && stmt.kind == "Import" {
+            let j = 0
+            while j < arrays.length(stmt.names) {
+                let binding = arrays.get(stmt.names, j)
+                // Parser stores {name, alias} map objects
+                let origName = binding.name
+                let aliasName = binding.alias
+                if aliasName == null { aliasName = origName }
+                arrays.push(aliasNames, aliasName)
+                arrays.push(originalNames, origName)
+                j = j + 1
+            }
+        }
+        i = i + 1
+    }
+    let result: list = []
+    arrays.push(result, aliasNames)
+    arrays.push(result, originalNames)
+    return result
+}
+
+// ============ Full Link and Compile ============
+
+// Link all modules and compile to bytecode
+
+// ============ A3: Module Symbol Resolution ============
+
+// Collect module-level symbols (fn, let, const) from a module AST
+fn collectModuleSymbols(ast: map, moduleIndex: int) -> list {
+    let symbols: list = []
+    let prefix = "__mod_" + convert.toString(moduleIndex) + "__"
+    let i = 0
+    while i < arrays.length(ast.statements) {
+        let stmt = arrays.get(ast.statements, i)
+        if stmt.kind == "Fn" {
+            let sym = { name: stmt.name, internalName: prefix + stmt.name, kind: "fn" }
+            arrays.push(symbols, sym)
+            // Recursively collect nested functions
+            collectNestedFunctions(stmt, prefix + stmt.name, symbols)
+        }
+        if stmt.kind == "Let" || stmt.kind == "Const" {
+            let sym = { name: stmt.name, internalName: prefix + stmt.name, kind: stmt.kind }
+            arrays.push(symbols, sym)
+        }
+        i = i + 1
+    }
+    return symbols
+}
+
+// Recursively collect nested function symbols
+fn collectNestedFunctions(fnDecl: map, parentInternalName: string, symbols: list) -> void {
+    if fnDecl.body == null || fnDecl.body.statements == null { return }
+    let stmts = fnDecl.body.statements
+    let i = 0
+    while i < arrays.length(stmts) {
+        let stmt = arrays.get(stmts, i)
+        if stmt.kind == "Fn" {
+            let internalName = parentInternalName + "__" + stmt.name
+            let sym = { name: stmt.name, internalName: internalName, kind: "fn" }
+            arrays.push(symbols, sym)
+            collectNestedFunctions(stmt, internalName, symbols)
+        }
+        i = i + 1
+    }
+}
+
+// Normalize a module path for comparison: strip ./ prefix, .tll extension, take basename
+fn normalizeModulePath(p: string) -> string {
+    let result = p
+    // Strip ./ prefix
+    if strings.length(result) >= 2 && strings.charAt(result, 0) == "." && strings.charAt(result, 1) == "/" {
+        result = strings.substring(result, 2, strings.length(result))
+    }
+    // Strip .tll extension
+    if strings.length(result) >= 4 && strings.substring(result, strings.length(result) - 4, strings.length(result)) == ".tll" {
+        result = strings.substring(result, 0, strings.length(result) - 4)
+    }
+    // Take basename (after last /)
+    let lastSlash = -1
+    let k = 0
+    while k < strings.length(result) {
+        if strings.charAt(result, k) == "/" {
+            lastSlash = k
+        }
+        k = k + 1
+    }
+    if lastSlash >= 0 {
+        result = strings.substring(result, lastSlash + 1, strings.length(result))
+    }
+    return result
+}
+
+// Find module index by path (suffix matching to handle relative vs absolute paths)
+fn findModuleIndex(modPath: string, allPaths: list) -> int {
+    // Normalize the import path: strip ./ prefix and .tll extension
+    let needle = modPath
+    if strings.length(needle) >= 2 && strings.charAt(needle, 0) == "." && strings.charAt(needle, 1) == "/" {
+        needle = strings.substring(needle, 2, strings.length(needle))
+    }
+    if strings.length(needle) >= 4 && strings.substring(needle, strings.length(needle) - 4, strings.length(needle)) == ".tll" {
+        needle = strings.substring(needle, 0, strings.length(needle) - 4)
+    }
+    // Find the first path that ends with needle (handles directory prefixes)
+    let i = 0
+    while i < arrays.length(allPaths) {
+        let p = arrays.get(allPaths, i)
+        // Strip .tll extension from stored path
+        let pNorm = p
+        if strings.length(pNorm) >= 4 && strings.substring(pNorm, strings.length(pNorm) - 4, strings.length(pNorm)) == ".tll" {
+            pNorm = strings.substring(pNorm, 0, strings.length(pNorm) - 4)
+        }
+        // Check if pNorm ends with needle
+        if strings.length(pNorm) >= strings.length(needle) {
+            let suffix = strings.substring(pNorm, strings.length(pNorm) - strings.length(needle), strings.length(pNorm))
+            if suffix == needle {
+                return i
+            }
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+// Find symbol internal name by original name
+fn findSymbolInternalName(name: string, symbols: list) -> string {
+    let i = 0
+    while i < arrays.length(symbols) {
+        let sym = arrays.get(symbols, i)
+        if sym.name == name {
+            return sym.internalName
+        }
+        i = i + 1
+    }
+    return ""
+}
+
+// Build rename mapping for a module: localName -> internalName
+// Returns [renameNames, renameTargets]
+fn buildModuleRenames(moduleIndex: int, ast: map, allSymbols: list, allPaths: list) -> list {
+    let renameNames: list = []
+    let renameTargets: list = []
+
+    // 1. Add this module's own symbols
+    let mySymbols = arrays.get(allSymbols, moduleIndex)
+    let i = 0
+    while i < arrays.length(mySymbols) {
+        let sym = arrays.get(mySymbols, i)
+        arrays.push(renameNames, sym.name)
+        arrays.push(renameTargets, sym.internalName)
+        i = i + 1
+    }
+
+    // 2. Parse import statements
+    let j = 0
+    while j < arrays.length(ast.statements) {
+        let stmt = arrays.get(ast.statements, j)
+        if stmt.kind == "Import" {
+            let targetIdx = findModuleIndex(stmt.modulePath, allPaths)
+            if targetIdx >= 0 {
+                let targetSymbols = arrays.get(allSymbols, targetIdx)
+                let k = 0
+                while k < arrays.length(stmt.names) {
+                    let binding = arrays.get(stmt.names, k)
+                    let originalName = binding.name
+                    let localName = binding.alias
+                    if localName == null || localName == "" {
+                        localName = originalName
+                    }
+                    let internalName = findSymbolInternalName(originalName, targetSymbols)
+                    if internalName != "" {
+                        arrays.push(renameNames, localName)
+                        arrays.push(renameTargets, internalName)
+                    }
+                    k = k + 1
+                }
+            }
+        }
+        j = j + 1
+    }
+
+    let result: list = []
+    arrays.push(result, renameNames)
+    arrays.push(result, renameTargets)
+    return result
+}
+
+// Find name in parallel list, return index or -1
+fn findInNameList(name: string, nameList: list) -> int {
+    let i = 0
+    while i < arrays.length(nameList) {
+        if arrays.get(nameList, i) == name {
+            return i
+        }
+        i = i + 1
+    }
+    return -1
+}
+
+// Check if name is in local scope
+fn isInLocalScope(name: string, localScope: list) -> bool {
+    let i = 0
+    while i < arrays.length(localScope) {
+        if arrays.get(localScope, i) == name {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+// Rename symbols in an expression (AST-level)
+// Only renames Ident nodes that are NOT in localScope and ARE in rename mapping
+fn renameSymbolsInExpr(expr: map, renameNames: list, renameTargets: list, localScope: list) -> void {
+    if expr == null {
+        return
+    }
+    let kind = expr.kind
+
+    if kind == "Ident" {
+        if !isInLocalScope(expr.name, localScope) {
+            let idx = findInNameList(expr.name, renameNames)
+            if idx >= 0 {
+                expr.name = arrays.get(renameTargets, idx)
+            }
+        }
+        return
+    }
+
+    if kind == "Member" {
+        // Rename object, but NOT property (property is a string literal)
+        renameSymbolsInExpr(expr.object, renameNames, renameTargets, localScope)
+        return
+    }
+
+    if kind == "Call" {
+        renameSymbolsInExpr(expr.callee, renameNames, renameTargets, localScope)
+        let ai = 0
+        while ai < arrays.length(expr.args) {
+            renameSymbolsInExpr(arrays.get(expr.args, ai), renameNames, renameTargets, localScope)
+            ai = ai + 1
+        }
+        return
+    }
+
+    if kind == "Binary" {
+        renameSymbolsInExpr(expr.left, renameNames, renameTargets, localScope)
+        renameSymbolsInExpr(expr.right, renameNames, renameTargets, localScope)
+        return
+    }
+
+    if kind == "Unary" {
+        renameSymbolsInExpr(expr.operand, renameNames, renameTargets, localScope)
+        return
+    }
+
+    if kind == "Array" {
+        let ei = 0
+        while ei < arrays.length(expr.elements) {
+            renameSymbolsInExpr(arrays.get(expr.elements, ei), renameNames, renameTargets, localScope)
+            ei = ei + 1
+        }
+        return
+    }
+
+    if kind == "Map" {
+        let mi = 0
+        while mi < arrays.length(expr.entries) {
+            let entry = arrays.get(expr.entries, mi)
+            // key is a string, don't rename; rename value
+            renameSymbolsInExpr(entry.value, renameNames, renameTargets, localScope)
+            mi = mi + 1
+        }
+        return
+    }
+
+    if kind == "Index" {
+        renameSymbolsInExpr(expr.object, renameNames, renameTargets, localScope)
+        renameSymbolsInExpr(expr.index, renameNames, renameTargets, localScope)
+        return
+    }
+
+    if kind == "Pipe" {
+        renameSymbolsInExpr(expr.left, renameNames, renameTargets, localScope)
+        renameSymbolsInExpr(expr.right, renameNames, renameTargets, localScope)
+        return
+    }
+
+    // Assignment: left could be Ident/Member/Index, right is expression
+    // For Ident left, it's a local/module variable assignment - rename if module-level
+    if kind == "Assignment" {
+        renameSymbolsInExpr(expr.left, renameNames, renameTargets, localScope)
+        renameSymbolsInExpr(expr.right, renameNames, renameTargets, localScope)
+        return
+    }
+
+    // Range: start..end, both sides are expressions that may contain identifiers
+    if kind == "Range" {
+        renameSymbolsInExpr(expr.start, renameNames, renameTargets, localScope)
+        renameSymbolsInExpr(expr.end, renameNames, renameTargets, localScope)
+        return
+    }
+
+    // Literals (Int, Float, String, Bool, Null) - no renaming needed
+}
+
+// Rename symbols in a block
+fn renameSymbolsInBlock(block: map, renameNames: list, renameTargets: list, localScope: list) -> void {
+    if block == null {
+        return
+    }
+    let i = 0
+    while i < arrays.length(block.statements) {
+        renameSymbolsInStmt(arrays.get(block.statements, i), renameNames, renameTargets, localScope, false)
+        i = i + 1
+    }
+}
+
+// Rename symbols in a statement (AST-level)
+// isTopLevel: if true, Let/Const/Fn names are module-level (already in rename mapping)
+//              if false, Let/Const names are local (add to localScope)
+fn renameSymbolsInStmt(stmt: map, renameNames: list, renameTargets: list, localScope: list, isTopLevel: bool) -> void {
+    if stmt == null {
+        return
+    }
+    let kind = stmt.kind
+
+    if kind == "Fn" {
+        // If top-level, rename function declaration name to internal name
+        if isTopLevel {
+            let fnIdx = findInNameList(stmt.name, renameNames)
+            if fnIdx >= 0 {
+                stmt.name = arrays.get(renameTargets, fnIdx)
+            }
+        }
+        // Create independent localScope for function body (function scope)
+        // This prevents function-local variables from polluting outer scope
+        let fnLocalScope: list = []
+        let li = 0
+        while li < arrays.length(localScope) {
+            arrays.push(fnLocalScope, arrays.get(localScope, li))
+            li = li + 1
+        }
+        // Add parameters to function localScope
+        let pi = 0
+        while pi < arrays.length(stmt.params) {
+            let param = arrays.get(stmt.params, pi)
+            arrays.push(fnLocalScope, param.name)
+            pi = pi + 1
+        }
+        // Add nested function names to localScope (prevents them from being renamed)
+        if stmt.body != null && stmt.body.statements != null {
+            let nsi = 0
+            while nsi < arrays.length(stmt.body.statements) {
+                let ns = arrays.get(stmt.body.statements, nsi)
+                if ns != null && ns.kind == "Fn" {
+                    arrays.push(fnLocalScope, ns.name)
+                }
+                nsi = nsi + 1
+            }
+        }
+        // Rename function body with function-local scope
+        renameSymbolsInBlock(stmt.body, renameNames, renameTargets, fnLocalScope)
+        return
+    }
+
+    if kind == "Let" || kind == "Const" {
+        if isTopLevel {
+            // Top-level variable, rename declaration name to internal name
+            let varIdx = findInNameList(stmt.name, renameNames)
+            if varIdx >= 0 {
+                stmt.name = arrays.get(renameTargets, varIdx)
+            }
+        } else {
+            // Local variable, add to scope
+            arrays.push(localScope, stmt.name)
+        }
+        // Rename initializer expression
+        if stmt.value != null {
+            renameSymbolsInExpr(stmt.value, renameNames, renameTargets, localScope)
+        }
+        return
+    }
+
+    if kind == "If" {
+        renameSymbolsInExpr(stmt.condition, renameNames, renameTargets, localScope)
+        renameSymbolsInBlock(stmt.consequent, renameNames, renameTargets, localScope)
+        if stmt.alternate != null {
+            if stmt.alternate.kind == "Block" {
+                renameSymbolsInBlock(stmt.alternate, renameNames, renameTargets, localScope)
+            } else {
+                renameSymbolsInStmt(stmt.alternate, renameNames, renameTargets, localScope, false)
+            }
+        }
+        return
+    }
+
+    if kind == "While" {
+        renameSymbolsInExpr(stmt.condition, renameNames, renameTargets, localScope)
+        renameSymbolsInBlock(stmt.body, renameNames, renameTargets, localScope)
+        return
+    }
+
+    if kind == "For" {
+        // For loop variable is local
+        arrays.push(localScope, stmt.variable)
+        renameSymbolsInExpr(stmt.iterable, renameNames, renameTargets, localScope)
+        renameSymbolsInBlock(stmt.body, renameNames, renameTargets, localScope)
+        return
+    }
+
+    if kind == "Return" {
+        if stmt.value != null {
+            renameSymbolsInExpr(stmt.value, renameNames, renameTargets, localScope)
+        }
+        return
+    }
+
+    if kind == "Throw" {
+        renameSymbolsInExpr(stmt.value, renameNames, renameTargets, localScope)
+        return
+    }
+
+    if kind == "Export" {
+        // Export node wraps a declaration; recursively rename the declaration
+        // Export declarations are always module-level (top-level)
+        if stmt.declaration != null {
+            renameSymbolsInStmt(stmt.declaration, renameNames, renameTargets, localScope, isTopLevel)
+        }
+        return
+    }
+
+    if kind == "Try" {
+        renameSymbolsInBlock(stmt.block, renameNames, renameTargets, localScope)
+        if stmt.catchBlock != null {
+            // Catch parameter is local
+            if stmt.catchParam != null && stmt.catchParam != "" {
+                arrays.push(localScope, stmt.catchParam)
+            }
+            renameSymbolsInBlock(stmt.catchBlock, renameNames, renameTargets, localScope)
+        }
+        if stmt.finallyBlock != null {
+            renameSymbolsInBlock(stmt.finallyBlock, renameNames, renameTargets, localScope)
+        }
+        return
+    }
+
+    if kind == "ExpressionStatement" || kind == "Expression" {
+        renameSymbolsInExpr(stmt.expression, renameNames, renameTargets, localScope)
+        return
+    }
+
+    if kind == "Block" {
+        renameSymbolsInBlock(stmt, renameNames, renameTargets, localScope)
+        return
+    }
+
+    // Break, Continue - no renaming needed
+    // Import - skipped (not part of merged AST)
+}
+
+fn stripExports(source: string) -> string {
+    let exp = "export"
+    let fromFn = exp + " fn "
+    let toFn = "fn "
+    let s = strings.replaceAll(source, fromFn, toFn)
+    let fromConst = exp + " const "
+    let toConst = "const "
+    s = strings.replaceAll(s, fromConst, toConst)
+    let fromLet = exp + " let "
+    let toLet = "let "
+    s = strings.replaceAll(s, fromLet, toLet)
+    return s
+}
+
+export fn linkAndCompile(entryFile: string) -> map {
+    // Resolve dependencies
+    let files = resolveDependencies(entryFile)
+
+    // Check for circular dependency (must be AFTER resolveDependencies)
+    if circularDependencyError != "" {
+        let err = circularDependencyError
+        circularDependencyError = ""
+        let errorResult = { hasError: true, error: err, functions: [], constants: [], mainFunctionIndex: 0 }
+        return errorResult
+    }
+
+    // Phase 1: Parse all modules to AST
+    let moduleASTs: list = []
+    let modulePaths: list = []
+    let i = 0
+    while i < arrays.length(files) {
+        let filePath = arrays.get(files, i)
+        let rawSource = fs.readFile(filePath)
+        let source = stripExports(rawSource)
+        let tokens = tokenize(source)
+        let ast = parse(tokens)
+        arrays.push(moduleASTs, ast)
+        arrays.push(modulePaths, filePath)
+        i = i + 1
+    }
+
+    // Phase 2: Collect module-level symbols for each module
+    let allModuleSymbols: list = []
+    let mi = 0
+    while mi < arrays.length(moduleASTs) {
+        let symbols = collectModuleSymbols(arrays.get(moduleASTs, mi), mi)
+        arrays.push(allModuleSymbols, symbols)
+        mi = mi + 1
+    }
+
+    // Phase 3: Build rename mapping for each module, rewrite AST, merge
+    let allStatements: list = []
+    let mj = 0
+    while mj < arrays.length(moduleASTs) {
+        let ast = arrays.get(moduleASTs, mj)
+        // Build rename mapping for this module
+        let renameData = buildModuleRenames(mj, ast, allModuleSymbols, modulePaths)
+        let renameNames = arrays.get(renameData, 0)
+        let renameTargets = arrays.get(renameData, 1)
+        // Rewrite each top-level statement (skip Import)
+        let localScope: list = []
+        let si = 0
+        while si < arrays.length(ast.statements) {
+            let stmt = arrays.get(ast.statements, si)
+            if stmt.kind != "Import" {
+                renameSymbolsInStmt(stmt, renameNames, renameTargets, localScope, true)
+                arrays.push(allStatements, stmt)
+            }
+            si = si + 1
+        }
+        mj = mj + 1
+    }
+
+    // Phase 4: Compile merged AST
+    let program = { statements: allStatements }
+    let bytecode = compile(program)
+    return bytecode
+}

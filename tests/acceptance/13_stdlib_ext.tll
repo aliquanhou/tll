@@ -1,0 +1,28 @@
+// Acceptance Test 7.3: Extended strings and arrays
+fn main() -> void {
+    // Strings extended
+    let s = "  Hello World  "
+    io.println("trim=[" + strings.trim(s) + "]")
+    io.println("split: " + convert.toString(arrays.length(strings.split("a,b,c", ","))))
+    io.println("replace: " + strings.replace("hello world", "world", "TLL"))
+    io.println("indexOf: " + convert.toString(strings.indexOf("hello", "ll")))
+    io.println("repeat: " + strings.repeat("ab", 3))
+
+    // Arrays extended
+    let arr: list = [3, 1, 4, 1, 5]
+    io.println("indexOf 4: " + convert.toString(arrays.indexOf(arr, 4)))
+    io.println("includes 5: " + convert.toString(arrays.includes(arr, 5)))
+    io.println("includes 9: " + convert.toString(arrays.includes(arr, 9)))
+    let sliced = arrays.slice(arr, 1, 3)
+    io.println("slice length: " + convert.toString(arrays.length(sliced)))
+    io.println("slice[0]: " + convert.toString(arrays.get(sliced, 0)))
+
+    // range
+    let r = arrays.range(0, 5)
+    io.println("range length: " + convert.toString(arrays.length(r)))
+    io.println("range[3]: " + convert.toString(arrays.get(r, 3)))
+
+    // join
+    io.println("join: " + arrays.join([1, 2, 3], "-"))
+}
+main()

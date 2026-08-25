@@ -1,0 +1,13 @@
+// Acceptance Test 7.1: Math builtins
+fn main() -> void {
+    io.println("abs(-5)=" + convert.toString(math.abs(-5)))
+    io.println("floor(3.7)=" + convert.toString(math.floor(3.7)))
+    io.println("ceil(3.2)=" + convert.toString(math.ceil(3.2)))
+    io.println("round(3.5)=" + convert.toString(math.round(3.5)))
+    io.println("sqrt(16)=" + convert.toString(math.sqrt(16)))
+    io.println("pow(2,10)=" + convert.toString(math.pow(2, 10)))
+    io.println("min(3,7)=" + convert.toString(math.min(3, 7)))
+    io.println("max(3,7)=" + convert.toString(math.max(3, 7)))
+    io.println("pi=" + convert.toString(math.pi()))
+}
+main()

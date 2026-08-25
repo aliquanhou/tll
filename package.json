@@ -1,0 +1,37 @@
+{
+  "name": "@tllos/cli",
+  "version": "1.1.0",
+  "description": "TLL OS — An AI-Native Programming Language and Runtime",
+  "main": "tools/tll.js",
+  "bin": {
+    "tll": "tools/tll.js"
+  },
+  "scripts": {
+    "build-bootstrap": "tsc -p bootstrap/tsconfig.json",
+    "gen-compiler-bc": "node --max-old-space-size=4096 bootstrap/dist/src/cli.js run tools/gen_compiler_bc.tll",
+    "test": "node tests/run-tests.js",
+    "selfhost": "node tests/selfhost.js",
+    "start": "node tools/tll.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aliquanhou/tllos.git"
+  },
+  "keywords": [
+    "programming-language",
+    "compiler",
+    "virtual-machine",
+    "self-hosting",
+    "closures",
+    "ai-native"
+  ],
+  "author": "TLL OS Contributors",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/aliquanhou/tllos/issues"
+  },
+  "homepage": "https://github.com/aliquanhou/tllos",
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
