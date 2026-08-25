@@ -1,0 +1,2 @@
+r: 3
+PASS: function as value

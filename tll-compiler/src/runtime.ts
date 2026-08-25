@@ -14,6 +14,7 @@ interface CallFrame {
   argStack: any[];
   tryStack: number[]; // stack of catch block pc offsets
   returnReg: number; // register in caller to store return value
+  closureEnv: any; // closure environment (null for top-level functions)
 }
 
 export class Runtime {
@@ -52,6 +53,7 @@ export class Runtime {
       argStack: [],
       tryStack: [],
       returnReg: -1,
+      closureEnv: null,
     };
     this.callStack.push(frame);
 
@@ -100,6 +102,7 @@ export class Runtime {
       argStack: [],
       tryStack: [],
       returnReg: 0,
+      closureEnv: null,
     };
     // Set parameters
     for (let i = 0; i < args.length && i < fn.paramCount; i++) {
@@ -248,16 +251,38 @@ export class Runtime {
         }
 
         // Indirect call: fnIdx >= 100000 means (fnIdx - 100000) is a register number
-        // holding a function value (e.g. builtin loaded via LOAD_BUILTIN)
+        // holding a function value (builtin JS function or __fn closure object)
         if (fnIdx >= 100000) {
           const regNum = fnIdx - 100000;
           const possibleFn = regs[regNum];
           if (typeof possibleFn === 'function') {
+            // Builtin: JS function
             try {
               regs[a] = possibleFn(...args);
             } catch (e: any) {
               const errMsg = e instanceof Error ? e.message : String(e);
               this.throwException(frame, errMsg);
+            }
+          } else if (possibleFn && typeof possibleFn === 'object' && possibleFn.__fn === true) {
+            // User function or closure: {__fn, fnIdx, env}
+            const actualFnIdx = possibleFn.fnIdx;
+            const closureEnv = possibleFn.env || null;
+            if (actualFnIdx >= 0 && actualFnIdx < this.program.functions.length) {
+              const fn = this.program.functions[actualFnIdx];
+              const newFrame: CallFrame = {
+                function: fn,
+                pc: 0,
+                registers: new Array(256).fill(undefined),
+                locals: new Array(fn.localCount).fill(undefined),
+                argStack: [],
+                tryStack: [],
+                returnReg: a,
+                closureEnv,
+              };
+              for (let i = 0; i < argCount && i < fn.paramCount; i++) {
+                newFrame.locals[i] = args[i];
+              }
+              this.callStack.push(newFrame);
             }
           }
         } else if (fnIdx >= 0 && fnIdx < this.program.functions.length) {
@@ -271,6 +296,7 @@ export class Runtime {
             argStack: [],
             tryStack: [],
             returnReg: a,
+            closureEnv: null,
           };
           for (let i = 0; i < argCount && i < fn.paramCount; i++) {
             newFrame.locals[i] = args[i];

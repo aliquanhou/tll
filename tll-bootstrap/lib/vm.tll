@@ -422,10 +422,17 @@ fn vm_executeCall(resultReg: int, fnIdxOrReg: int, argCount: int) -> void {
         return
     }
 
+    // Indirect call: check for __fn function value object (user function / closure)
+    if isIndirect && convert.typeOf(possibleFn) == "object" && possibleFn["__fn"] == true {
+        actualFnIdx = possibleFn["fnIdx"]
+        // env is ignored for P0-1A (top-level functions have env=null)
+        // Full closure env support comes in P0-1C
+    }
+
     if actualFnIdx >= 0 && actualFnIdx < arrays.length(vm_functions) {
         vm_saveFrame()
-        let func = arrays.get(vm_functions, fnIdxOrReg)
-        vm_fnIdx = fnIdxOrReg
+        let func = arrays.get(vm_functions, actualFnIdx)
+        vm_fnIdx = actualFnIdx
         vm_currentInstructions = func["instructions"]
         vm_pc = 0
         vm_registers = vm_initRegisters()

@@ -137,6 +137,13 @@ export class Compiler {
       }
     }
 
+    // Register top-level functions as global variables (for first-class function support)
+    for (const [fnName] of this.functionMap) {
+      if (!this.globalVariables.has(fnName)) {
+        this.globalVariables.set(fnName, this.globalVariables.size);
+      }
+    }
+
     // Create implicit main function for top-level statements
     const mainIdx = this.functions.length;
     this.functions.push({
@@ -178,6 +185,27 @@ export class Compiler {
     this.variableMap = new Map();
     this.labelCounter = 0;
     this.isInMain = true;
+
+    // Emit function value initialization: create {__fn, fnIdx, env:null} for each top-level function
+    for (const [fnName, fnIdx] of this.functionMap) {
+      const globalIdx = this.globalVariables.get(fnName)!;
+      // Push key "__fn", value true
+      const k1 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [k1, this.addConstant('__fn')]);
+      const v1 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [v1, this.addConstant(true)]);
+      this.emit(OpCode.PUSH, [k1]); this.emit(OpCode.PUSH, [v1]);
+      // Push key "fnIdx", value fnIdx
+      const k2 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [k2, this.addConstant('fnIdx')]);
+      const v2 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [v2, this.addConstant(fnIdx)]);
+      this.emit(OpCode.PUSH, [k2]); this.emit(OpCode.PUSH, [v2]);
+      // Push key "env", value null
+      const k3 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [k3, this.addConstant('env')]);
+      const v3 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [v3, this.addConstant(null)]);
+      this.emit(OpCode.PUSH, [k3]); this.emit(OpCode.PUSH, [v3]);
+      // Make map and store to global
+      const fnValReg = this.allocReg();
+      this.emit(OpCode.MAKE_MAP, [fnValReg, 3]);
+      this.emit(OpCode.STORE_GLOBAL, [globalIdx, fnValReg]);
+    }
 
     for (const stmt of program.statements) {
       if (stmt.kind !== 'Fn' && stmt.kind !== 'Struct' && stmt.kind !== 'Enum' &&
