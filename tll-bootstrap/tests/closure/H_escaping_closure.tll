@@ -1,0 +1,27 @@
+// H: Escaping Closure - independent test with lifecycle pressure
+// Verify closure works after outer frame returns AND other frames are created
+fn makeAdder(x) {
+    fn add(y) {
+        return x + y
+    }
+    return add
+}
+
+fn helper(a, b) {
+    return a * b
+}
+
+fn main() {
+    let f = makeAdder(100)
+    // Create/destroy other frames to pressure the stack
+    io.println(helper(3, 4))
+    io.println(helper(10, 20))
+    // Now call the escaped closure - outer frame long gone
+    io.println(f(23))
+    io.println(f(77))
+    // Another escaped closure
+    let g = makeAdder(50)
+    io.println(helper(1, 1))
+    io.println(g(50))
+}
+main()
