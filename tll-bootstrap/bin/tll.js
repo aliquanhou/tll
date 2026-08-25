@@ -77,10 +77,19 @@ function cmdRun(file) {
   // P0-1.6A.2: Execute via TLL VM (vm_run.tllbc), not TS Runtime directly.
   // TS Runtime now only acts as the initial bytecode loader for TLL VM itself.
   const vmRunnerPath = path.join(BOOTSTRAP_DIR, 'vm_run.tllbc');
+  // Auto-bootstrap vm_run.tllbc if missing (fresh clone support)
   if (!fs.existsSync(vmRunnerPath)) {
-    console.error('Error: vm_run.tllbc not found. Generate it first:');
-    console.error('  cd tll-bootstrap && node ..\\tll-compiler\\dist\\src\\cli.js build vm_run.tll');
-    process.exit(1);
+    process.stderr.write('Bootstrapping vm_run.tllbc (first run)... ');
+    try {
+      execSync('node --max-old-space-size=4096 "' + BOOTSTRAP_CLI + '" build vm_run.tll', {
+        cwd: BOOTSTRAP_DIR, stdio: ['pipe', 'pipe', 'pipe'], timeout: 120000
+      });
+      process.stderr.write('done\n');
+    } catch (e) {
+      process.stderr.write('FAILED\n');
+      console.error('Error: failed to build vm_run.tllbc:', e.message);
+      process.exit(1);
+    }
   }
 
   // Write user bytecode where vm_run.tll expects it (vm_run_target.tllbc in cwd)
