@@ -38,3 +38,9 @@ Thumbs.db
 # Python cache
 __pycache__/
 *.pyc
+
+# C Native Launcher build artifacts
+host/c/tcc/
+host/c/*.exe
+host/c/*.o
+host/c/tllvm.exe

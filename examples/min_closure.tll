@@ -1,0 +1,12 @@
+fn makeAdder(x) {
+    fn add(y) {
+        return x + y
+    }
+    return add
+}
+
+fn main() {
+    let add5 = makeAdder(5)
+    io.println(add5(3))
+}
+main()

@@ -1,0 +1,16 @@
+fn makeCounter() {
+    let n = 0
+    fn inc() {
+        n = n + 1
+        return n
+    }
+    return inc
+}
+
+fn main() {
+    let c = makeCounter()
+    io.println(c())
+    io.println(c())
+    io.println(c())
+}
+main()
