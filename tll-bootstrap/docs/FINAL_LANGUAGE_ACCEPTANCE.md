@@ -29,7 +29,7 @@ Generated: 2026-08-25
 | 20 | Deterministic | PASS | A==B==C verified, all content matches |
 | 21 | Self-host | PASS | TLL VM executes compiler bytecode to compile itself |
 | 22 | Runtime Independence | PARTIAL | VM independent of TS Runtime, http/fs use Node host APIs |
-| 23 | Package | PASS | tll.toml parser + manifest loading + 3 tests |
+| 23 | Package | PASS | tll.toml parser + manifest loading + 5 tests, map return verified |
 | 24 | Agent/Workflow | NOT PART OF v1.0 | Reserved keywords, stdlib modules only |
 
 ## P0 Gate Status
