@@ -1,0 +1,8 @@
+// Module B - imports from A and exports
+from "./mod_a" import add, multiply, moduleAVar
+export fn compute(x: int) -> int {
+    return add(x, multiply(x, 2))
+}
+export fn getVar() -> int {
+    return moduleAVar
+}

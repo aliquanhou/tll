@@ -360,14 +360,23 @@ fn vm_throwException(errorValue: any) -> void {
 
 // ============ CALL ============
 fn vm_executeCall(resultReg: int, fnIdxOrReg: int, argCount: int) -> void {
-    // Read args directly from argStack (first pushed = argStack[0] = first arg)
+    // Read args from top of argStack (last pushed = last arg)
+    // Supports nested calls: outer args stay below, inner call reads its own args
+    let stackLen = arrays.length(vm_argStack)
+    let startIdx = stackLen - argCount
+    if startIdx < 0 { startIdx = 0 }
     let args: auto = []
     let ai = 0
     while ai < argCount {
-        arrays.push(args, arrays.get(vm_argStack, ai))
+        arrays.push(args, arrays.get(vm_argStack, startIdx + ai))
         ai = ai + 1
     }
-    vm_argStack = []
+    // Remove only the args we consumed, preserve outer args for nested calls
+    if startIdx == 0 {
+        vm_argStack = []
+    } else {
+        vm_argStack = arrays.slice(vm_argStack, 0, startIdx)
+    }
 
     // Indirect call: fnIdxOrReg >= 100000 means (fnIdxOrReg - 100000) is register number
     let actualFnIdx = fnIdxOrReg
