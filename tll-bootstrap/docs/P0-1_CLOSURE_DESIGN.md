@@ -2,7 +2,15 @@
 
 **Base commit:** 17d49b1
 **Phase:** Design only (no code changes)
-**Status:** Draft for audit
+**Status:** Revised for audit (v2)
+
+**Revision notes (v2):**
+- §1.1: Explicitly distinguished three callable types: Builtin / User Function / Closure
+- §4: Replaced "box all captures" with static capture analysis — only captured variables are boxed
+- §5: Corrected closure environment semantics — sibling closures share the **same UpvalueBox** (not independent copies)
+- §10: Fixed opcode operand encoding — `OP_CLOSURE` takes `[resultReg, fnIdx, captureCount, upvalueSlot...]`; all slot indices are 2-byte design contract
+- §13: Expanded acceptance tests from F1-F6 to A-H (8 tests), adding sibling-closure-share (E) and invocation-isolation (F)
+- §16: Resolved OP_BOX_LOCAL timing and environment sharing questions; 2 open questions remain
 
 ---
 
@@ -41,17 +49,19 @@ There is **no representation for a user function as a runtime value**. Direct ca
 
 ## 1. Function Value Representation
 
-### 1.1 Runtime Object Layout
+### 1.1 Three Kinds of Callable
 
-A function value is a **heap-allocated map object** (consistent with how TLL already represents maps/objects):
+TLL has exactly three callable runtime types, each with a distinct object layout:
 
-```
-{
-  "__fn": true,          // type discriminator
-  "fnIdx": <int>,        // index into vm_functions[]
-  "env": <ClosureEnv|null>  // closure environment; null for top-level functions
-}
-```
+| Type | Object Layout | env | Created by |
+|------|--------------|-----|------------|
+| **Builtin** | `{__builtin: true, idx: int}` | N/A | `OP_LOAD_BUILTIN` |
+| **User Function** | `{__fn: true, fnIdx: int, env: null}` | `null` | Module init (top-level fns) |
+| **Closure** | `{__fn: true, fnIdx: int, env: ClosureEnv}` | `ClosureEnv` object | `OP_CLOSURE` (nested fns) |
+
+Builtin and User Function/Closure are distinguished by `__builtin` vs `__fn` discriminator. User Function and Closure share the `__fn` discriminator, distinguished by `env === null` vs `env` being an object.
+
+All three are heap-allocated map objects (consistent with TLL's existing object representation).
 
 ### 1.2 Type System
 
@@ -138,33 +148,55 @@ if isIndirect:
 
 When a nested function references variables from its enclosing scope, and that function is returned (or stored in a global/heap structure), the enclosing function's stack frame will be destroyed on `RET`. The captured variables must **escape** to the heap.
 
-### 4.2 Compiler Escape Analysis
+### 4.2 Compiler Capture Analysis (Static)
 
-The compiler performs **conservative escape analysis**:
+The compiler performs **static capture analysis** at compile time:
 
-1. For each function, identify **free variables** (variables used but not defined in the function)
-2. If a function is **ever** returned, stored in a global, or passed to an external function → all its captured variables escape
-3. Escaped variables are **boxed** (allocated on the heap) at definition time
-4. Non-escaped captured variables can remain on the stack (optimization, v1.1 may box everything for simplicity)
+1. For each function, scan its AST to identify **free variables** (variables used but not defined in the function)
+2. A variable is **captured** if it is a free variable of any nested function
+3. **Only captured variables are boxed** — non-captured locals remain stack-allocated in `vm_locals[]`
+4. Captured parameters are boxed at function entry; captured locals are boxed at their `let` statement
 
-### 4.3 v1.1 Simplification
+This is precise, not conservative: if a variable is never referenced by a nested function, it stays on the stack with zero overhead.
 
-For v1.1, **box all captured variables unconditionally**. This avoids the need for precise escape analysis and is correct in all cases. Optimization (stack allocation for non-escaping captures) is deferred to v1.2.
+### 4.3 Box Creation Timing
+
+- **Captured parameters**: boxed at function entry (`OP_BOX_LOCAL` emitted in function prologue)
+- **Captured `let` locals**: boxed immediately after initialization (`OP_BOX_LOCAL` after the initial value is computed and stored)
+- **Non-captured variables**: no boxing, normal `vm_locals[]` access
 
 ---
 
 ## 5. Closure Environment Representation
 
-### 5.1 Design Choice: Flat Closure (not chained)
+### 5.1 Design Choice: Flat Closure with Shared UpvalueBoxes
 
 We use **flat closures** (also known as "display" or "vector of upvalues"):
 
 - Each closure environment is a **flat array** of upvalue slots
 - The compiler determines, at compile time, exactly which variables each function captures
 - The environment contains only those variables — no parent pointer, no chain walking
-- Nested closures copy references to shared upvalue boxes into their own flat array
+- **Sibling closures share the same UpvalueBox** for a given lexical binding: when `OP_CLOSURE` creates a child closure, it copies the **reference** to the parent's UpvalueBox into the child's flat array. Both closures hold a reference to the identical box object.
 
-### 5.2 Environment Object Layout
+### 5.2 Shared Box Semantics (Critical)
+
+```
+Lexical Binding (variable x)
+        │
+        ▼
+   UpvalueBox { value: ... }
+   ┌───────┴───────┐
+   │               │
+   ▼               ▼
+Closure A       Closure B
+env[0] = box    env[0] = box  (same reference, not a copy)
+```
+
+- **Same invocation, sibling closures**: share one UpvalueBox → mutation in one closure is visible in the other
+- **Different invocations**: each invocation creates new UpvalueBoxes → closures from different calls are fully isolated
+- The box is created once per variable per function invocation, shared by all closures created during that invocation
+
+### 5.3 Environment Object Layout
 
 ```
 ClosureEnv = {
@@ -173,7 +205,7 @@ ClosureEnv = {
 }
 ```
 
-### 5.3 Upvalue Box Layout
+### 5.4 Upvalue Box Layout
 
 ```
 UpvalueBox = {
@@ -183,7 +215,7 @@ UpvalueBox = {
 
 Boxing is required for **mutable capture** (see §7). The box is shared between the original scope and all closures that capture the variable.
 
-### 5.4 Why Flat, Not Chained
+### 5.5 Why Flat, Not Chained
 
 | Aspect | Flat closure | Chained (parent pointer) |
 |--------|-------------|------------------------|
@@ -267,7 +299,7 @@ Function parameters that are captured are also boxed. The parameter's initial va
 
 ## 8. Nested Closures
 
-### 8.3 Multi-Level Capture
+### 8.1 Multi-Level Capture
 
 ```tll
 fn outer(x) {
@@ -344,56 +376,72 @@ New test suite `tests/runtime-equivalence/03_closures.js` will run all 6 accepta
 
 ---
 
-## 10. New Bytecode Opcodes
+## 10. New Bytecode Opcodes (Fixed Encoding)
+
+All opcodes use the existing TLL instruction format: `{op: int, operands: [int, ...]}`. Slot indices are logical integers (range 0–65535, "2 bytes" denotes the design contract).
 
 ### 10.1 OP_CLOSURE (opcode 42)
 
-**Purpose:** Create a function value object with a closure environment.
+**Purpose:** Create a closure value object with a flat closure environment.
 
-**Operands:** `[resultReg, fnIdx, upvalueCount]`
+**Operands:** `[resultReg, fnIdx, captureCount, upvalueSlot_0, upvalueSlot_1, ...]`
+
+- `resultReg`: register to store the created closure value
+- `fnIdx`: index into `vm_functions[]` for the nested function
+- `captureCount`: number of upvalue slots that follow
+- `upvalueSlot_N`: index into the **current frame's** closure environment upvalues array; the VM copies that UpvalueBox reference into the new closure's environment
 
 **Behavior:**
-1. Create `ClosureEnv` object with `upvalues` array of size `upvalueCount`
-2. Populate upvalues by copying from current frame's closure environment (for variables captured from enclosing scopes) or creating new boxes (for variables defined in current function)
-3. Create function value object `{__fn: true, fnIdx: fnIdx, env: env}`
+1. Create `ClosureEnv` object with `upvalues` array of size `captureCount`
+2. For each `upvalueSlot_N`, copy the reference `currentFrame.closureEnv.upvalues[upvalueSlot_N]` into the new environment
+3. Create function value object `{__fn: true, fnIdx: fnIdx, env: newEnv}`
 4. Store in `resultReg`
 
-**Note:** The upvalue source indices are encoded in the function's metadata (a new `upvalueSources` field in the function object), telling the VM which current-frame upvalue to copy or which local to box.
+**Note:** For variables defined in the current function (not captured from an enclosing scope), the box must have been created earlier by `OP_BOX_LOCAL` and stored in the current frame's closure env at the given slot.
 
 ### 10.2 OP_GET_UPVALUE (opcode 43)
 
-**Purpose:** Read a captured variable.
+**Purpose:** Read a captured variable from the current frame's closure environment.
 
-**Operands:** `[resultReg, upvalueIdx]`
+**Operands:** `[resultReg, slot]`
 
-**Behavior:** `vm_registers[resultReg] = vm_closureEnv.upvalues[upvalueIdx].value`
+- `resultReg`: register to store the read value
+- `slot`: index into `currentFrame.closureEnv.upvalues`
+
+**Behavior:** `vm_registers[resultReg] = vm_closureEnv.upvalues[slot].value`
 
 ### 10.3 OP_SET_UPVALUE (opcode 44)
 
-**Purpose:** Write a captured variable.
+**Purpose:** Write a captured variable in the current frame's closure environment.
 
-**Operands:** `[upvalueIdx, valueReg]`
+**Operands:** `[slot, valueReg]`
 
-**Behavior:** `vm_closureEnv.upvalues[upvalueIdx].value = vm_registers[valueReg]`
+- `slot`: index into `currentFrame.closureEnv.upvalues`
+- `valueReg`: register holding the value to write
+
+**Behavior:** `vm_closureEnv.upvalues[slot].value = vm_registers[valueReg]`
 
 ### 10.4 OP_BOX_LOCAL (opcode 45)
 
-**Purpose:** Box a local variable (create upvalue box and store reference).
+**Purpose:** Create an UpvalueBox for a captured local variable and store it in the current frame's closure environment.
 
-**Operands:** `[localIdx, upvalueIdx]`
+**Operands:** `[localSlot, upvalueSlot]`
 
-**Behavior:** Create `{value: vm_locals[localIdx]}`, store in `vm_closureEnv.upvalues[upvalueIdx]`. This is emitted at function entry for parameters and at `let` for captured locals.
+- `localSlot`: index into `vm_locals[]` (the variable's current stack value)
+- `upvalueSlot`: index into `currentFrame.closureEnv.upvalues` to store the new box
 
-### 10.5 Opcode Summary
+**Behavior:** Create `{value: vm_locals[localSlot]}`, store reference in `vm_closureEnv.upvalues[upvalueSlot]`. Emitted at function entry for captured parameters, and immediately after initialization for captured `let` locals.
 
-| Opcode | Value | Purpose |
-|--------|-------|---------|
-| OP_CLOSURE | 42 | Create closure value + env |
-| OP_GET_UPVALUE | 43 | Read captured variable |
-| OP_SET_UPVALUE | 44 | Write captured variable |
-| OP_BOX_LOCAL | 45 | Box local into upvalue slot |
+### 10.5 Opcode Summary (Fixed)
 
-Existing opcodes 0-41 unchanged. OP_CALL (21) is extended to recognize `__fn` objects.
+| Opcode | Value | Operands | Purpose |
+|--------|-------|----------|---------|
+| OP_CLOSURE | 42 | `resultReg, fnIdx, captureCount, [upvalueSlot...]` | Create closure value + env |
+| OP_GET_UPVALUE | 43 | `resultReg, slot` | Read captured variable |
+| OP_SET_UPVALUE | 44 | `slot, valueReg` | Write captured variable |
+| OP_BOX_LOCAL | 45 | `localSlot, upvalueSlot` | Box captured local into upvalue slot |
+
+Existing opcodes 0-41 unchanged. OP_CALL (21) is extended to recognize `__fn` objects (both User Function with env=null and Closure with env object).
 
 ---
 
@@ -473,9 +521,9 @@ The self-hosted compiler (`codegen.tll`, `parser.tll`, etc.) must be similarly e
 
 ---
 
-## 13. Acceptance Test Analysis (F1-F6)
+## 13. Acceptance Tests (A–H, Fixed)
 
-### F1: Function as Value
+### A: Function as Value
 
 ```tll
 fn add(a, b) { return a + b }
@@ -483,44 +531,30 @@ let f = add
 let r = f(1, 2)  // r == 3
 ```
 
-**Compilation:**
-- `add` is a top-level function → module init creates `{__fn:true, fnIdx:0, env:null}`, stores in global
-- `let f = add` → `OP_LOAD_GLOBAL [r_f, globalIdx_add]`
-- `f(1, 2)` → indirect call: `OP_CALL [r_r, reg_f+100000, 2]`
-- VM sees `__fn` object, extracts fnIdx=0, env=null, executes
+**Verifies:** Top-level function creates `{__fn, fnIdx, env:null}` at module init; indirect CALL recognizes `__fn` object.
 
-### F2: Function as Parameter
+### B: Function as Parameter
 
 ```tll
 fn apply(f, a, b) { return f(a, b) }
-let r = apply(add, 1, 2)  // r == 3
+let r = apply(add, 2, 3)  // r == 5
 ```
 
-**Compilation:**
-- `add` function value pushed as arg
-- `apply` receives `f` as local (reference to function value)
-- `f(a, b)` → indirect call via local variable
+**Verifies:** Function value passed as argument; indirect CALL via local variable.
 
-### F3: Function as Return Value (Closure)
+### C: Function as Return Value
 
 ```tll
 fn makeAdder(x) {
     fn add(y) { return x + y }
     return add
 }
-let add5 = makeAdder(5)
-let r = add5(3)  // r == 8
+let r = makeAdder(10)(5)  // r == 15
 ```
 
-**Compilation:**
-- `x` is captured → boxed at `makeAdder` entry: `OP_BOX_LOCAL [paramIdx_x, upvalueIdx_0]`
-- `fn add(y)` → `OP_CLOSURE [r_add, fnIdx_add, 1]` (1 upvalue: x)
-  - VM creates env with upvalues[0] = current frame's upvalues[0] (the x box)
-- `return add` → returns the closure value object
-- `add5(3)` → indirect call, VM extracts fnIdx + env, sets frame's closureEnv
-- `x + y` inside add → `OP_GET_UPVALUE [r_x, 0]` reads x_box.value (which is 5)
+**Verifies:** `OP_BOX_LOCAL` for captured param `x`; `OP_CLOSURE` creates env with shared box; frame destroyed but box survives via closure reference.
 
-### F4: Mutable Capture (Counter)
+### D: Mutable Closure (Counter)
 
 ```tll
 fn makeCounter() {
@@ -528,14 +562,43 @@ fn makeCounter() {
     fn inc() { n = n + 1; return n }
     return inc
 }
+let c = makeCounter()
+c()  // 1
+c()  // 2
 ```
 
-**Compilation:**
-- `n` is captured → `let n = 0` compiles to: store 0 in local, then `OP_BOX_LOCAL [localIdx_n, 0]`
-- `n = n + 1` → `OP_GET_UPVALUE [r_n, 0]`, add 1, `OP_SET_UPVALUE [0, r_result]`
-- Each `makeCounter()` call creates a new `n` box → independent counters
+**Verifies:** `OP_SET_UPVALUE` mutates shared box; repeated calls see accumulated value.
 
-### F5: Multi-Level Nested Closure
+### E: Sibling Closures Share Box
+
+```tll
+fn makePair() {
+    let n = 0
+    fn inc() { n = n + 1 }
+    fn get() { return n }
+    return {inc: inc, get: get}
+}
+let p = makePair()
+p.inc()
+p.inc()
+p.get()  // 2
+```
+
+**Verifies:** `inc` and `get` share the **same UpvalueBox** for `n`; mutation via `inc` is visible to `get`.
+
+### F: Independent Invocations Are Isolated
+
+```tll
+let c1 = makeCounter()
+let c2 = makeCounter()
+c1()  // 1
+c1()  // 2
+c2()  // 1  (not 3 — independent box)
+```
+
+**Verifies:** Each `makeCounter()` invocation creates a new UpvalueBox; closures from different calls do not share state.
+
+### G: Nested Closures (Multi-Level Capture)
 
 ```tll
 fn outer(x) {
@@ -548,15 +611,9 @@ fn outer(x) {
 let r = outer(1)(2)(3)  // r == 6
 ```
 
-**Compilation:**
-- `outer`: x boxed (upvalue 0)
-- `middle`: captures x (upvalue 0 from outer), defines y (upvalue 1 for inner)
-  - `OP_CLOSURE` for middle: env=[x_box]
-- `inner`: captures x (upvalue 0, copied from middle's env) and y (upvalue 1, new box)
-  - `OP_CLOSURE` for inner: env=[x_box (copied), y_box (new)]
-- `inner` accesses x via upvalue 0, y via upvalue 1 — both O(1)
+**Verifies:** `inner`'s flat env contains upvalue refs for both `x` (copied from `middle`'s env) and `y` (new box); O(1) access, no chain walking.
 
-### F6: Closure Escape (Multipliers)
+### H: Closure Escape After Frame Destruction
 
 ```tll
 fn makeMultiplier(factor) {
@@ -565,12 +622,11 @@ fn makeMultiplier(factor) {
 }
 let double = makeMultiplier(2)
 let triple = makeMultiplier(3)
+double(10)  // 20
+triple(10)  // 30
 ```
 
-**Compilation:**
-- Same as F3 pattern
-- `double` and `triple` have independent env objects with independent factor boxes
-- No shared state between them
+**Verifies:** After `makeMultiplier` returns, its stack frame is destroyed; the `factor` UpvalueBox survives because `double`/`triple` hold references. Each closure has its own box (independent invocations).
 
 ---
 
@@ -604,8 +660,11 @@ let triple = makeMultiplier(3)
 
 1. **Type checker**: Should v1.1 add function type signatures (`fn(int,int)->int`) or keep all functions as a single `fn` type? (Recommendation: single `fn` type for v1.1, signatures in v1.2)
 2. **Recursive closures**: A closure that references itself (e.g., Y-combinator pattern) requires forward reference. Does v1.1 need this? (Recommendation: not required for v1.1)
-3. **OP_BOX_LOCAL timing**: Box parameters at function entry, or lazily when first captured? (Recommendation: at entry, simpler and deterministic)
-4. **Environment sharing**: Should `OP_CLOSURE` copy upvalue references, or share the entire env object? (Recommendation: copy references into new flat env — avoids accidental sharing between sibling closures)
+
+### Resolved (from prior draft)
+
+- ~~OP_BOX_LOCAL timing~~ → **Resolved**: box captured parameters at function entry, captured `let` at initialization. Non-captured locals stay on stack.
+- ~~Environment sharing~~ → **Resolved**: sibling closures share the **same UpvalueBox** reference; each closure has its own flat env array but copied box references point to identical boxes. Different invocations create new boxes (isolation).
 
 ---
 
