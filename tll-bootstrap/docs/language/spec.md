@@ -91,12 +91,17 @@ while condition {
 }
 ```
 
-### 5.3 For
-**NOT SUPPORTED in v1.0** — parser generates For AST node but codegen does not handle it.
-Use `while` loops instead.
+### 5.3 For-in
+```
+for variable in iterable {
+    // body
+}
+```
+Iterates over array elements. `iterable` must be an array (use `arrays.range(start, end)` for numeric ranges).
+Supports `break` and `continue`.
 
 ### 5.4 Break / Continue
-Supported inside `while` loops.
+Supported inside `while` and `for` loops.
 
 ### 5.5 Return
 Returns from current function. `return` without value returns null.
@@ -115,10 +120,14 @@ Returns from current function. `return` without value returns null.
 `=` `+=` `-=` `*=` `/=` `%=`
 
 ### 6.5 Null Coalescing
-`??` — returns left operand if not null, else right operand
+`??` — reserved keyword, not implemented in v1.0
 
 ### 6.6 String Concatenation
 `+` operator concatenates strings.
+
+### 6.7 Reserved Operators (not implemented)
+- `|>` (pipe) — parser supports, codegen does not
+- `..` / `..=` (range) — parser supports, codegen does not. Use `arrays.range()`
 
 ## 7. Exception Handling
 ```
