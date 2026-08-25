@@ -26,7 +26,7 @@ Generated: 2026-08-25
 | 17 | Error Diagnostics | PARTIAL | Parse errors with line/col, type warnings |
 | 18 | Test Framework | PARTIAL | acceptance + equivalence + exception + VM tests |
 | 19 | Cross-platform | PARTIAL | Windows + Linux CI verified, macOS pending |
-| 20 | Deterministic | PASS | A==B verified (fn/const/instr/content all match) |
+| 20 | Deterministic | PASS | A==B==C verified, all content matches |
 | 21 | Self-host | PASS | TLL VM executes compiler bytecode to compile itself |
 | 22 | Runtime Independence | PARTIAL | VM independent of TS Runtime, http/fs use Node host APIs |
 | 23 | Package | PARTIAL | tll.toml parser, cross-module map return bug |
@@ -41,7 +41,7 @@ Generated: 2026-08-25
 | Exception semantic equivalence | PASS (6 exception tests, finally+return fixed) |
 | TLL VM self-loading | PASS (TLL VM compiles compiler.tll) |
 | compiler self-host | PASS (144 fn, 2841 const) |
-| A == B == C | PENDING (A==B verified, C generating) |
+| A == B == C | PASS (A==B==C all match: fn/const/instr/content) |
 | no placeholder builtin | PASS |
 | no hidden TS semantic dependency | PARTIAL (http/fs depend on Node host APIs) |
 

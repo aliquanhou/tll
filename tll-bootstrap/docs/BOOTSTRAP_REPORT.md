@@ -21,7 +21,10 @@ Bytecode B (compiler_self_compiled.tllbc)
 Stage C: TLL VM executes Bytecode B
   ↓ runs compiler.tll (which compiles compiler.tll)
   ↓
-Bytecode C (PENDING)
+Bytecode C
+  144 functions, 2841 constants
+  mainFunctionIndex: 143
+  ✅ B == C verified
 ```
 
 ## A == B Verification
