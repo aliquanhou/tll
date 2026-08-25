@@ -109,15 +109,12 @@ main()
     process.chdir(origCwd);
 
     const actual = output.join('\n').trim();
-    // No expected.txt: require symbol identity check OR explicit assertion marker in output
+    // No expected.txt: only PASS if test.json has checkSymbolIdentity and it passes
     if (expected === '') {
-      if (config.checkSymbolIdentity) {
-        // Symbol identity check below
-      } else if (actual.includes('ALL PASS') || actual.includes('PASS') || actual.includes('TEST DONE')) {
-        return { name: testName, status: 'PASS', reason: 'Self-asserting test passed' };
-      } else {
-        return { name: testName, status: 'FAIL', reason: 'No expected.txt and no self-assertion marker (ALL PASS/PASS/TEST DONE)' };
+      if (!config.checkSymbolIdentity) {
+        return { name: testName, status: 'FAIL', reason: 'No expected.txt and no checkSymbolIdentity config - every test must have exact output assertion or symbol identity verification' };
       }
+      // Symbol identity check executes below
     }
     if (actual !== expected) {
       return {
