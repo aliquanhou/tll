@@ -1,0 +1,10 @@
+from "../../lib/package" import parseToml
+fn main() -> void {
+    let text = "[package]\nname = \"test\"\n"
+    io.println("input: [" + text + "]")
+    let result = parseToml(text)
+    io.println("result type: " + convert.typeOf(result))
+    io.println("result: " + json.stringify(result))
+    if result == null { io.println("RESULT IS NULL") }
+}
+main()

@@ -1,0 +1,9 @@
+// Test: cross-module function returning map
+fn makeMap() -> map {
+    let m = json.parse("{}")
+    m["key"] = "value"
+    return m
+}
+fn getKey(m: map) -> string {
+    return m["key"]
+}

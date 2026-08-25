@@ -729,6 +729,21 @@ fn cg_compileCall(expr: map) -> int {
             cg_emit(OP_CALL, [resultReg, foundIdx, arrays.length(args)])
             return resultReg
         }
+        // Fallback: linear search in cg_functions (handles renamed imports)
+        let fi = 0
+        while fi < arrays.length(cg_functions) {
+            let fdef = arrays.get(cg_functions, fi)
+            if fdef.name == calleeName {
+                cg_emit(OP_CALL, [resultReg, fi, arrays.length(args)])
+                return resultReg
+            }
+            // Match imported function: __mod_N__calleeName
+            if strings.endsWith(fdef.name, "__" + calleeName) && strings.startsWith(fdef.name, "__mod_") {
+                cg_emit(OP_CALL, [resultReg, fi, arrays.length(args)])
+                return resultReg
+            }
+            fi = fi + 1
+        }
     }
 
     // Indirect call
