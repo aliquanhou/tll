@@ -397,6 +397,7 @@ fn cg_compileStatement(stmt: map) -> void {
 
     if kind == "If" { cg_compileIf(stmt); return }
     if kind == "While" { cg_compileWhile(stmt); return }
+    if kind == "For" { cg_compileFor(stmt); return }
     if kind == "Break" {
         let breakIdx = arrays.length(cg_instructions)
         cg_emit(OP_JMP, [-1])
@@ -497,6 +498,64 @@ fn cg_compileTry(stmt: map) -> void {
     cg_tryFinallyLabel = oldTryFinallyLabel
     cg_pendingReturnReg = oldPendingReturnReg
     cg_tryFinallyPatches = oldPatches
+}
+
+fn cg_compileFor(stmt: map) -> void {
+    // for x in iterable { body }
+    // Compile iterable to array
+    let iterReg = cg_compileExpression(stmt.iterable)
+    // Allocate index and length variables
+    let idxVar = cg_getOrCreateVar("__for_idx_" + convert.toString(cg_labelCounter))
+    let lenVar = cg_getOrCreateVar("__for_len_" + convert.toString(cg_labelCounter))
+    cg_labelCounter = cg_labelCounter + 1
+    // Get array length via builtin
+    let lenReg = cg_allocReg()
+    cg_emit(OP_LOAD_BUILTIN, [lenReg, 49])  // arrays.length
+    cg_emit(OP_PUSH, [iterReg])
+    cg_emit(OP_CALL, [lenReg, lenReg + 100000, 1])
+    cg_emit(OP_STORE_VAR, [lenVar, lenReg])
+    // Initialize index to 0
+    let zeroReg = cg_allocReg()
+    cg_emit(OP_LOAD_CONST, [zeroReg, cg_addConstant(0)])
+    cg_emit(OP_STORE_VAR, [idxVar, zeroReg])
+    // Save loop context
+    let oldBreak = cg_currentBreakLabel
+    let oldContinue = cg_currentContinueLabel
+    let startIdx = arrays.length(cg_instructions)
+    cg_currentContinueLabel = startIdx
+    // Condition: idx < len
+    let idxReg = cg_allocReg()
+    cg_emit(OP_LOAD_VAR, [idxReg, idxVar])
+    let lenLoadReg = cg_allocReg()
+    cg_emit(OP_LOAD_VAR, [lenLoadReg, lenVar])
+    let cmpReg = cg_allocReg()
+    cg_emit(OP_LT, [cmpReg, idxReg, lenLoadReg])
+    let jmpEndIdx = arrays.length(cg_instructions)
+    cg_emit(OP_JMP_IF_FALSE, [cmpReg, -1])
+    // Set loop variable: x = iterable[idx]
+    let elemReg = cg_allocReg()
+    cg_emit(OP_LOAD_BUILTIN, [elemReg, 50])  // arrays.get
+    cg_emit(OP_PUSH, [iterReg])
+    cg_emit(OP_PUSH, [idxReg])
+    cg_emit(OP_CALL, [elemReg, elemReg + 100000, 2])
+    let loopVar = cg_getOrCreateVar(stmt.variable)
+    cg_emit(OP_STORE_VAR, [loopVar, elemReg])
+    // Compile body
+    cg_compileBlock(stmt.body)
+    // Increment index
+    let idxLoadReg = cg_allocReg()
+    cg_emit(OP_LOAD_VAR, [idxLoadReg, idxVar])
+    let oneReg = cg_allocReg()
+    cg_emit(OP_LOAD_CONST, [oneReg, cg_addConstant(1)])
+    let addReg = cg_allocReg()
+    cg_emit(OP_ADD, [addReg, idxLoadReg, oneReg])
+    cg_emit(OP_STORE_VAR, [idxVar, addReg])
+    // Jump back to start
+    cg_emit(OP_JMP, [startIdx])
+    // Patch end
+    cg_patchJump(jmpEndIdx)
+    cg_currentBreakLabel = oldBreak
+    cg_currentContinueLabel = oldContinue
 }
 
 fn cg_compileWhile(stmt: map) -> void {

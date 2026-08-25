@@ -1,0 +1,18 @@
+// For loop test
+fn main() -> void {
+    io.println("--- for loop ---")
+    let arr = [10, 20, 30, 40, 50]
+    let sum = 0
+    for x in arr {
+        io.println("x: " + convert.toString(x))
+        sum = sum + x
+    }
+    io.println("sum: " + convert.toString(sum))
+    // For with range
+    io.println("--- range ---")
+    for i in arrays.range(1, 4) {
+        io.println("i: " + convert.toString(i))
+    }
+    io.println("=== FOR DONE ===")
+}
+main()
