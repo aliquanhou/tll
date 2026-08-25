@@ -53,7 +53,7 @@ export enum OpCode {
   STORE_GLOBAL = 41,   // global_index, r
   CLOSURE = 42,        // r, fnIdx, captureCount, [upvalueSlot...]
   GET_UPVALUE = 43,    // r, slot
-  // OP_SET_UPVALUE = 44 reserved for P0-1D (mutable capture)
+  SET_UPVALUE = 44,    // slot, valueReg
   BOX_LOCAL = 45,      // localSlot, upvalueSlot
 }
 
@@ -200,16 +200,24 @@ export class Compiler {
     return result;
   }
 
-  // Collect params/locals from THIS function that are referenced by nested functions
+  // Collect params AND let/const locals from THIS function that are referenced by nested functions
   private collectCapturedByNested(fnDecl: AST.FnDeclaration): Set<string> {
     const result = new Set<string>();
-    const paramNames = new Set(fnDecl.params.map(p => p.name));
+    const boundNames = new Set<string>();
+    for (const p of fnDecl.params) boundNames.add(p.name);
+    if (fnDecl.body && fnDecl.body.statements) {
+      for (const stmt of fnDecl.body.statements) {
+        if (stmt.kind === 'Let' || stmt.kind === 'Const') {
+          boundNames.add((stmt as any).name);
+        }
+      }
+    }
     if (!fnDecl.body || !fnDecl.body.statements) return result;
     for (const stmt of fnDecl.body.statements) {
       if (stmt.kind === 'Fn') {
         const refs = this.collectReferencedNames(stmt as AST.FnDeclaration);
         for (const ref of refs) {
-          if (paramNames.has(ref)) result.add(ref);
+          if (boundNames.has(ref)) result.add(ref);
         }
       }
     }
@@ -543,6 +551,10 @@ export class Compiler {
     } else {
       this.emit(OpCode.STORE_VAR, [index, valueReg]);
     }
+    // If this local is captured by nested function, box it after initialization
+    if (!isGlobal && this.upvalueMap.has(stmt.name)) {
+      this.emit(OpCode.BOX_LOCAL, [index, this.upvalueMap.get(stmt.name)!]);
+    }
   }
 
   private compileReturn(stmt: AST.ReturnStatement): void {
@@ -871,6 +883,11 @@ export class Compiler {
     } else if (expr.operator === '=') {
       // Assignment
       if (expr.left.kind === 'Ident') {
+        // Check upvalue first (closure mutable capture)
+        if (this.upvalueMap.has(expr.left.name)) {
+          this.emit(OpCode.SET_UPVALUE, [this.upvalueMap.get(expr.left.name)!, rightReg]);
+          return rightReg;
+        }
         const { index, isGlobal } = this.resolveVar(expr.left.name);
         if (isGlobal) {
           this.emit(OpCode.STORE_GLOBAL, [index, rightReg]);

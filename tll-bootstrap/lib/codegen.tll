@@ -46,7 +46,7 @@ let OP_LOAD_GLOBAL = 40
 let OP_STORE_GLOBAL = 41
 let OP_CLOSURE = 42
 let OP_GET_UPVALUE = 43
-// OP_SET_UPVALUE = 44 reserved for P0-1D
+let OP_SET_UPVALUE = 44
 let OP_BOX_LOCAL = 45
 
 // ============ Codegen state ============
@@ -278,12 +278,22 @@ fn cg_collectReferencedNames(fnDecl: map) -> list {
 
 fn cg_collectCapturedByNested(fnDecl: map) -> list {
     let result: list = []
-    let paramNames: list = []
+    let boundNames: list = []
     let pi = 0
     while pi < arrays.length(fnDecl.params) {
         let p = arrays.get(fnDecl.params, pi)
-        arrays.push(paramNames, p.name)
+        arrays.push(boundNames, p.name)
         pi = pi + 1
+    }
+    if fnDecl.body != null && fnDecl.body.statements != null {
+        let si = 0
+        while si < arrays.length(fnDecl.body.statements) {
+            let stmt = arrays.get(fnDecl.body.statements, si)
+            if stmt != null && (stmt.kind == "Let" || stmt.kind == "Const") {
+                arrays.push(boundNames, stmt.name)
+            }
+            si = si + 1
+        }
     }
     if fnDecl.body == null || fnDecl.body.statements == null { return result }
     let si = 0
@@ -294,7 +304,7 @@ fn cg_collectCapturedByNested(fnDecl: map) -> list {
             let ri = 0
             while ri < arrays.length(refs) {
                 let ref = arrays.get(refs, ri)
-                if cg_listContains(paramNames, ref) && cg_listContains(result, ref) == false {
+                if cg_listContains(boundNames, ref) && cg_listContains(result, ref) == false {
                     arrays.push(result, ref)
                 }
                 ri = ri + 1
@@ -680,6 +690,16 @@ fn cg_compileStatement(stmt: map) -> void {
         } else {
             cg_emit(OP_STORE_VAR, [resolved.index, valueReg])
         }
+        // If this local is captured by nested function, box it after initialization
+        if resolved.isGlobal == false && cg_listContains(cg_upvalueMap, stmt.name) {
+            let slot = -1
+            let si = 0
+            while si < arrays.length(cg_upvalueMap) {
+                if arrays.get(cg_upvalueMap, si) == stmt.name { slot = si; si = arrays.length(cg_upvalueMap) }
+                si = si + 1
+            }
+            cg_emit(OP_BOX_LOCAL, [resolved.index, slot])
+        }
         return
     }
 
@@ -997,28 +1017,22 @@ fn cg_compileIdent(expr: map) -> int {
 }
 
 fn cg_compileBinary(expr: map) -> int {
-    let leftReg = cg_compileExpression(expr.left)
-    let rightReg = cg_compileExpression(expr.right)
-    let resultReg = cg_allocReg()
     let op = expr.operator
-
-    if op == "+" { cg_emit(OP_ADD, [resultReg, leftReg, rightReg]) }
-    else if op == "-" { cg_emit(OP_SUB, [resultReg, leftReg, rightReg]) }
-    else if op == "*" { cg_emit(OP_MUL, [resultReg, leftReg, rightReg]) }
-    else if op == "/" { cg_emit(OP_DIV, [resultReg, leftReg, rightReg]) }
-    else if op == "%" { cg_emit(OP_MOD, [resultReg, leftReg, rightReg]) }
-    else if op == "**" { cg_emit(OP_POW, [resultReg, leftReg, rightReg]) }
-    else if op == "==" { cg_emit(OP_EQ, [resultReg, leftReg, rightReg]) }
-    else if op == "!=" { cg_emit(OP_NEQ, [resultReg, leftReg, rightReg]) }
-    else if op == "<" { cg_emit(OP_LT, [resultReg, leftReg, rightReg]) }
-    else if op == ">" { cg_emit(OP_GT, [resultReg, leftReg, rightReg]) }
-    else if op == "<=" { cg_emit(OP_LE, [resultReg, leftReg, rightReg]) }
-    else if op == ">=" { cg_emit(OP_GE, [resultReg, leftReg, rightReg]) }
-    else if op == "&&" { cg_emit(OP_AND, [resultReg, leftReg, rightReg]) }
-    else if op == "||" { cg_emit(OP_OR, [resultReg, leftReg, rightReg]) }
-    else if op == "=" {
+    // Assignment: compile right side first, do NOT compile left side as expression
+    if op == "=" {
+        let rightReg = cg_compileExpression(expr.right)
         let leftKind = expr.left["kind"]
         if leftKind == "Ident" {
+            if cg_listContains(cg_upvalueMap, expr.left["name"]) {
+                let slot = -1
+                let si = 0
+                while si < arrays.length(cg_upvalueMap) {
+                    if arrays.get(cg_upvalueMap, si) == expr.left["name"] { slot = si; si = arrays.length(cg_upvalueMap) }
+                    si = si + 1
+                }
+                cg_emit(OP_SET_UPVALUE, [slot, rightReg])
+                return rightReg
+            }
             let resolved = cg_resolveVar(expr.left["name"])
             if resolved.isGlobal { cg_emit(OP_STORE_GLOBAL, [resolved.index, rightReg]) }
             else { cg_emit(OP_STORE_VAR, [resolved.index, rightReg]) }
@@ -1036,8 +1050,29 @@ fn cg_compileBinary(expr: map) -> int {
             cg_emit(OP_INDEX_SET, [objReg, idxReg, rightReg])
             return rightReg
         }
+        let resultReg = cg_allocReg()
         cg_emit(OP_LOAD_CONST, [resultReg, cg_addConstant(null)])
-    } else {
+        return resultReg
+    }
+    let leftReg = cg_compileExpression(expr.left)
+    let rightReg = cg_compileExpression(expr.right)
+    let resultReg = cg_allocReg()
+
+    if op == "+" { cg_emit(OP_ADD, [resultReg, leftReg, rightReg]) }
+    else if op == "-" { cg_emit(OP_SUB, [resultReg, leftReg, rightReg]) }
+    else if op == "*" { cg_emit(OP_MUL, [resultReg, leftReg, rightReg]) }
+    else if op == "/" { cg_emit(OP_DIV, [resultReg, leftReg, rightReg]) }
+    else if op == "%" { cg_emit(OP_MOD, [resultReg, leftReg, rightReg]) }
+    else if op == "**" { cg_emit(OP_POW, [resultReg, leftReg, rightReg]) }
+    else if op == "==" { cg_emit(OP_EQ, [resultReg, leftReg, rightReg]) }
+    else if op == "!=" { cg_emit(OP_NEQ, [resultReg, leftReg, rightReg]) }
+    else if op == "<" { cg_emit(OP_LT, [resultReg, leftReg, rightReg]) }
+    else if op == ">" { cg_emit(OP_GT, [resultReg, leftReg, rightReg]) }
+    else if op == "<=" { cg_emit(OP_LE, [resultReg, leftReg, rightReg]) }
+    else if op == ">=" { cg_emit(OP_GE, [resultReg, leftReg, rightReg]) }
+    else if op == "&&" { cg_emit(OP_AND, [resultReg, leftReg, rightReg]) }
+    else if op == "||" { cg_emit(OP_OR, [resultReg, leftReg, rightReg]) }
+    else {
         cg_emit(OP_LOAD_CONST, [resultReg, cg_addConstant(null)])
     }
     return resultReg
@@ -1114,25 +1149,31 @@ fn cg_compileCall(expr: map) -> int {
     // Check for direct function call - use function name map for O(1) lookup
     if callee["kind"] == "Ident" {
         let calleeName = callee["name"]
-        let foundIdx = cg_fnMapGet(calleeName)
-        if foundIdx != null {
-            cg_emit(OP_CALL, [resultReg, foundIdx, arrays.length(args)])
-            return resultReg
-        }
-        // Fallback: linear search in cg_functions (handles renamed imports)
-        let fi = 0
-        while fi < arrays.length(cg_functions) {
-            let fdef = arrays.get(cg_functions, fi)
-            if fdef.name == calleeName {
-                cg_emit(OP_CALL, [resultReg, fi, arrays.length(args)])
+        // First check if this is a local/global variable (indirect call via Function Value)
+        let isVar = false
+        if cg_varMapGet(calleeName) != null { isVar = true }
+        if isVar == false && cg_globalMapGet(calleeName) != null { isVar = true }
+        if isVar == false {
+            let foundIdx = cg_fnMapGet(calleeName)
+            if foundIdx != null {
+                cg_emit(OP_CALL, [resultReg, foundIdx, arrays.length(args)])
                 return resultReg
             }
-            // Match imported function: __mod_N__calleeName
-            if strings.endsWith(fdef.name, "__" + calleeName) && strings.startsWith(fdef.name, "__mod_") {
-                cg_emit(OP_CALL, [resultReg, fi, arrays.length(args)])
-                return resultReg
+            // Fallback: linear search in cg_functions (handles renamed imports)
+            let fi = 0
+            while fi < arrays.length(cg_functions) {
+                let fdef = arrays.get(cg_functions, fi)
+                if fdef.name == calleeName {
+                    cg_emit(OP_CALL, [resultReg, fi, arrays.length(args)])
+                    return resultReg
+                }
+                // Match imported function: __mod_N__calleeName
+                if strings.endsWith(fdef.name, "__" + calleeName) && strings.startsWith(fdef.name, "__mod_") {
+                    cg_emit(OP_CALL, [resultReg, fi, arrays.length(args)])
+                    return resultReg
+                }
+                fi = fi + 1
             }
-            fi = fi + 1
         }
     }
 

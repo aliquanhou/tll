@@ -46,7 +46,7 @@ let OP_LOAD_GLOBAL = 40
 let OP_STORE_GLOBAL = 41
 let OP_CLOSURE = 42
 let OP_GET_UPVALUE = 43
-// OP_SET_UPVALUE = 44 reserved for P0-1D
+let OP_SET_UPVALUE = 44
 let OP_BOX_LOCAL = 45
 
 // ============ VM state ============
@@ -303,6 +303,17 @@ fn vm_runLoop() -> void {
                 } else { vm_setReg(a, null) }
             } else { vm_setReg(a, null) }
         }
+        else if op == 44 {
+            // OP_SET_UPVALUE: a=slot, b=valueReg
+            let env4 = arrays.get(vm_cs_closureEnv, arrays.length(vm_cs_closureEnv) - 1)
+            if env4 != null {
+                let uvList4 = env4["upvalues"]
+                if uvList4 != null && arrays.length(uvList4) > a {
+                    let uv4 = arrays.get(uvList4, a)
+                    if uv4 != null { uv4["value"] = vm_getReg(b) }
+                }
+            }
+        }
         else if op == 45 {
             // OP_BOX_LOCAL: a=localSlot, b=upvalueSlot
             let idx3 = arrays.length(vm_cs_closureEnv) - 1
@@ -360,6 +371,18 @@ fn vm_executeInstruction(inst: map) -> void {
             }
         } else {
             vm_setReg(a, null)
+        }
+        return
+    }
+    if op == OP_SET_UPVALUE {
+        // a = slot, b = valueReg
+        let env = arrays.get(vm_cs_closureEnv, arrays.length(vm_cs_closureEnv) - 1)
+        if env != null {
+            let uvList = env["upvalues"]
+            if uvList != null && arrays.length(uvList) > a {
+                let uv = arrays.get(uvList, a)
+                if uv != null { uv["value"] = vm_getReg(b) }
+            }
         }
         return
     }

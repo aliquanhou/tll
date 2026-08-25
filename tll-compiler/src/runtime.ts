@@ -186,6 +186,14 @@ export class Runtime {
         break;
       }
 
+      case OpCode.SET_UPVALUE: {
+        // a = slot, b = valueReg
+        if (frame.closureEnv && frame.closureEnv.upvalues[a]) {
+          frame.closureEnv.upvalues[a].value = regs[b];
+        }
+        break;
+      }
+
       case OpCode.CLOSURE: {
         // a = resultReg, b = fnIdx, c = captureCount, d... = upvalueSlots
         const captureCount = c;

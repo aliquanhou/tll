@@ -1,0 +1,22 @@
+fn makePair() {
+    let n = 0
+    fn inc() {
+        n = n + 1
+        return n
+    }
+    fn get() {
+        return n
+    }
+    return [inc, get]
+}
+
+fn main() {
+    let pair = makePair()
+    let inc = pair[0]
+    let get = pair[1]
+    io.println(inc())
+    io.println(get())
+    io.println(inc())
+    io.println(get())
+}
+main()
