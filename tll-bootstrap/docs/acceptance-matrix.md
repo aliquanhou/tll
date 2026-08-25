@@ -29,9 +29,23 @@
 - 一等函数(函数作为变量/参数): ❌ TLL 语言不支持，函数名只能直接调用
 - 类型推断: ⏳
 
-### 3. Module System ⏳
-### 4. Type System ⏳
-### 5. Bytecode ⏳
+### 3. Module System ✅
+- 10/10 测试通过
+- 覆盖: 路径冲突(同基名)、符号身份隔离、别名(基本/函数参数/局部变量/对象属性)、循环依赖(预期编译错误)、正常依赖、同名常量/函数
+- 验证脚本: tests/run-tests.js
+
+### 4. Type System ✅
+- 13/13 类型检查测试通过
+- 覆盖: 基本类型、类型推断、算术、字符串拼接、函数声明、if/while、数组/map字面量、未定义变量检测、函数调用、stdlib调用、比较运算、嵌套作用域
+- 类型检查器自身有22个类型警告(不影响功能)
+
+### 5. Bytecode ✅
+- 格式验证: 0 errors, 0 warnings
+- 144 functions, 2826 constants (59 bool/322 null/526 number/1919 string), 14022 instructions
+- mainFunctionIndex=143 有效, globalCount=171
+- 所有 opcode 在有效范围(0-41), 无无效指令
+- 验证脚本: tests/verify_bytecode.js
+
 ### 6. TLL VM ⏳
 ### 7. Stdlib ⏳
 ### 8. Exception ⏳ (与第2项关联)
