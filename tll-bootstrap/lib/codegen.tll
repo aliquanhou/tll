@@ -384,6 +384,7 @@ fn cg_compileStatement(stmt: map) -> void {
         return
     }
     if kind == "Throw" { let r = cg_compileExpression(stmt.value); cg_emit(OP_THROW, [r]); return }
+    if kind == "Try" { cg_compileTry(stmt); return }
     if kind == "Block" { cg_compileBlock(stmt); return }
     if kind == "ExpressionStatement" { cg_compileExpression(stmt.expression); return }
     if kind == "Export" { cg_compileStatement(stmt.declaration); return }
@@ -403,6 +404,45 @@ fn cg_compileIf(stmt: map) -> void {
         cg_patchJump(jmpEndIdx)
     } else {
         cg_patchJump(jmpFalseIdx)
+    }
+}
+
+fn cg_compileTry(stmt: map) -> void {
+    // TRY_START with catch label placeholder
+    let tryStartIdx = arrays.length(cg_instructions)
+    cg_emit(OP_TRY_START, [-1])
+
+    // Compile try body
+    cg_compileBlock(stmt.block)
+
+    // TRY_END
+    cg_emit(OP_TRY_END, [])
+
+    // Jump over catch block (to finally or end)
+    let jmpOverCatchIdx = arrays.length(cg_instructions)
+    cg_emit(OP_JMP, [-1])
+
+    // Patch TRY_START catch label to current position
+    cg_patchJump(tryStartIdx)
+
+    // Catch block
+    if stmt.catchBlock != null {
+        // Store error value (in r0) into catch param variable
+        if stmt.catchParam != null && stmt.catchParam != "" {
+            let errVarIdx = cg_getOrCreateVar(stmt.catchParam)
+            cg_emit(OP_STORE_VAR, [errVarIdx, 0])
+        }
+        cg_compileBlock(stmt.catchBlock)
+    }
+
+    // Finally block
+    if stmt.finallyBlock != null {
+        // Patch the jump-over-catch to land at finally
+        cg_patchJump(jmpOverCatchIdx)
+        cg_compileBlock(stmt.finallyBlock)
+    } else {
+        // Patch jump-over-catch to land at end
+        cg_patchJump(jmpOverCatchIdx)
     }
 }
 

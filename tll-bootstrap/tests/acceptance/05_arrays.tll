@@ -1,0 +1,21 @@
+// Acceptance Test 1.5: Arrays
+fn main() -> void {
+    let arr: list = [1, 2, 3, 4, 5]
+    io.println("length=" + convert.toString(arrays.length(arr)))
+    io.println("arr[0]=" + convert.toString(arrays.get(arr, 0)))
+    io.println("arr[2]=" + convert.toString(arrays.get(arr, 2)))
+
+    arrays.push(arr, 6)
+    io.println("after push length=" + convert.toString(arrays.length(arr)))
+    io.println("arr[5]=" + convert.toString(arrays.get(arr, 5)))
+
+    // iterate
+    let i = 0
+    let sum = 0
+    while i < arrays.length(arr) {
+        sum = sum + arrays.get(arr, i)
+        i = i + 1
+    }
+    io.println("sum=" + convert.toString(sum))
+}
+main()

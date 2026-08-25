@@ -1,0 +1,29 @@
+// Acceptance Test 1.4: Control flow (if/else/while)
+fn main() -> void {
+    // if/else
+    let n = 15
+    if n > 10 {
+        io.println("n>10")
+    } else {
+        io.println("n<=10")
+    }
+
+    // while loop
+    let i = 0
+    let sum = 0
+    while i < 5 {
+        sum = sum + i
+        i = i + 1
+    }
+    io.println("sum(0..4)=" + convert.toString(sum))
+
+    // nested if
+    if n > 10 {
+        if n > 20 {
+            io.println("n>20")
+        } else {
+            io.println("10<n<=20")
+        }
+    }
+}
+main()

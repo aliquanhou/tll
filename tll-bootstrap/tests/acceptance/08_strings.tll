@@ -1,0 +1,13 @@
+// Acceptance Test 1.8: Strings
+fn main() -> void {
+    let s = "Hello, TLL World!"
+    io.println("length=" + convert.toString(strings.length(s)))
+    io.println("upper=" + strings.toUpper(s))
+    io.println("lower=" + strings.toLower(s))
+    io.println("substring(0,5)=" + strings.substring(s, 0, 5))
+    io.println("charAt(7)=" + strings.charAt(s, 7))
+    io.println("contains(TLL)=" + convert.toString(strings.contains(s, "TLL")))
+    io.println("startsWith(Hello)=" + convert.toString(strings.startsWith(s, "Hello")))
+    io.println("endsWith(!)=" + convert.toString(strings.endsWith(s, "!")))
+}
+main()

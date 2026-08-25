@@ -1,0 +1,12 @@
+// Acceptance Test 1.2: Variables and arithmetic
+fn main() -> void {
+    let x = 10
+    let y = 20
+    let z = x + y
+    io.println("x=" + convert.toString(x))
+    io.println("y=" + convert.toString(y))
+    io.println("z=" + convert.toString(z))
+    x = x * 2
+    io.println("x*2=" + convert.toString(x))
+}
+main()
