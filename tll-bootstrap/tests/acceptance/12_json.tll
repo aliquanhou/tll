@@ -1,0 +1,25 @@
+// Acceptance Test 7.2: JSON builtins
+fn main() -> void {
+    // stringify
+    let obj: map = { name: "TLL", version: 1, active: true }
+    let s = json.stringify(obj)
+    io.println("stringify contains name: " + convert.toString(strings.contains(s, "name")))
+    io.println("stringify contains TLL: " + convert.toString(strings.contains(s, "TLL")))
+
+    // parse
+    let parsed = json.parse("{\"x\": 42, \"y\": \"hello\"}")
+    io.println("parsed x=" + convert.toString(parsed["x"]))
+    io.println("parsed y=" + convert.toString(parsed["y"]))
+
+    // array stringify/parse
+    let arr: list = [1, 2, 3]
+    let arrStr = json.stringify(arr)
+    io.println("array stringify: " + arrStr)
+
+    // roundtrip
+    let data: map = { a: 1, b: "test" }
+    let roundtrip = json.parse(json.stringify(data))
+    io.println("roundtrip a=" + convert.toString(roundtrip["a"]))
+    io.println("roundtrip b=" + convert.toString(roundtrip["b"]))
+}
+main()
