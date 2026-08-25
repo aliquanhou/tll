@@ -21,6 +21,7 @@ function printHelp() {
   console.log('  run <file>       Compile and execute a TLL program');
   console.log('  build <file>     Compile to bytecode (.tllbc)');
   console.log('  check <file>     Parse and typecheck only');
+  console.log('  repl             Start interactive REPL');
   console.log('  version          Print version');
   console.log('  help             Print this help');
 }
@@ -121,10 +122,11 @@ let output = null;
 for (let i = 2; i < args.length; i++) {
   if (args[i] === '-o' && args[i+1]) { output = args[i+1]; i++; }
 }
-if (!file) { console.error('Error: no input file'); printHelp(); process.exit(1); }
+if (command !== 'repl' && !file) { console.error('Error: no input file'); printHelp(); process.exit(1); }
 switch (command) {
   case 'run': cmdRun(file); break;
   case 'build': cmdBuild(file, output); break;
   case 'check': cmdCheck(file); break;
+  case 'repl': require(path.join(__dirname, 'tll-repl.js')); break;
   default: console.error('Error: unknown command: ' + command); printHelp(); process.exit(1);
 }
