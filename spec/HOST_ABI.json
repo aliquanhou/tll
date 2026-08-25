@@ -1,0 +1,138 @@
+{
+  "version": "1.0.0",
+  "description": "TLL OS Host ABI Specification - The boundary between TLL Language Core and Host Platform",
+  "principle": "Host ABI provides only OS-level capabilities. All language-level computation (strings, arrays, math, json, convert) must be implemented in TLL stdlib.",
+  "categories": {
+    "host": "Functions that require OS/hardware access. Must be implemented by Native Launcher.",
+    "stdlib": "Functions that can be implemented in pure TLL. Should not be in Host ABI.",
+    "language_core": "Operations encoded as bytecode opcodes, not function calls."
+  },
+  "host_abi": {
+    "io": {
+      "description": "Standard input/output",
+      "functions": [
+        {"index": 0, "name": "println", "params": ["text: string"], "returns": "null", "host": true},
+        {"index": 1, "name": "print", "params": ["text: string"], "returns": "null", "host": true},
+        {"index": 2, "name": "readLine", "params": ["prompt: string"], "returns": "string", "host": true}
+      ]
+    },
+    "stderr": {
+      "description": "Standard error (to be added)",
+      "functions": [
+        {"index": 120, "name": "eprintln", "params": ["text: string"], "returns": "null", "host": true, "status": "planned"}
+      ]
+    },
+    "filesystem": {
+      "description": "File system operations",
+      "functions": [
+        {"index": 79, "name": "readFile", "params": ["path: string"], "returns": "string", "host": true},
+        {"index": 80, "name": "writeFile", "params": ["path: string", "content: string"], "returns": "null", "host": true},
+        {"index": 81, "name": "appendFile", "params": ["path: string", "content: string"], "returns": "null", "host": true},
+        {"index": 82, "name": "exists", "params": ["path: string"], "returns": "bool", "host": true},
+        {"index": 83, "name": "mkdir", "params": ["path: string"], "returns": "null", "host": true},
+        {"index": 84, "name": "remove", "params": ["path: string"], "returns": "null", "host": true},
+        {"index": 85, "name": "listDir", "params": ["path: string"], "returns": "array", "host": true},
+        {"index": 86, "name": "isFile", "params": ["path: string"], "returns": "bool", "host": true},
+        {"index": 87, "name": "isDir", "params": ["path: string"], "returns": "bool", "host": true},
+        {"index": 88, "name": "fileSize", "params": ["path: string"], "returns": "int", "host": true},
+        {"index": 89, "name": "copyFile", "params": ["src: string", "dst: string"], "returns": "null", "host": true},
+        {"index": 90, "name": "rename", "params": ["src: string", "dst: string"], "returns": "null", "host": true}
+      ]
+    },
+    "network": {
+      "description": "HTTP network operations",
+      "functions": [
+        {"index": 91, "name": "httpGet", "params": ["url: string"], "returns": "map", "host": true},
+        {"index": 92, "name": "httpGetText", "params": ["url: string"], "returns": "string", "host": true},
+        {"index": 93, "name": "httpPost", "params": ["url: string", "body: string"], "returns": "map", "host": true},
+        {"index": 94, "name": "httpPostJson", "params": ["url: string", "body: any"], "returns": "map", "host": true},
+        {"index": 95, "name": "httpRequest", "params": ["method: string", "url: string", "headers: map", "body: string"], "returns": "map", "host": true},
+        {"index": 96, "name": "httpGetStatus", "params": ["url: string"], "returns": "int", "host": true},
+        {"index": 97, "name": "httpDownload", "params": ["url: string", "path: string"], "returns": "null", "host": true}
+      ]
+    },
+    "random": {
+      "description": "Random number generation (requires host entropy)",
+      "functions": [
+        {"index": 22, "name": "random", "params": [], "returns": "float", "host": true},
+        {"index": 23, "name": "randomInt", "params": ["min: int", "max: int"], "returns": "int", "host": true}
+      ]
+    },
+    "process": {
+      "description": "Process control (to be added)",
+      "functions": [
+        {"index": 121, "name": "exit", "params": ["code: int"], "returns": "null", "host": true, "status": "planned"},
+        {"index": 122, "name": "args", "params": [], "returns": "array", "host": true, "status": "planned"},
+        {"index": 123, "name": "cwd", "params": [], "returns": "string", "host": true, "status": "planned"}
+      ]
+    },
+    "environment": {
+      "description": "Environment variables (to be added)",
+      "functions": [
+        {"index": 124, "name": "envGet", "params": ["key: string"], "returns": "string", "host": true, "status": "planned"}
+      ]
+    },
+    "clock": {
+      "description": "Time and sleep (to be added)",
+      "functions": [
+        {"index": 125, "name": "timeMs", "params": [], "returns": "int", "host": true, "status": "planned"},
+        {"index": 126, "name": "sleep", "params": ["ms: int"], "returns": "null", "host": true, "status": "planned"}
+      ]
+    }
+  },
+  "tll_stdlib": {
+    "description": "Pure TLL implementations. NOT part of Host ABI. Native Launcher is not required to implement these.",
+    "modules": {
+      "json": {
+        "indices": [3, 4],
+        "functions": ["parse", "stringify"],
+        "implementation": "TLL"
+      },
+      "math": {
+        "indices": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21],
+        "functions": ["sqrt", "abs", "floor", "ceil", "round", "min", "max", "pow", "sin", "cos", "tan", "log", "log2", "log10", "exp", "pi", "e"],
+        "note": "random(22) and randomInt(23) are Host ABI",
+        "implementation": "TLL"
+      },
+      "strings": {
+        "indices": [24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48],
+        "functions": ["length", "toUpper", "toLower", "trim", "trimStart", "trimEnd", "split", "join", "contains", "startsWith", "endsWith", "substring", "replace", "replaceAll", "repeat", "padStart", "padEnd", "charAt", "charCodeAt", "indexOf", "lastIndexOf", "isEmpty", "reverse", "lines", "words"],
+        "implementation": "TLL"
+      },
+      "arrays": {
+        "indices": [49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71],
+        "functions": ["length", "get", "push", "pop", "shift", "unshift", "concat", "slice", "includes", "indexOf", "join", "reverse", "sort", "filter", "map", "reduce", "forEach", "find", "some", "every", "flat", "fill", "range"],
+        "implementation": "TLL"
+      },
+      "convert": {
+        "indices": [72, 73, 74, 75, 76, 77, 78],
+        "functions": ["toInt", "toFloat", "toString", "toBool", "toChar", "charCode", "typeOf"],
+        "implementation": "TLL"
+      }
+    }
+  },
+  "runtime_extension": {
+    "description": "Agent/Workflow runtime extensions. Not part of v1.0 Language Core.",
+    "indices": [98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119],
+    "status": "deferred"
+  },
+  "native_launcher_requirements": {
+    "must_implement": [
+      "io.println (0)",
+      "io.print (1)",
+      "io.readLine (2)",
+      "fs.readFile (79) through fs.rename (90)",
+      "http.get (91) through http.download (97)",
+      "math.random (22)",
+      "math.randomInt (23)"
+    ],
+    "must_not_implement": [
+      "json.parse/stringify",
+      "math (except random)",
+      "strings.*",
+      "arrays.*",
+      "convert.*"
+    ],
+    "tll_stdlib_provided_by": "Precompiled into vm_run.tllbc or loaded as TLL modules"
+  }
+}

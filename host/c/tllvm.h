@@ -117,7 +117,8 @@ typedef struct {
 typedef struct {
     TLLFunction *function;
     int pc;
-    TLLValue registers[256];
+    TLLValue *registers;
+    int registerCount;
     TLLValue *locals;
     int localCount;
     TLLValue *argStack;

@@ -44,13 +44,16 @@ static TLLFrame *create_frame(TLLFunction *fn, int returnReg, TLLClosureEnv *env
     TLLFrame *frame = (TLLFrame*)calloc(1, sizeof(TLLFrame));
     frame->function = fn;
     frame->pc = 0;
+    frame->registerCount = 4096;
+    frame->registers = (TLLValue*)calloc(4096, sizeof(TLLValue));
+    for (int i = 0; i < 4096; i++) frame->registers[i] = tll_null();
     frame->localCount = fn->localCount;
-    frame->locals = (TLLValue*)calloc(fn->localCount, sizeof(TLLValue));
+    frame->locals = (TLLValue*)calloc(fn->localCount > 0 ? fn->localCount : 1, sizeof(TLLValue));
     for (int i = 0; i < fn->localCount; i++) frame->locals[i] = tll_null();
-    frame->argStackCapacity = 16;
-    frame->argStack = (TLLValue*)calloc(16, sizeof(TLLValue));
-    frame->tryStackCapacity = 8;
-    frame->tryStack = (int*)calloc(8, sizeof(int));
+    frame->argStackCapacity = 64;
+    frame->argStack = (TLLValue*)calloc(64, sizeof(TLLValue));
+    frame->tryStackCapacity = 16;
+    frame->tryStack = (int*)calloc(16, sizeof(int));
     frame->returnReg = returnReg;
     frame->closureEnv = env;
     return frame;
@@ -74,6 +77,7 @@ static void free_frame(TLLFrame *frame) {
     /* Note: locals and argStack values may be shared with closures/return values.
      * For bootstrap VM, we leak them to avoid use-after-free.
      * A production VM would use reference counting. */
+    free(frame->registers);
     free(frame->locals);
     free(frame->argStack);
     free(frame->tryStack);
