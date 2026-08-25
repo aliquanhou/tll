@@ -9,8 +9,11 @@ on:
 
 jobs:
   build-and-verify:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -30,16 +33,20 @@ jobs:
         run: npm run build
 
       - name: Verify build artifacts exist
+        shell: bash
         run: |
           test -f tll-compiler/dist/src/cli.js || (echo "cli.js not found" && exit 1)
           test -f tll-compiler/dist/src/runtime.js || (echo "runtime.js not found" && exit 1)
           echo "Build artifacts verified"
 
-      - name: Run module system regression tests (10 tests)
+      - name: Run unified test suite
         working-directory: tll-bootstrap
-        run: node tests/run-tests.js
+        run: node tests/run_all.js
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
 
-      - name: Run self-hosting verification (L4 + L5 + determinism)
+      - name: Run self-hosting verification (ubuntu only - long running)
+        if: matrix.os == 'ubuntu-latest'
         working-directory: tll-bootstrap
         run: node tests/selfhost.js
         env:
@@ -47,12 +54,12 @@ jobs:
 
       - name: CI Summary
         if: always()
+        shell: bash
         run: |
           echo "========================================"
-          echo "TLL CI Complete"
+          echo "TLL CI Complete (${{ matrix.os }})"
           echo "========================================"
           echo "Build: TypeScript bootstrap compiler"
-          echo "Tests: Module system regression (10 tests)"
-          echo "Self-host: L4 (bootstrap->bytecode A->B)"
-          echo "Self-host: L5 (bytecode B->C, B==C determinism)"
+          echo "Tests: Unified test suite (VM/equivalence/exception/package/CLI)"
+          echo "Self-host: L4+L5+determinism (ubuntu only)"
           echo "========================================"
