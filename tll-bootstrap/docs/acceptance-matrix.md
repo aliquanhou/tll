@@ -46,7 +46,13 @@
 - 所有 opcode 在有效范围(0-41), 无无效指令
 - 验证脚本: tests/verify_bytecode.js
 
-### 6. TLL VM ⏳
+### 6. TLL VM ✅ **重大里程碑**
+- 9/9 核心语言特性测试通过（vm.tll 独立执行 bytecode）
+- 覆盖: hello, variables/arithmetic, functions, control_flow, arrays, maps, recursion(factorial/fib), strings, exceptions(try/catch/throw)
+- 不依赖 TS Runtime 提供语义支持（TS Runtime 仅作为宿主解释 vm.tll 本身）
+- 验证脚本: tests/verify_vm.js
+- 已知: 完整自举性能~15分钟（双重解释瓶颈），正确性已验证
+
 ### 7. Stdlib ⏳
 ### 8. Exception ⏳ (与第2项关联)
 ### 9. Closure ⏳
