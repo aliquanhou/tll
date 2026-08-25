@@ -35,7 +35,10 @@ function runTest(testName, testFile) {
   }
 
   const baseName = isDirTest ? testName : path.relative(TESTS_DIR, testFile).replace(/\\/g, '/');
-  const expectedFile = path.join(testDir, 'expected.txt');
+  // For file-based tests, use <filename>.expected.txt; for dir tests, use expected.txt
+  const perFileExpected = isDirTest ? null : path.join(testDir, path.basename(testFile).replace(/\.tll$/, '.expected.txt'));
+  const dirExpected = path.join(testDir, 'expected.txt');
+  const expectedFile = (perFileExpected && fs.existsSync(perFileExpected)) ? perFileExpected : dirExpected;
   const configFile = path.join(testDir, 'test.json');
 
   const config = fs.existsSync(configFile) ? JSON.parse(fs.readFileSync(configFile, 'utf8')) : {};
@@ -87,24 +90,34 @@ main()
       return { name: testName, status: 'FAIL', reason: 'Expected compile error but compilation succeeded' };
     }
 
-    // Stage 2: Execute bytecode
+    // Stage 2: Execute bytecode (cwd matches test file dir, same as `tll run`)
     const bytecode = JSON.parse(fs.readFileSync(bytecodeFile, 'utf8'));
     const runtime = new Runtime(bytecode);
     const output = [];
     const origLog = console.log;
+    const origCwd = process.cwd();
+    process.chdir(testDir);
     console.log = (...args) => output.push(args.join(' '));
     try {
       runtime.run();
     } catch (e) {
       console.log = origLog;
+      process.chdir(origCwd);
       return { name: testName, status: 'FAIL', reason: `Runtime error: ${e.message}` };
     }
     console.log = origLog;
+    process.chdir(origCwd);
 
     const actual = output.join('\n').trim();
-    // If no expected.txt, pass if no runtime error (output is for manual inspection)
+    // No expected.txt: require symbol identity check OR explicit assertion marker in output
     if (expected === '') {
-      return { name: testName, status: 'PASS', reason: 'No expected output specified, ran successfully' };
+      if (config.checkSymbolIdentity) {
+        // Symbol identity check below
+      } else if (actual.includes('ALL PASS') || actual.includes('PASS') || actual.includes('TEST DONE')) {
+        return { name: testName, status: 'PASS', reason: 'Self-asserting test passed' };
+      } else {
+        return { name: testName, status: 'FAIL', reason: 'No expected.txt and no self-assertion marker (ALL PASS/PASS/TEST DONE)' };
+      }
     }
     if (actual !== expected) {
       return {

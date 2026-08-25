@@ -1,0 +1,3 @@
+parseToml result: {"name":"tll-example","version":"1.0.0","entry":"main.tll"}
+loadManifest result: {"name":"tll-example","version":"1.0.0","entry":"main.tll","hasError":false}
+manifest keys type: object

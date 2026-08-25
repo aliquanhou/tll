@@ -1,0 +1,8 @@
+bracket a: 1
+bracket b: 2
+member name: test
+member value: 42
+returned x: 100
+returned y: 200
+nested: 99
+=== MAP ACCESS TEST DONE ===

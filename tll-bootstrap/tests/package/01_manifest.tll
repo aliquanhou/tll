@@ -1,9 +1,9 @@
 from "../../lib/package" import loadManifest, parseToml
 fn main() -> void {
-    let text = fs.readFile("tests/package/example/tll.toml")
+    let text = fs.readFile("example/tll.toml")
     let parsed = parseToml(text)
     io.println("parseToml result: " + json.stringify(parsed))
-    let manifest = loadManifest("tests/package/example/tll.toml")
+    let manifest = loadManifest("example/tll.toml")
     io.println("loadManifest result: " + json.stringify(manifest))
     io.println("manifest keys type: " + convert.typeOf(manifest))
 }
