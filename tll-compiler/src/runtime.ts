@@ -168,6 +168,38 @@ export class Runtime {
         this.globals[a] = regs[b];
         break;
 
+      case OpCode.BOX_LOCAL: {
+        // a = localSlot, b = upvalueSlot
+        if (!frame.closureEnv) frame.closureEnv = { upvalues: [] };
+        while (frame.closureEnv.upvalues.length <= b) frame.closureEnv.upvalues.push(null);
+        frame.closureEnv.upvalues[b] = { value: frame.locals[a] };
+        break;
+      }
+
+      case OpCode.GET_UPVALUE: {
+        // a = resultReg, b = slot
+        if (frame.closureEnv && frame.closureEnv.upvalues[b]) {
+          regs[a] = frame.closureEnv.upvalues[b].value;
+        } else {
+          regs[a] = null;
+        }
+        break;
+      }
+
+      case OpCode.CLOSURE: {
+        // a = resultReg, b = fnIdx, c = captureCount, d... = upvalueSlots
+        const captureCount = c;
+        const newEnv = { upvalues: [] as any[] };
+        if (frame.closureEnv) {
+          for (let i = 0; i < captureCount; i++) {
+            const slot = inst.operands[3 + i];
+            newEnv.upvalues.push(frame.closureEnv.upvalues[slot]);
+          }
+        }
+        regs[a] = { __fn: true, fnIdx: b, env: newEnv };
+        break;
+      }
+
       case OpCode.ADD:
         regs[a] = this.add(regs[b], regs[c]);
         break;

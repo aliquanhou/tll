@@ -1,0 +1,14 @@
+fn outer(x) {
+    fn middle(y) {
+        fn inner(z) {
+            return x + y + z
+        }
+        return inner
+    }
+    return middle
+}
+
+fn main() {
+    io.println(outer(1)(2)(3))
+}
+main()

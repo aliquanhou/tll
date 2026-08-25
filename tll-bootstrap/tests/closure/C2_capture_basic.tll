@@ -1,0 +1,11 @@
+fn makeAdder(x) {
+    fn add(y) {
+        return x + y
+    }
+    return add
+}
+
+fn main() {
+    io.println(makeAdder(10)(5))
+}
+main()

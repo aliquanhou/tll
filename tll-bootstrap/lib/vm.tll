@@ -44,6 +44,10 @@ let OP_TRY_START = 38
 let OP_TRY_END = 39
 let OP_LOAD_GLOBAL = 40
 let OP_STORE_GLOBAL = 41
+let OP_CLOSURE = 42
+let OP_GET_UPVALUE = 43
+// OP_SET_UPVALUE = 44 reserved for P0-1D
+let OP_BOX_LOCAL = 45
 
 // ============ VM state ============
 let vm_constants: auto = []
@@ -57,6 +61,7 @@ let vm_cs_argStack: auto = []
 let vm_cs_tryStack: auto = []
 let vm_cs_returnReg: auto = []
 let vm_cs_fnIdx: auto = []
+let vm_cs_closureEnv: auto = []
 let vm_result: auto = null
 let vm_halted = false
 let vm_lastResultReg = 0  // track last expression result register for HALT
@@ -110,6 +115,7 @@ fn vm_saveFrame() -> void {
     arrays.push(vm_cs_tryStack, vm_tryStack)
     arrays.push(vm_cs_returnReg, vm_returnReg)
     arrays.push(vm_cs_fnIdx, vm_fnIdx)
+    arrays.push(vm_cs_closureEnv, arrays.get(vm_cs_closureEnv, arrays.length(vm_cs_closureEnv) - 1))
 }
 
 fn vm_restoreFrame() -> bool {
@@ -132,6 +138,7 @@ fn vm_restoreFrame() -> bool {
     arrays.pop(vm_cs_tryStack)
     arrays.pop(vm_cs_returnReg)
     arrays.pop(vm_cs_fnIdx)
+    arrays.pop(vm_cs_closureEnv)
     let restoredFn = arrays.get(vm_functions, vm_fnIdx)
     vm_currentInstructions = restoredFn["instructions"]
     return true
@@ -153,6 +160,7 @@ export fn run(program: map) -> any {
     vm_cs_tryStack = []
     vm_cs_returnReg = []
     vm_cs_fnIdx = []
+    vm_cs_closureEnv = []
     vm_result = null
     vm_halted = false
     vm_lastResultReg = 0
@@ -183,6 +191,7 @@ export fn run(program: map) -> any {
     vm_argStack = []
     vm_tryStack = []
     vm_returnReg = -1
+    arrays.push(vm_cs_closureEnv, null)
 
     vm_runLoop()
     return vm_result
@@ -264,6 +273,48 @@ fn vm_runLoop() -> void {
         else if op == 39 { arrays.pop(vm_tryStack) }
         else if op == 40 { vm_setReg(a, arrays.get(vm_globals, b)) }
         else if op == 41 { vm_setGlobal(a, vm_getReg(b)); vm_lastResultReg = b }
+        else if op == 42 {
+            // OP_CLOSURE: a=resultReg, b=fnIdx, c=captureCount, d...=upvalueSlots
+            let captureCount = c
+            let newEnv = { upvalues: [] }
+            let newUv = newEnv["upvalues"]
+            let curEnv = vm_cs_closureEnv[arrays.length(vm_cs_closureEnv) - 1]
+            if curEnv != null {
+                let curUv = curEnv["upvalues"]
+                if curUv != null {
+                    let i = 0
+                    while i < captureCount {
+                        let slot = arrays.get(operands, 3 + i)
+                        arrays.push(newUv, curUv[slot])
+                        i = i + 1
+                    }
+                }
+            }
+            vm_setReg(a, { __fn: true, fnIdx: b, env: newEnv })
+        }
+        else if op == 43 {
+            // OP_GET_UPVALUE: a=resultReg, b=slot
+            let env2 = arrays.get(vm_cs_closureEnv, arrays.length(vm_cs_closureEnv) - 1)
+            if env2 != null {
+                let uvList2 = env2["upvalues"]
+                if uvList2 != null && arrays.length(uvList2) > b {
+                    let uv2 = arrays.get(uvList2, b)
+                    if uv2 != null { vm_setReg(a, uv2["value"]) } else { vm_setReg(a, null) }
+                } else { vm_setReg(a, null) }
+            } else { vm_setReg(a, null) }
+        }
+        else if op == 45 {
+            // OP_BOX_LOCAL: a=localSlot, b=upvalueSlot
+            let idx3 = arrays.length(vm_cs_closureEnv) - 1
+            let env3 = vm_cs_closureEnv[idx3]
+            if env3 == null {
+                env3 = { upvalues: [] }
+                vm_cs_closureEnv[idx3] = env3
+            }
+            let uvList3 = env3["upvalues"]
+            while arrays.length(uvList3) <= b { arrays.push(uvList3, null) }
+            uvList3[b] = { value: vm_locals[a] }
+        }
     }
 }
 
@@ -283,6 +334,55 @@ fn vm_executeInstruction(inst: map) -> void {
     if op == OP_STORE_VAR { vm_setLocal(a, vm_getReg(b)); vm_lastResultReg = b; return }
     if op == OP_LOAD_GLOBAL { vm_setReg(a, arrays.get(vm_globals, b)); return }
     if op == OP_STORE_GLOBAL { vm_setGlobal(a, vm_getReg(b)); vm_lastResultReg = b; return }
+    if op == OP_BOX_LOCAL {
+        // a = localSlot, b = upvalueSlot
+        let idx = arrays.length(vm_cs_closureEnv) - 1
+        let env = vm_cs_closureEnv[idx]
+        if env == null {
+            env = { upvalues: [] }
+            vm_cs_closureEnv[idx] = env
+        }
+        let uvList = env["upvalues"]
+        while arrays.length(uvList) <= b { arrays.push(uvList, null) }
+        uvList[b] = { value: vm_locals[a] }
+        return
+    }
+    if op == OP_GET_UPVALUE {
+        // a = resultReg, b = slot
+        let env = arrays.get(vm_cs_closureEnv, arrays.length(vm_cs_closureEnv) - 1)
+        if env != null {
+            let uvList = env["upvalues"]
+            if uvList != null && arrays.length(uvList) > b {
+                let uv = arrays.get(uvList, b)
+                if uv != null { vm_setReg(a, uv["value"]) } else { vm_setReg(a, null) }
+            } else {
+                vm_setReg(a, null)
+            }
+        } else {
+            vm_setReg(a, null)
+        }
+        return
+    }
+    if op == OP_CLOSURE {
+        // a = resultReg, b = fnIdx, c = captureCount, d... = upvalueSlots
+        let captureCount = c
+        let newEnv = { upvalues: [] }
+        let newUvList = newEnv["upvalues"]
+        let curEnv = arrays.get(vm_cs_closureEnv, arrays.length(vm_cs_closureEnv) - 1)
+        if curEnv != null {
+            let curUvList = curEnv["upvalues"]
+            if curUvList != null {
+                let i = 0
+                while i < captureCount {
+                    let slot = arrays.get(inst.operands, 3 + i)
+                    arrays.push(newUvList, arrays.get(curUvList, slot))
+                    i = i + 1
+                }
+            }
+        }
+        vm_setReg(a, { __fn: true, fnIdx: b, env: newEnv })
+        return
+    }
     if op == OP_ADD {
         let rv = vm_getReg(b)
         let lv = vm_getReg(c)
@@ -423,14 +523,15 @@ fn vm_executeCall(resultReg: int, fnIdxOrReg: int, argCount: int) -> void {
     }
 
     // Indirect call: check for __fn function value object (user function / closure)
+    let callClosureEnv = null
     if isIndirect && convert.typeOf(possibleFn) == "object" && possibleFn["__fn"] == true {
         actualFnIdx = possibleFn["fnIdx"]
-        // env is ignored for P0-1A (top-level functions have env=null)
-        // Full closure env support comes in P0-1C
+        callClosureEnv = possibleFn["env"]
     }
 
     if actualFnIdx >= 0 && actualFnIdx < arrays.length(vm_functions) {
         vm_saveFrame()
+        vm_cs_closureEnv[arrays.length(vm_cs_closureEnv) - 1] = callClosureEnv
         let func = arrays.get(vm_functions, actualFnIdx)
         vm_fnIdx = actualFnIdx
         vm_currentInstructions = func["instructions"]

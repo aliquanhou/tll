@@ -44,6 +44,10 @@ let OP_TRY_START = 38
 let OP_TRY_END = 39
 let OP_LOAD_GLOBAL = 40
 let OP_STORE_GLOBAL = 41
+let OP_CLOSURE = 42
+let OP_GET_UPVALUE = 43
+// OP_SET_UPVALUE = 44 reserved for P0-1D
+let OP_BOX_LOCAL = 45
 
 // ============ Codegen state ============
 let cg_instructions: list = []
@@ -60,6 +64,10 @@ let cg_mainFnIndex = 0
 let cg_allFnInstructions: list = []
 let cg_allFnLocalCounts: list = []
 let cg_currentLocalCount = 0
+// Closure state
+let cg_upvalueMap: map = {}
+let cg_parentUpvalueMap: map = null
+let cg_closureEnvSize = 0
 // Try-finally context: when >= 0, returns inside try body jump to this label
 let cg_tryFinallyLabel = -1
 let cg_pendingReturnReg = -1
@@ -158,12 +166,13 @@ fn cg_collectFunctions(stmts: auto, parentName: auto) -> void {
                 internalName = parentName + "__" + stmt.name
             }
             stmt.internalName = internalName
+            stmt.parentInternalName = parentName
             let fnIdx = arrays.length(cg_functions)
             cg_fnMapSet(internalName, fnIdx)
             cg_fnDeclMap[internalName] = stmt
             let isTop = false
             if parentName == null { isTop = true }
-            let fnObj = { name: internalName, paramCount: arrays.length(stmt.params), instructions: [], localCount: 0, decl: stmt, isTopLevel: isTop }
+            let fnObj = { name: internalName, paramCount: arrays.length(stmt.params), instructions: [], localCount: 0, decl: stmt, isTopLevel: isTop, parentInternalName: parentName, upvalueMap: null }
             arrays.push(cg_functions, fnObj)
             // Recursively collect nested functions
             if stmt.body != null && stmt.body.statements != null {
@@ -172,6 +181,128 @@ fn cg_collectFunctions(stmts: auto, parentName: auto) -> void {
         }
         i = i + 1
     }
+}
+
+// ============ Closure capture analysis ============
+
+fn cg_collectIdentsInExpr(expr: any, result: list) -> void {
+    if expr == null { return }
+    if convert.typeOf(expr) == "array" {
+        let i = 0
+        while i < arrays.length(expr) {
+            cg_collectIdentsInExpr(arrays.get(expr, i), result)
+            i = i + 1
+        }
+        return
+    }
+    if convert.typeOf(expr) != "object" { return }
+    if expr.kind == "Fn" {
+        // Recurse into nested function body, but skip its params/locals
+        if expr.body != null {
+            cg_collectIdentsInExpr(expr.body, result)
+        }
+        return
+    }
+    if expr.kind == "Ident" {
+        let found = false
+        let ri = 0
+        while ri < arrays.length(result) {
+            if arrays.get(result, ri) == expr.name { found = true }
+            ri = ri + 1
+        }
+        if found == false { arrays.push(result, expr.name) }
+    }
+    let keys = ["left", "right", "operand", "callee", "args", "object", "index",
+        "value", "condition", "body", "elseBody", "statements", "elements", "entries",
+        "expression", "iterable", "catchBody", "finallyBlock"]
+    let ki = 0
+    while ki < arrays.length(keys) {
+        let k = arrays.get(keys, ki)
+        if expr[k] != null { cg_collectIdentsInExpr(expr[k], result) }
+        ki = ki + 1
+    }
+}
+
+fn cg_listContains(lst: list, name: string) -> bool {
+    let i = 0
+    while i < arrays.length(lst) {
+        if arrays.get(lst, i) == name { return true }
+        i = i + 1
+    }
+    return false
+}
+
+fn cg_collectAllParamsAndLocals(fnDecl: map, result: list) -> void {
+    // Add this function's params
+    let pi = 0
+    while pi < arrays.length(fnDecl.params) {
+        let p = arrays.get(fnDecl.params, pi)
+        if cg_listContains(result, p.name) == false { arrays.push(result, p.name) }
+        pi = pi + 1
+    }
+    // Add this function's locals
+    if fnDecl.body != null && fnDecl.body.statements != null {
+        let si = 0
+        while si < arrays.length(fnDecl.body.statements) {
+            let stmt = arrays.get(fnDecl.body.statements, si)
+            if stmt != null && (stmt.kind == "Let" || stmt.kind == "Const") {
+                if cg_listContains(result, stmt.name) == false { arrays.push(result, stmt.name) }
+            }
+            if stmt != null && stmt.kind == "Fn" {
+                cg_collectAllParamsAndLocals(stmt, result)
+            }
+            si = si + 1
+        }
+    }
+}
+
+fn cg_collectReferencedNames(fnDecl: map) -> list {
+    let result: list = []
+    // Collect all params/locals of this function and all nested functions
+    let allBound: list = []
+    cg_collectAllParamsAndLocals(fnDecl, allBound)
+    // Collect all idents in this function's body (including nested bodies)
+    let allIdents: list = []
+    if fnDecl.body != null { cg_collectIdentsInExpr(fnDecl.body, allIdents) }
+    // Filter out all bound names
+    let ii = 0
+    while ii < arrays.length(allIdents) {
+        let name = arrays.get(allIdents, ii)
+        if cg_listContains(allBound, name) == false {
+            if cg_listContains(result, name) == false { arrays.push(result, name) }
+        }
+        ii = ii + 1
+    }
+    return result
+}
+
+fn cg_collectCapturedByNested(fnDecl: map) -> list {
+    let result: list = []
+    let paramNames: list = []
+    let pi = 0
+    while pi < arrays.length(fnDecl.params) {
+        let p = arrays.get(fnDecl.params, pi)
+        arrays.push(paramNames, p.name)
+        pi = pi + 1
+    }
+    if fnDecl.body == null || fnDecl.body.statements == null { return result }
+    let si = 0
+    while si < arrays.length(fnDecl.body.statements) {
+        let stmt = arrays.get(fnDecl.body.statements, si)
+        if stmt != null && stmt.kind == "Fn" {
+            let refs = cg_collectReferencedNames(stmt)
+            let ri = 0
+            while ri < arrays.length(refs) {
+                let ref = arrays.get(refs, ri)
+                if cg_listContains(paramNames, ref) && cg_listContains(result, ref) == false {
+                    arrays.push(result, ref)
+                }
+                ri = ri + 1
+            }
+        }
+        si = si + 1
+    }
+    return result
 }
 
 // ============ Main entry ============
@@ -347,6 +478,29 @@ fn cg_compileFunction(fnDecl: map) -> void {
     cg_labelCounter = 0
     cg_instructions = []
 
+    // Save closure state
+    let savedUpvalueMap = cg_upvalueMap
+    let savedParentUpvalueMap = cg_parentUpvalueMap
+    let savedClosureEnvSize = cg_closureEnvSize
+
+    cg_upvalueMap = []
+    cg_closureEnvSize = 0
+    // Get parent's upvalueMap from function object
+    let parentName = cg_currentFn.parentInternalName
+    if parentName != null {
+        let pfi = 0
+        while pfi < arrays.length(cg_functions) {
+            let pf = arrays.get(cg_functions, pfi)
+            if pf.name == parentName {
+                cg_parentUpvalueMap = pf.upvalueMap
+                pfi = arrays.length(cg_functions)
+            }
+            pfi = pfi + 1
+        }
+    } else {
+        cg_parentUpvalueMap = null
+    }
+
     let params = fnDecl.params
     let i = 0
     while i < arrays.length(params) {
@@ -371,6 +525,49 @@ fn cg_compileFunction(fnDecl: map) -> void {
         }
     }
 
+    // Capture analysis
+    let capturedByNested = cg_collectCapturedByNested(fnDecl)
+    let referencedFromOuter = cg_collectReferencedNames(fnDecl)
+
+    // Assign upvalue slots: first from parent, then captured by nested
+    if cg_parentUpvalueMap != null {
+        let ri = 0
+        while ri < arrays.length(referencedFromOuter) {
+            let name = arrays.get(referencedFromOuter, ri)
+            if cg_listContains(cg_parentUpvalueMap, name) && cg_listContains(cg_upvalueMap, name) == false {
+                arrays.push(cg_upvalueMap, name)
+                cg_closureEnvSize = cg_closureEnvSize + 1
+            }
+            ri = ri + 1
+        }
+    }
+    let ci = 0
+    while ci < arrays.length(capturedByNested) {
+        let name = arrays.get(capturedByNested, ci)
+        if cg_listContains(cg_upvalueMap, name) == false {
+            arrays.push(cg_upvalueMap, name)
+            cg_closureEnvSize = cg_closureEnvSize + 1
+        }
+        ci = ci + 1
+    }
+
+    // Emit BOX_LOCAL for captured parameters
+    let pi = 0
+    while pi < arrays.length(params) {
+        let pname = arrays.get(params, pi)["name"]
+        if cg_listContains(capturedByNested, pname) {
+            // Find upvalue slot
+            let slot = -1
+            let si = 0
+            while si < arrays.length(cg_upvalueMap) {
+                if arrays.get(cg_upvalueMap, si) == pname { slot = si; si = arrays.length(cg_upvalueMap) }
+                si = si + 1
+            }
+            cg_emit(OP_BOX_LOCAL, [pi, slot])
+        }
+        pi = pi + 1
+    }
+
     cg_compileBlock(fnDecl.body)
 
     // Implicit return void only if last instruction is not RET
@@ -384,6 +581,14 @@ fn cg_compileFunction(fnDecl: map) -> void {
         cg_emit(OP_LOAD_CONST, [voidReg, cg_addConstant(null)])
         cg_emit(OP_RET, [voidReg])
     }
+
+    // Save upvalueMap for nested functions
+    cg_currentFn.upvalueMap = cg_upvalueMap
+
+    // Restore closure state
+    cg_upvalueMap = savedUpvalueMap
+    cg_parentUpvalueMap = savedParentUpvalueMap
+    cg_closureEnvSize = savedClosureEnvSize
 }
 
 fn cg_compileBlock(block: map) -> void {
@@ -419,27 +624,43 @@ fn cg_compileStatement(stmt: map) -> void {
             nfi = nfi + 1
         }
         if nestedFnIdx >= 0 {
-            // Create {__fn: true, fnIdx: N, env: null}
-            let k1 = cg_allocReg()
-            cg_emit(OP_LOAD_CONST, [k1, cg_addConstant("__fn")])
-            let v1 = cg_allocReg()
-            cg_emit(OP_LOAD_CONST, [v1, cg_addConstant(true)])
-            cg_emit(OP_PUSH, [k1])
-            cg_emit(OP_PUSH, [v1])
-            let k2 = cg_allocReg()
-            cg_emit(OP_LOAD_CONST, [k2, cg_addConstant("fnIdx")])
-            let v2 = cg_allocReg()
-            cg_emit(OP_LOAD_CONST, [v2, cg_addConstant(nestedFnIdx)])
-            cg_emit(OP_PUSH, [k2])
-            cg_emit(OP_PUSH, [v2])
-            let k3 = cg_allocReg()
-            cg_emit(OP_LOAD_CONST, [k3, cg_addConstant("env")])
-            let v3 = cg_allocReg()
-            cg_emit(OP_LOAD_CONST, [v3, cg_addConstant(null)])
-            cg_emit(OP_PUSH, [k3])
-            cg_emit(OP_PUSH, [v3])
-            let fnValReg = cg_allocReg()
-            cg_emit(OP_MAKE_MAP, [fnValReg, 3])
+            let fnValReg = 0
+            if cg_closureEnvSize > 0 {
+                // Has captured variables: use OP_CLOSURE
+                let operands: list = []
+                fnValReg = cg_allocReg()
+                arrays.push(operands, fnValReg)
+                arrays.push(operands, nestedFnIdx)
+                arrays.push(operands, cg_closureEnvSize)
+                let si = 0
+                while si < cg_closureEnvSize {
+                    arrays.push(operands, si)
+                    si = si + 1
+                }
+                cg_emit(OP_CLOSURE, operands)
+            } else {
+                // No capture: create plain {__fn, fnIdx, env:null}
+                let k1 = cg_allocReg()
+                cg_emit(OP_LOAD_CONST, [k1, cg_addConstant("__fn")])
+                let v1 = cg_allocReg()
+                cg_emit(OP_LOAD_CONST, [v1, cg_addConstant(true)])
+                cg_emit(OP_PUSH, [k1])
+                cg_emit(OP_PUSH, [v1])
+                let k2 = cg_allocReg()
+                cg_emit(OP_LOAD_CONST, [k2, cg_addConstant("fnIdx")])
+                let v2 = cg_allocReg()
+                cg_emit(OP_LOAD_CONST, [v2, cg_addConstant(nestedFnIdx)])
+                cg_emit(OP_PUSH, [k2])
+                cg_emit(OP_PUSH, [v2])
+                let k3 = cg_allocReg()
+                cg_emit(OP_LOAD_CONST, [k3, cg_addConstant("env")])
+                let v3 = cg_allocReg()
+                cg_emit(OP_LOAD_CONST, [v3, cg_addConstant(null)])
+                cg_emit(OP_PUSH, [k3])
+                cg_emit(OP_PUSH, [v3])
+                fnValReg = cg_allocReg()
+                cg_emit(OP_MAKE_MAP, [fnValReg, 3])
+            }
             // Store to local variable
             let resolved = cg_resolveVar(stmt.name)
             if resolved.isGlobal {
@@ -755,6 +976,17 @@ fn cg_compileExpression(expr: map) -> int {
 
 fn cg_compileIdent(expr: map) -> int {
     let reg = cg_allocReg()
+    // Check upvalue first (closure capture)
+    if cg_listContains(cg_upvalueMap, expr.name) {
+        let slot = -1
+        let si = 0
+        while si < arrays.length(cg_upvalueMap) {
+            if arrays.get(cg_upvalueMap, si) == expr.name { slot = si; si = arrays.length(cg_upvalueMap) }
+            si = si + 1
+        }
+        cg_emit(OP_GET_UPVALUE, [reg, slot])
+        return reg
+    }
     let resolved = cg_resolveVar(expr.name)
     if resolved.isGlobal {
         cg_emit(OP_LOAD_GLOBAL, [reg, resolved.index])

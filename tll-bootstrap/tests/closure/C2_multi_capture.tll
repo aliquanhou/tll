@@ -1,0 +1,12 @@
+fn makeCalc(a, b) {
+    fn calc(x) {
+        return a + b + x
+    }
+    return calc
+}
+
+fn main() {
+    let f = makeCalc(1, 2)
+    io.println(f(10))
+}
+main()

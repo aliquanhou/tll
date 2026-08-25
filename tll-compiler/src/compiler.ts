@@ -51,6 +51,10 @@ export enum OpCode {
   TRY_END = 39,        // (clear try handler)
   LOAD_GLOBAL = 40,    // r, global_index
   STORE_GLOBAL = 41,   // global_index, r
+  CLOSURE = 42,        // r, fnIdx, captureCount, [upvalueSlot...]
+  GET_UPVALUE = 43,    // r, slot
+  // OP_SET_UPVALUE = 44 reserved for P0-1D (mutable capture)
+  BOX_LOCAL = 45,      // localSlot, upvalueSlot
 }
 
 export interface Instruction {
@@ -64,6 +68,8 @@ export interface CompiledFunction {
   instructions: Instruction[];
   localCount: number;
   isTool?: boolean;
+  parentInternalName?: string | null;
+  upvalueMap?: Map<string, number> | null;
 }
 
 export interface CompiledProgram {
@@ -87,6 +93,10 @@ export class Compiler {
   private fnDeclMap = new Map<string, AST.FnDeclaration>(); // internalName -> fn declaration
   private loopContexts: { breakLabel: number; continueLabel: number }[] = [];
   private isInMain = false;
+  // Closure state
+  private upvalueMap = new Map<string, number>(); // name -> upvalue slot in current function
+  private parentUpvalueMap: Map<string, number> | null = null; // parent function's upvalueMap
+  private closureEnvSize = 0;
 
   // Recursively collect all function declarations (top-level + nested)
   // parentName: null for top-level, or the internalName of the enclosing function
@@ -115,6 +125,7 @@ export class Compiler {
         // Generate unique internal name
         const internalName = parentName ? `${parentName}__${fnDecl.name}` : fnDecl.name;
         (fnDecl as any).internalName = internalName;
+        (fnDecl as any).parentInternalName = parentName;
         const idx = this.functions.length;
         this.functionMap.set(internalName, idx);
         this.fnDeclMap.set(internalName, fnDecl);
@@ -124,6 +135,8 @@ export class Compiler {
           instructions: [],
           localCount: 0,
           isTool,
+          parentInternalName: parentName,
+          upvalueMap: null as any,
         });
         // Recursively collect nested functions from this function's body
         if (fnDecl.body && fnDecl.body.statements) {
@@ -131,6 +144,76 @@ export class Compiler {
         }
       }
     }
+  }
+
+  // ============ Closure capture analysis ============
+
+  // Collect all Ident names in an expression tree (recursive, skips nested Fn bodies)
+  private collectIdentsInExpr(expr: any, result: Set<string>): void {
+    if (expr == null) return;
+    if (Array.isArray(expr)) {
+      for (const e of expr) this.collectIdentsInExpr(e, result);
+      return;
+    }
+    if (typeof expr !== 'object') return;
+    if (expr.kind === 'Fn') {
+      // Recurse into nested function body (params/locals excluded by caller)
+      if (expr.body) this.collectIdentsInExpr(expr.body, result);
+      return;
+    }
+    if (expr.kind === 'Ident') {
+      result.add(expr.name);
+    }
+    // Recurse into common fields
+    for (const key of ['left', 'right', 'operand', 'callee', 'args', 'object', 'index',
+      'value', 'condition', 'body', 'elseBody', 'statements', 'elements', 'entries',
+      'expression', 'iterable', 'catchBody', 'finallyBody']) {
+      if (expr[key] != null) this.collectIdentsInExpr(expr[key], result);
+    }
+  }
+
+  // Collect all params and locals from this function and all nested functions
+  private collectAllBoundNames(fnDecl: AST.FnDeclaration, result: Set<string>): void {
+    for (const p of fnDecl.params) result.add(p.name);
+    if (fnDecl.body && fnDecl.body.statements) {
+      for (const stmt of fnDecl.body.statements) {
+        if (stmt.kind === 'Let' || stmt.kind === 'Const') {
+          result.add((stmt as any).name);
+        }
+        if (stmt.kind === 'Fn') {
+          this.collectAllBoundNames(stmt as AST.FnDeclaration, result);
+        }
+      }
+    }
+  }
+
+  // Collect Ident references in function body (including nested bodies) that are not params/locals
+  private collectReferencedNames(fnDecl: AST.FnDeclaration): Set<string> {
+    const result = new Set<string>();
+    const allBound = new Set<string>();
+    this.collectAllBoundNames(fnDecl, allBound);
+    const allIdents = new Set<string>();
+    if (fnDecl.body) this.collectIdentsInExpr(fnDecl.body, allIdents);
+    for (const name of allIdents) {
+      if (!allBound.has(name)) result.add(name);
+    }
+    return result;
+  }
+
+  // Collect params/locals from THIS function that are referenced by nested functions
+  private collectCapturedByNested(fnDecl: AST.FnDeclaration): Set<string> {
+    const result = new Set<string>();
+    const paramNames = new Set(fnDecl.params.map(p => p.name));
+    if (!fnDecl.body || !fnDecl.body.statements) return result;
+    for (const stmt of fnDecl.body.statements) {
+      if (stmt.kind === 'Fn') {
+        const refs = this.collectReferencedNames(stmt as AST.FnDeclaration);
+        for (const ref of refs) {
+          if (paramNames.has(ref)) result.add(ref);
+        }
+      }
+    }
+    return result;
   }
 
   public compile(program: AST.Program): CompiledProgram {
@@ -228,11 +311,31 @@ export class Compiler {
   }
 
   private compileFunction(fn: AST.FnDeclaration, fnIdx: number): void {
+    // Save closure state
+    const savedUpvalueMap = this.upvalueMap;
+    const savedParentUpvalueMap = this.parentUpvalueMap;
+    const savedClosureEnvSize = this.closureEnvSize;
+
     this.currentFn = this.functions[fnIdx];
     this.registerCount = 0;
     this.variableMap = new Map();
     this.labelCounter = 0;
     this.isInMain = false;
+    this.upvalueMap = new Map();
+    // Get parent's upvalueMap from function object (if nested)
+    const parentName = (this.currentFn as any).parentInternalName;
+    if (parentName) {
+      const parentFnIdx = this.functionMap.get(parentName);
+      if (parentFnIdx !== undefined) {
+        const parentFn = this.functions[parentFnIdx];
+        this.parentUpvalueMap = (parentFn as any).upvalueMap || null;
+      } else {
+        this.parentUpvalueMap = null;
+      }
+    } else {
+      this.parentUpvalueMap = null;
+    }
+    this.closureEnvSize = 0;
 
     // Map parameters to local variables
     for (let i = 0; i < fn.params.length; i++) {
@@ -253,6 +356,34 @@ export class Compiler {
       }
     }
 
+    // Capture analysis
+    const capturedByNested = this.collectCapturedByNested(fn);
+    const referencedFromOuter = this.collectReferencedNames(fn);
+
+    // Assign upvalue slots: first from parent (referencedFromOuter), then captured by nested
+    // This ensures closure env from OP_CLOSURE fills slots 0..N-1, BOX_LOCAL fills N..
+    if (this.parentUpvalueMap) {
+      for (const name of referencedFromOuter) {
+        if (this.parentUpvalueMap.has(name) && !this.upvalueMap.has(name)) {
+          this.upvalueMap.set(name, this.closureEnvSize++);
+        }
+      }
+    }
+    for (const name of capturedByNested) {
+      if (!this.upvalueMap.has(name)) {
+        this.upvalueMap.set(name, this.closureEnvSize++);
+      }
+    }
+
+    // Emit BOX_LOCAL for captured parameters
+    for (let i = 0; i < fn.params.length; i++) {
+      const pname = fn.params[i].name;
+      if (capturedByNested.has(pname)) {
+        const slot = this.upvalueMap.get(pname)!;
+        this.emit(OpCode.BOX_LOCAL, [i, slot]);
+      }
+    }
+
     this.compileBlock(fn.body);
 
     // Implicit return void
@@ -264,6 +395,14 @@ export class Compiler {
     }
 
     this.resolveFunctionLabels();
+
+    // Save upvalueMap for nested functions to reference
+    (this.currentFn as any).upvalueMap = this.upvalueMap;
+
+    // Restore closure state
+    this.upvalueMap = savedUpvalueMap;
+    this.parentUpvalueMap = savedParentUpvalueMap;
+    this.closureEnvSize = savedClosureEnvSize;
   }
 
   private resolveFunctionLabels(): void {
@@ -355,18 +494,28 @@ export class Compiler {
         if (fnIdx === undefined) {
           break; // Should not happen if collectFunctions worked
         }
-        // Create {__fn: true, fnIdx: N, env: null}
-        const k1 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [k1, this.addConstant('__fn')]);
-        const v1 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [v1, this.addConstant(true)]);
-        this.emit(OpCode.PUSH, [k1]); this.emit(OpCode.PUSH, [v1]);
-        const k2 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [k2, this.addConstant('fnIdx')]);
-        const v2 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [v2, this.addConstant(fnIdx)]);
-        this.emit(OpCode.PUSH, [k2]); this.emit(OpCode.PUSH, [v2]);
-        const k3 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [k3, this.addConstant('env')]);
-        const v3 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [v3, this.addConstant(null)]);
-        this.emit(OpCode.PUSH, [k3]); this.emit(OpCode.PUSH, [v3]);
-        const fnValReg = this.allocReg();
-        this.emit(OpCode.MAKE_MAP, [fnValReg, 3]);
+        let fnValReg: number;
+        if (this.closureEnvSize > 0) {
+          // Has captured variables: use OP_CLOSURE to create closure with env
+          const upvalueSlots: number[] = [];
+          for (let s = 0; s < this.closureEnvSize; s++) upvalueSlots.push(s);
+          const operands = [this.allocReg(), fnIdx, upvalueSlots.length, ...upvalueSlots];
+          fnValReg = operands[0];
+          this.emit(OpCode.CLOSURE, operands);
+        } else {
+          // No capture: create plain {__fn, fnIdx, env:null}
+          const k1 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [k1, this.addConstant('__fn')]);
+          const v1 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [v1, this.addConstant(true)]);
+          this.emit(OpCode.PUSH, [k1]); this.emit(OpCode.PUSH, [v1]);
+          const k2 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [k2, this.addConstant('fnIdx')]);
+          const v2 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [v2, this.addConstant(fnIdx)]);
+          this.emit(OpCode.PUSH, [k2]); this.emit(OpCode.PUSH, [v2]);
+          const k3 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [k3, this.addConstant('env')]);
+          const v3 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [v3, this.addConstant(null)]);
+          this.emit(OpCode.PUSH, [k3]); this.emit(OpCode.PUSH, [v3]);
+          fnValReg = this.allocReg();
+          this.emit(OpCode.MAKE_MAP, [fnValReg, 3]);
+        }
         // Store to local variable
         const { index, isGlobal } = this.resolveVar(fnDecl.name);
         if (isGlobal) {
@@ -567,6 +716,11 @@ export class Compiler {
       }
       case 'Ident': {
         const reg = this.allocReg();
+        // Check upvalue first (closure capture)
+        if (this.upvalueMap.has(expr.name)) {
+          this.emit(OpCode.GET_UPVALUE, [reg, this.upvalueMap.get(expr.name)!]);
+          return reg;
+        }
         const { index, isGlobal } = this.resolveVar(expr.name);
         if (isGlobal) {
           this.emit(OpCode.LOAD_GLOBAL, [reg, index]);
