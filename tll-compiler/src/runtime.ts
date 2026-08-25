@@ -325,7 +325,8 @@ export class Runtime {
         if (Array.isArray(regs[b])) {
           regs[a] = regs[b][regs[c]];
         } else if (typeof regs[b] === 'object' && regs[b] !== null) {
-          regs[a] = regs[b][regs[c]];
+          const v = regs[b][regs[c]];
+          regs[a] = (v === undefined) ? null : v;
         }
         break;
 
@@ -343,9 +344,10 @@ export class Runtime {
         if (propName === 'length' && Array.isArray(obj)) {
           regs[a] = obj.length;
         } else if (obj !== null && obj !== undefined) {
-          regs[a] = obj[propName];
+          const v = obj[propName];
+          regs[a] = (v === undefined) ? null : v;
         } else {
-          regs[a] = undefined;
+          regs[a] = null;
         }
         break;
       }

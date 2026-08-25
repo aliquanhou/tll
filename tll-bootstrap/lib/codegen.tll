@@ -65,62 +65,20 @@ let cg_tryFinallyLabel = -1
 let cg_pendingReturnReg = -1
 let cg_tryFinallyPatches: list = []  // JMP instructions to patch to finally position
 
-// Parallel lists for maps (TLL map field access is unreliable)
-let cg_fnMapKeys: list = []
-let cg_fnMapVals: list = []
-let cg_varMapKeys: list = []
-let cg_varMapVals: list = []
-let cg_globalMapKeys: list = []
-let cg_globalMapVals: list = []
+// Native maps (map field access is reliable after undefined->null fix)
+let cg_fnMap: map = json.parse("{}")
+let cg_varMap: map = json.parse("{}")
+let cg_globalMap: map = json.parse("{}")
 
-// ============ Map helpers (direct global access, no param passing) ============
-fn cg_fnMapGet(key: string) -> any {
-    let i = 0
-    while i < arrays.length(cg_fnMapKeys) {
-        if arrays.get(cg_fnMapKeys, i) == key {
-            return arrays.get(cg_fnMapVals, i)
-        }
-        i = i + 1
-    }
-    return null
-}
+// ============ Map helpers ============
+fn cg_fnMapGet(key: string) -> any { return cg_fnMap[key] }
+fn cg_fnMapSet(key: string, value: any) -> void { cg_fnMap[key] = value }
 
-fn cg_fnMapSet(key: string, value: any) -> void {
-    arrays.push(cg_fnMapKeys, key)
-    arrays.push(cg_fnMapVals, value)
-}
+fn cg_varMapGet(key: string) -> any { return cg_varMap[key] }
+fn cg_varMapSet(key: string, value: any) -> void { cg_varMap[key] = value }
 
-fn cg_varMapGet(key: string) -> any {
-    let i = 0
-    while i < arrays.length(cg_varMapKeys) {
-        if arrays.get(cg_varMapKeys, i) == key {
-            return arrays.get(cg_varMapVals, i)
-        }
-        i = i + 1
-    }
-    return null
-}
-
-fn cg_varMapSet(key: string, value: any) -> void {
-    arrays.push(cg_varMapKeys, key)
-    arrays.push(cg_varMapVals, value)
-}
-
-fn cg_globalMapGet(key: string) -> any {
-    let i = 0
-    while i < arrays.length(cg_globalMapKeys) {
-        if arrays.get(cg_globalMapKeys, i) == key {
-            return arrays.get(cg_globalMapVals, i)
-        }
-        i = i + 1
-    }
-    return null
-}
-
-fn cg_globalMapSet(key: string, value: any) -> void {
-    arrays.push(cg_globalMapKeys, key)
-    arrays.push(cg_globalMapVals, value)
-}
+fn cg_globalMapGet(key: string) -> any { return cg_globalMap[key] }
+fn cg_globalMapSet(key: string, value: any) -> void { cg_globalMap[key] = value }
 
 // ============ Simple helpers ============
 fn cg_emit(opCode: int, opOperands: list) -> void {
@@ -197,12 +155,9 @@ export fn compile(program: map) -> map {
     cg_allFnInstructions = []
     cg_allFnLocalCounts = []
     cg_currentLocalCount = 0
-    cg_fnMapKeys = []
-    cg_fnMapVals = []
-    cg_varMapKeys = []
-    cg_varMapVals = []
-    cg_globalMapKeys = []
-    cg_globalMapVals = []
+    cg_fnMap = json.parse("{}")
+    cg_varMap = json.parse("{}")
+    cg_globalMap = json.parse("{}")
 
     let stmts = program.statements
 
@@ -262,8 +217,7 @@ export fn compile(program: map) -> map {
     // Compile main
     cg_currentFn = arrays.get(cg_functions, cg_mainFnIndex)
     cg_regCount = 0
-    cg_varMapKeys = []
-    cg_varMapVals = []
+    cg_varMap = json.parse("{}")
     cg_labelCounter = 0
     cg_instructions = []
     cg_currentLocalCount = 0
@@ -318,8 +272,7 @@ fn cg_compileFunction(fnDecl: map) -> void {
     }
     cg_currentFn = arrays.get(cg_functions, fnIdx)
     cg_regCount = 0
-    cg_varMapKeys = []
-    cg_varMapVals = []
+    cg_varMap = json.parse("{}")
     cg_labelCounter = 0
     cg_instructions = []
 

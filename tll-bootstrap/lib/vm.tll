@@ -528,7 +528,12 @@ fn vm_executeIndexGet(resultReg: int, objReg: int, idxReg: int) -> void {
     if convert.typeOf(obj) == "list" {
         vm_setReg(resultReg, arrays.get(obj, idx))
     } else {
-        vm_setReg(resultReg, obj[convert.toString(idx)])
+        let val = obj[convert.toString(idx)]
+        if convert.typeOf(val) == "null" {
+            vm_setReg(resultReg, null)
+        } else {
+            vm_setReg(resultReg, val)
+        }
     }
 }
 
@@ -552,7 +557,12 @@ fn vm_executeMemberGet(resultReg: int, objReg: int, constIdx: int) -> void {
     if propName == "length" && convert.typeOf(obj) == "list" {
         vm_setReg(resultReg, arrays.length(obj))
     } else if obj != null {
-        vm_setReg(resultReg, obj[propName])
+        let val = obj[propName]
+        if convert.typeOf(val) == "null" {
+            vm_setReg(resultReg, null)
+        } else {
+            vm_setReg(resultReg, val)
+        }
     } else {
         vm_setReg(resultReg, null)
     }

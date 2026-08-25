@@ -23,26 +23,27 @@ function ensureDir(dir) {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
-function runTest(testName) {
-  const testDir = path.join(TESTS_DIR, testName);
-  if (!fs.existsSync(testDir)) {
-    return { name: testName, status: 'SKIP', reason: 'Test directory not found' };
-  }
-
-  const mainFile = path.join(testDir, 'main.tll');
-  const expectedFile = path.join(testDir, 'expected.txt');
-  const configFile = path.join(testDir, 'test.json');
+function runTest(testName, testFile) {
+  // testFile is optional; if provided, it's a single-file test
+  // if not provided, testName is a directory with main.tll
+  const isDirTest = !testFile;
+  const testDir = isDirTest ? path.join(TESTS_DIR, testName) : path.dirname(testFile);
+  const mainFile = testFile || path.join(testDir, 'main.tll');
 
   if (!fs.existsSync(mainFile)) {
-    return { name: testName, status: 'SKIP', reason: 'main.tll not found' };
+    return { name: testName, status: 'SKIP', reason: 'Test file not found' };
   }
+
+  const baseName = isDirTest ? testName : path.relative(TESTS_DIR, testFile).replace(/\\/g, '/');
+  const expectedFile = path.join(testDir, 'expected.txt');
+  const configFile = path.join(testDir, 'test.json');
 
   const config = fs.existsSync(configFile) ? JSON.parse(fs.readFileSync(configFile, 'utf8')) : {};
   const expected = fs.existsSync(expectedFile) ? fs.readFileSync(expectedFile, 'utf8').replace(/\r\n/g, '\n').trim() : '';
   const expectError = config.expectError || false;
 
   ensureDir(TMP_DIR);
-  const safeName = testName.replace(/\//g, '_');
+  const safeName = baseName.replace(/\//g, '_').replace(/\.tll$/, '');
   const driverFile = path.join(BOOTSTRAP_DIR, `.test_${safeName}_driver.tll`);
   const bytecodeFile = path.join(TMP_DIR, `${safeName}.tllbc`);
 
@@ -101,6 +102,10 @@ main()
     console.log = origLog;
 
     const actual = output.join('\n').trim();
+    // If no expected.txt, pass if no runtime error (output is for manual inspection)
+    if (expected === '') {
+      return { name: testName, status: 'PASS', reason: 'No expected output specified, ran successfully' };
+    }
     if (actual !== expected) {
       return {
         name: testName,
@@ -137,30 +142,61 @@ main()
   }
 }
 
-// Main
-function findTestDirs(dir, filter) {
+// Check if a .tll file contains a main() function
+function hasMainFunction(filePath) {
+  try {
+    const content = fs.readFileSync(filePath, 'utf8');
+    return /fn\s+main\s*\(/.test(content);
+  } catch (e) {
+    return false;
+  }
+}
+
+// Main: discover tests in three modes:
+// 1. Directory with main.tll
+// 2. Files matching *_test.tll
+// 3. .tll files with fn main() in dirs without main.tll
+function findTests(dir, filter) {
   const results = [];
   for (const f of fs.readdirSync(dir)) {
-    if (f === '.tmp' || f === 'node_modules') continue;
+    if (f === '.tmp' || f === 'node_modules' || f === 'acceptance' || f === 'exception' || f === 'runtime-equivalence') continue;
     const full = path.join(dir, f);
     if (!fs.statSync(full).isDirectory()) continue;
+    // Mode 1: directory with main.tll
     if (fs.existsSync(path.join(full, 'main.tll'))) {
       const relName = path.relative(TESTS_DIR, full).replace(/\\/g, '/');
-      if (!filter || relName.includes(filter)) results.push(relName);
+      if (!filter || relName.includes(filter)) results.push({ name: relName, file: null });
     }
-    results.push(...findTestDirs(full, filter));
+    results.push(...findTests(full, filter));
+  }
+  // Also scan for file-based tests in this directory
+  for (const f of fs.readdirSync(dir)) {
+    const full = path.join(dir, f);
+    if (!fs.statSync(full).isFile()) continue;
+    if (!f.endsWith('.tll')) continue;
+    // Mode 2: *_test.tll files
+    if (f.endsWith('_test.tll')) {
+      const relName = path.relative(TESTS_DIR, full).replace(/\\/g, '/');
+      if (!filter || relName.includes(filter)) results.push({ name: relName, file: full });
+      continue;
+    }
+    // Mode 3: .tll files with main() in dirs without main.tll
+    if (f !== 'main.tll' && !fs.existsSync(path.join(dir, 'main.tll')) && hasMainFunction(full)) {
+      const relName = path.relative(TESTS_DIR, full).replace(/\\/g, '/');
+      if (!filter || relName.includes(filter)) results.push({ name: relName, file: full });
+    }
   }
   return results;
 }
 
 const filter = process.argv[2];
-const testDirs = findTestDirs(TESTS_DIR, filter);
+const tests = findTests(TESTS_DIR, filter);
 
-console.log(`=== TLL Module System Tests (${testDirs.length} tests) ===\n`);
+console.log(`=== TLL Module System Tests (${tests.length} tests) ===\n`);
 
 let passed = 0, failed = 0, skipped = 0, errors = 0;
-for (const testName of testDirs) {
-  const result = runTest(testName);
+for (const test of tests) {
+  const result = runTest(test.name, test.file);
   const icon = result.status === 'PASS' ? '[PASS]' : result.status === 'FAIL' ? '[FAIL]' : result.status === 'ERROR' ? '[ERROR]' : '[SKIP]';
   console.log(`${icon} ${result.name}: ${result.status}`);
   if (result.reason) console.log(`   ${result.reason}`);

@@ -1,0 +1,44 @@
+// Simulate codegen map usage pattern
+let fnMap: map = {}
+let varMap: map = {}
+
+fn fnMapGet(key: string) -> any { return fnMap[key] }
+fn fnMapSet(key: string, value: any) -> void { fnMap[key] = value }
+fn varMapGet(key: string) -> any { return varMap[key] }
+fn varMapSet(key: string, value: any) -> void { varMap[key] = value }
+
+fn main() -> void {
+    // Register 50 functions
+    let i = 0
+    while i < 50 {
+        fnMapSet("fn_" + convert.toString(i), i * 10)
+        i = i + 1
+    }
+    // Register 30 variables
+    let j = 0
+    while j < 30 {
+        varMapSet("var_" + convert.toString(j), "val_" + convert.toString(j))
+        j = j + 1
+    }
+    // Verify all
+    let ok = true
+    let k = 0
+    while k < 50 {
+        let v = fnMapGet("fn_" + convert.toString(k))
+        if v != k * 10 { io.println("FAIL fn_" + convert.toString(k) + " expected " + convert.toString(k*10) + " got " + convert.toString(v)); ok = false }
+        k = k + 1
+    }
+    let l = 0
+    while l < 30 {
+        let v = varMapGet("var_" + convert.toString(l))
+        if v != "val_" + convert.toString(l) { io.println("FAIL var_" + convert.toString(l)); ok = false }
+        l = l + 1
+    }
+    // Test missing key returns null
+    if fnMapGet("nonexistent") != null { io.println("FAIL: missing key should return null"); ok = false }
+    // Test overwrite
+    fnMapSet("fn_0", 999)
+    if fnMapGet("fn_0") != 999 { io.println("FAIL: overwrite"); ok = false }
+    if ok { io.println("=== MAP PATTERN TEST: ALL PASS ===") }
+}
+main()
