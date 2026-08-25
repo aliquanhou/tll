@@ -1,0 +1,23 @@
+// Exception Test 3: finally always executes
+fn main() -> void {
+    try {
+        io.println("in try")
+        throw "error"
+    } catch e {
+        io.println("catch: " + convert.toString(e))
+    } finally {
+        io.println("finally runs")
+    }
+    io.println("after try")
+
+    // finally on success path
+    try {
+        io.println("try success")
+    } catch e {
+        io.println("no catch")
+    } finally {
+        io.println("finally on success")
+    }
+    io.println("done")
+}
+main()

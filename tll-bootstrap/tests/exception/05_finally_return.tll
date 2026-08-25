@@ -1,0 +1,13 @@
+// Exception Test 5: finally + return
+fn test() -> int {
+    try {
+        return 1
+    } finally {
+        io.println("finally before return")
+    }
+}
+fn main() -> void {
+    let r = test()
+    io.println("result: " + convert.toString(r))
+}
+main()

@@ -60,6 +60,10 @@ let cg_mainFnIndex = 0
 let cg_allFnInstructions: list = []
 let cg_allFnLocalCounts: list = []
 let cg_currentLocalCount = 0
+// Try-finally context: when >= 0, returns inside try body jump to this label
+let cg_tryFinallyLabel = -1
+let cg_pendingReturnReg = -1
+let cg_tryFinallyPatches: list = []  // JMP instructions to patch to finally position
 
 // Parallel lists for maps (TLL map field access is unreliable)
 let cg_fnMapKeys: list = []
@@ -362,11 +366,31 @@ fn cg_compileStatement(stmt: map) -> void {
     if kind == "Return" {
         if stmt.value != null {
             let reg = cg_compileExpression(stmt.value)
-            cg_emit(OP_RET, [reg])
+            if cg_tryFinallyLabel == -2 {
+                cg_pendingReturnReg = reg
+                let jmpIdx = arrays.length(cg_instructions)
+                cg_emit(OP_JMP, [-1])
+                arrays.push(cg_tryFinallyPatches, jmpIdx)
+            } else if cg_tryFinallyLabel >= 0 {
+                cg_pendingReturnReg = reg
+                cg_emit(OP_JMP, [cg_tryFinallyLabel])
+            } else {
+                cg_emit(OP_RET, [reg])
+            }
         } else {
             let reg = cg_allocReg()
             cg_emit(OP_LOAD_CONST, [reg, cg_addConstant(null)])
-            cg_emit(OP_RET, [reg])
+            if cg_tryFinallyLabel == -2 {
+                cg_pendingReturnReg = reg
+                let jmpIdx = arrays.length(cg_instructions)
+                cg_emit(OP_JMP, [-1])
+                arrays.push(cg_tryFinallyPatches, jmpIdx)
+            } else if cg_tryFinallyLabel >= 0 {
+                cg_pendingReturnReg = reg
+                cg_emit(OP_JMP, [cg_tryFinallyLabel])
+            } else {
+                cg_emit(OP_RET, [reg])
+            }
         }
         return
     }
@@ -408,11 +432,23 @@ fn cg_compileIf(stmt: map) -> void {
 }
 
 fn cg_compileTry(stmt: map) -> void {
+    // Save old try-finally context
+    let oldTryFinallyLabel = cg_tryFinallyLabel
+    let oldPendingReturnReg = cg_pendingReturnReg
+    let oldPatches = cg_tryFinallyPatches
+    cg_pendingReturnReg = -1
+
+    let hasFinally = stmt.finallyBlock != null
+    if hasFinally {
+        cg_tryFinallyLabel = -2  // special: use forward reference patches
+        cg_tryFinallyPatches = []
+    }
+
     // TRY_START with catch label placeholder
     let tryStartIdx = arrays.length(cg_instructions)
     cg_emit(OP_TRY_START, [-1])
 
-    // Compile try body
+    // Compile try body (returns will JMP to finally via forward refs)
     cg_compileBlock(stmt.block)
 
     // TRY_END
@@ -427,7 +463,6 @@ fn cg_compileTry(stmt: map) -> void {
 
     // Catch block
     if stmt.catchBlock != null {
-        // Store error value (in r0) into catch param variable
         if stmt.catchParam != null && stmt.catchParam != "" {
             let errVarIdx = cg_getOrCreateVar(stmt.catchParam)
             cg_emit(OP_STORE_VAR, [errVarIdx, 0])
@@ -436,14 +471,32 @@ fn cg_compileTry(stmt: map) -> void {
     }
 
     // Finally block
-    if stmt.finallyBlock != null {
-        // Patch the jump-over-catch to land at finally
+    if hasFinally {
+        // Patch jump-over-catch to land at finally
         cg_patchJump(jmpOverCatchIdx)
+        // Patch all forward-reference JMPs from returns in try body
+        let finallyPos = arrays.length(cg_instructions)
+        let pi = 0
+        while pi < arrays.length(cg_tryFinallyPatches) {
+            let patchIdx = arrays.get(cg_tryFinallyPatches, pi)
+            let inst = arrays.get(cg_instructions, patchIdx)
+            inst.operands = [finallyPos]
+            pi = pi + 1
+        }
+        // Compile finally body
         cg_compileBlock(stmt.finallyBlock)
+        // If there was a pending return from try body, execute it now
+        if cg_pendingReturnReg >= 0 {
+            cg_emit(OP_RET, [cg_pendingReturnReg])
+        }
     } else {
-        // Patch jump-over-catch to land at end
         cg_patchJump(jmpOverCatchIdx)
     }
+
+    // Restore old context
+    cg_tryFinallyLabel = oldTryFinallyLabel
+    cg_pendingReturnReg = oldPendingReturnReg
+    cg_tryFinallyPatches = oldPatches
 }
 
 fn cg_compileWhile(stmt: map) -> void {

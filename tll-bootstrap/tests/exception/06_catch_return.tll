@@ -1,0 +1,14 @@
+// Exception Test 6: catch + return
+fn test() -> int {
+    try {
+        throw "error"
+    } catch e {
+        io.println("catch: " + convert.toString(e))
+        return 42
+    }
+}
+fn main() -> void {
+    let r = test()
+    io.println("result: " + convert.toString(r))
+}
+main()

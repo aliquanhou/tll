@@ -1,0 +1,18 @@
+// Exception Test 4: catch re-throw
+fn inner() -> void {
+    try {
+        throw "original"
+    } catch e {
+        io.println("inner catch: " + convert.toString(e))
+        throw "wrapped: " + convert.toString(e)
+    }
+}
+fn main() -> void {
+    try {
+        inner()
+    } catch e {
+        io.println("outer catch: " + convert.toString(e))
+    }
+    io.println("done")
+}
+main()

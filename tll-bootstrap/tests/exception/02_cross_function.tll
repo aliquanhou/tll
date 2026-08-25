@@ -1,0 +1,18 @@
+// Exception Test 2: cross-function throw and catch
+fn inner() -> void {
+    throw "from inner"
+}
+fn middle() -> void {
+    inner()
+}
+fn main() -> void {
+    io.println("before")
+    try {
+        middle()
+        io.println("should not reach")
+    } catch e {
+        io.println("caught: " + convert.toString(e))
+    }
+    io.println("after")
+}
+main()
