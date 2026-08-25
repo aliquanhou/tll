@@ -11,7 +11,7 @@ Generated: 2026-08-25
 | 2 | Parser | PASS | 31 AST nodes, all parse correctly |
 | 3 | AST | PASS | Full node coverage |
 | 4 | Type System | PARTIAL | Basic types work, 59 warnings, no generics |
-| 5 | Codegen | PASS | 23 nodes compiled, 40 opcodes |
+| 5 | Codegen | PASS | 24 nodes compiled (For added), 40 opcodes |
 | 6 | Linker | PASS | Module resolution, aliases, circular dep detection |
 | 7 | Module System | PASS | import/export, 10/10 tests |
 | 8 | Bytecode | PASS | JSON format, 144 fn / 2841 const for compiler |
@@ -22,14 +22,14 @@ Generated: 2026-08-25
 | 13 | Closure | NOT IMPLEMENTED | Parser rejects anonymous functions |
 | 14 | Globals | PASS | Module-level globals, scope isolation |
 | 15 | Standard Library | PASS | io/strings/arrays/convert/json/math/fs/http |
-| 16 | CLI | PASS | run/build/check/version/help |
+| 16 | CLI | PASS | run/build/check/version/help/repl |
 | 17 | Error Diagnostics | PARTIAL | Parse errors with line/col, type warnings |
-| 18 | Test Framework | PARTIAL | acceptance + equivalence + exception + VM tests |
-| 19 | Cross-platform | PARTIAL | Windows + Linux CI verified, macOS pending |
+| 18 | Test Framework | PASS | 25 tests unified runner (VM/equiv/exception/pkg/CLI) |
+| 19 | Cross-platform | PASS | Windows + Linux + macOS CI matrix |
 | 20 | Deterministic | PASS | A==B==C verified, all content matches |
 | 21 | Self-host | PASS | TLL VM executes compiler bytecode to compile itself |
 | 22 | Runtime Independence | PARTIAL | VM independent of TS Runtime, http/fs use Node host APIs |
-| 23 | Package | PARTIAL | tll.toml parser, cross-module map return bug |
+| 23 | Package | PASS | tll.toml parser + manifest loading + 3 tests |
 | 24 | Agent/Workflow | NOT PART OF v1.0 | Reserved keywords, stdlib modules only |
 
 ## P0 Gate Status
@@ -52,11 +52,11 @@ Generated: 2026-08-25
 | tll run | PASS |
 | tll build | PASS |
 | tll check | PASS |
-| tll.toml | PARTIAL |
-| dependency resolution | NOT IMPLEMENTED |
+| tll.toml | PASS |
+| dependency resolution | PARTIAL (manifest only, no registry) |
 | Windows | PASS |
 | Linux | PASS (CI) |
-| macOS | NOT VERIFIED |
+| macOS | PASS (CI matrix) |
 
 ## Bugs Fixed This Sprint
 
