@@ -49,7 +49,14 @@ let OP_STORE_GLOBAL = 41
 let vm_constants: auto = []
 let vm_functions: auto = []
 let vm_globals: auto = []
-let vm_callStack: auto = []
+// Parallel arrays for call stack (avoids map object creation/access overhead)
+let vm_cs_pc: auto = []
+let vm_cs_registers: auto = []
+let vm_cs_locals: auto = []
+let vm_cs_argStack: auto = []
+let vm_cs_tryStack: auto = []
+let vm_cs_returnReg: auto = []
+let vm_cs_fnIdx: auto = []
 let vm_result: auto = null
 let vm_halted = false
 let vm_lastResultReg = 0  // track last expression result register for HALT
@@ -63,16 +70,13 @@ let vm_tryStack: auto = []
 let vm_returnReg = 0
 let vm_fnIdx = 0
 let vm_thrownValue: auto = null
+let vm_currentInstructions: auto = []  // cached instructions for current function
 
-// ============ Helper: init registers ============
+// ============ Helper: init registers (lazy - no preallocation, dynamic expansion) ============
 fn vm_initRegisters() -> list {
-    let regs: auto = []
-    let i = 0
-    while i < 2048 {
-        arrays.push(regs, null)
-        i = i + 1
-    }
-    return regs
+    // Return empty array; registers are set before read by correct compiler output
+    // This avoids 2048 null pushes per function call (~2.3M eliminated for compiler bytecode)
+    return []
 }
 
 // ============ Set register (direct index assignment) ============
@@ -82,10 +86,9 @@ fn vm_setReg(idx: int, value: auto) -> void {
 }
 
 fn vm_getReg(idx: int) -> any {
-    if idx >= 0 && idx < arrays.length(vm_registers) {
-        return arrays.get(vm_registers, idx)
-    }
-    return null
+    // Direct access - TLL arrays.get returns null for unset/beyond indices
+    // Correct compiler output always writes before reads
+    return arrays.get(vm_registers, idx)
 }
 
 // ============ Set local ============
@@ -98,34 +101,44 @@ fn vm_setGlobal(idx: int, value: auto) -> void {
     vm_globals[idx] = value
 }
 
-// ============ Save/restore frame ============
+// ============ Save/restore frame (parallel arrays, no map objects) ============
 fn vm_saveFrame() -> void {
-    let frame = {
-        pc: vm_pc,
-        registers: vm_registers,
-        locals: vm_locals,
-        argStack: vm_argStack,
-        tryStack: vm_tryStack,
-        returnReg: vm_returnReg,
-        fnIdx: vm_fnIdx
-    }
-    arrays.push(vm_callStack, frame)
+    arrays.push(vm_cs_pc, vm_pc)
+    arrays.push(vm_cs_registers, vm_registers)
+    arrays.push(vm_cs_locals, vm_locals)
+    arrays.push(vm_cs_argStack, vm_argStack)
+    arrays.push(vm_cs_tryStack, vm_tryStack)
+    arrays.push(vm_cs_returnReg, vm_returnReg)
+    arrays.push(vm_cs_fnIdx, vm_fnIdx)
 }
 
 fn vm_restoreFrame() -> bool {
-    if arrays.length(vm_callStack) == 0 {
+    if arrays.length(vm_cs_pc) == 0 {
         return false
     }
-    let frame = arrays.get(vm_callStack, arrays.length(vm_callStack) - 1)
-    arrays.pop(vm_callStack)
-    vm_pc = frame["pc"]
-    vm_registers = frame["registers"]
-    vm_locals = frame["locals"]
-    vm_argStack = frame["argStack"]
-    vm_tryStack = frame["tryStack"]
-    vm_returnReg = frame["returnReg"]
-    vm_fnIdx = frame["fnIdx"]
+    let last = arrays.length(vm_cs_pc) - 1
+    vm_pc = arrays.get(vm_cs_pc, last)
+    vm_registers = arrays.get(vm_cs_registers, last)
+    vm_locals = arrays.get(vm_cs_locals, last)
+    vm_argStack = arrays.get(vm_cs_argStack, last)
+    vm_tryStack = arrays.get(vm_cs_tryStack, last)
+    vm_returnReg = arrays.get(vm_cs_returnReg, last)
+    vm_fnIdx = arrays.get(vm_cs_fnIdx, last)
+    // Pop all parallel arrays
+    arrays.pop(vm_cs_pc)
+    arrays.pop(vm_cs_registers)
+    arrays.pop(vm_cs_locals)
+    arrays.pop(vm_cs_argStack)
+    arrays.pop(vm_cs_tryStack)
+    arrays.pop(vm_cs_returnReg)
+    arrays.pop(vm_cs_fnIdx)
+    let restoredFn = arrays.get(vm_functions, vm_fnIdx)
+    vm_currentInstructions = restoredFn["instructions"]
     return true
+}
+
+fn vm_callStackDepth() -> int {
+    return arrays.length(vm_cs_pc)
 }
 
 // ============ Main entry ============
@@ -133,7 +146,13 @@ export fn run(program: map) -> any {
     vm_constants = program["constants"]
     vm_functions = program["functions"]
     vm_globals = []
-    vm_callStack = []
+    vm_cs_pc = []
+    vm_cs_registers = []
+    vm_cs_locals = []
+    vm_cs_argStack = []
+    vm_cs_tryStack = []
+    vm_cs_returnReg = []
+    vm_cs_fnIdx = []
     vm_result = null
     vm_halted = false
     vm_lastResultReg = 0
@@ -152,6 +171,7 @@ export fn run(program: map) -> any {
     vm_pc = 0
     vm_registers = vm_initRegisters()
     let mainFn = arrays.get(vm_functions, mainIdx)
+    vm_currentInstructions = mainFn["instructions"]
     let localCount = mainFn["localCount"]
     if localCount == null { localCount = 0 }
     vm_locals = []
@@ -171,10 +191,8 @@ export fn run(program: map) -> any {
 // ============ Instruction loop (fully inlined for speed) ============
 fn vm_runLoop() -> void {
     while !vm_halted {
-        let func = arrays.get(vm_functions, vm_fnIdx)
-        let instructions = func["instructions"]
-        if vm_pc >= arrays.length(instructions) {
-            if arrays.length(vm_callStack) == 0 {
+        if vm_pc >= arrays.length(vm_currentInstructions) {
+            if arrays.length(vm_cs_pc) == 0 {
                 vm_halted = true
                 vm_result = vm_getReg(vm_lastResultReg)
                 break
@@ -187,7 +205,7 @@ fn vm_runLoop() -> void {
             }
             continue
         }
-        let inst = arrays.get(instructions, vm_pc)
+        let inst = arrays.get(vm_currentInstructions, vm_pc)
         vm_pc = vm_pc + 1
         let op = inst["op"]
         let operands = inst["operands"]
@@ -324,7 +342,7 @@ fn vm_throwException(errorValue: any) -> void {
         return
     }
     // Search up the call stack
-    while arrays.length(vm_callStack) > 0 {
+    while arrays.length(vm_cs_pc) > 0 {
         vm_restoreFrame()
         if arrays.length(vm_tryStack) > 0 {
             let catchPc = arrays.get(vm_tryStack, arrays.length(vm_tryStack) - 1)
@@ -342,21 +360,14 @@ fn vm_throwException(errorValue: any) -> void {
 
 // ============ CALL ============
 fn vm_executeCall(resultReg: int, fnIdxOrReg: int, argCount: int) -> void {
-    // Pop args in reverse order, then reverse to correct order (O(n) instead of O(n^2))
+    // Read args directly from argStack (first pushed = argStack[0] = first arg)
     let args: auto = []
-    let i = 0
-    while i < argCount {
-        arrays.push(args, arrays.pop(vm_argStack))
-        i = i + 1
+    let ai = 0
+    while ai < argCount {
+        arrays.push(args, arrays.get(vm_argStack, ai))
+        ai = ai + 1
     }
-    // Reverse args
-    let reversed: auto = []
-    i = argCount - 1
-    while i >= 0 {
-        arrays.push(reversed, arrays.get(args, i))
-        i = i - 1
-    }
-    args = reversed
+    vm_argStack = []
 
     // Indirect call: fnIdxOrReg >= 100000 means (fnIdxOrReg - 100000) is register number
     let actualFnIdx = fnIdxOrReg
@@ -406,6 +417,7 @@ fn vm_executeCall(resultReg: int, fnIdxOrReg: int, argCount: int) -> void {
         vm_saveFrame()
         let func = arrays.get(vm_functions, fnIdxOrReg)
         vm_fnIdx = fnIdxOrReg
+        vm_currentInstructions = func["instructions"]
         vm_pc = 0
         vm_registers = vm_initRegisters()
         let localCount = func["localCount"]
@@ -433,7 +445,7 @@ fn vm_executeCall(resultReg: int, fnIdxOrReg: int, argCount: int) -> void {
 fn vm_executeRet(regIdx: int) -> void {
     let returnValue = vm_getReg(regIdx)
     let retReg = vm_returnReg
-    if arrays.length(vm_callStack) == 0 {
+    if arrays.length(vm_cs_pc) == 0 {
         vm_halted = true
         vm_result = returnValue
         return
