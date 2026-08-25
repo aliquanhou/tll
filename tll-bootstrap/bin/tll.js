@@ -73,12 +73,34 @@ function cmdRun(file) {
   }
   console.log('OK');
   console.log('--- output ---');
-  const runtime = new Runtime(result.bytecode);
+
+  // P0-1.6A.2: Execute via TLL VM (vm_run.tllbc), not TS Runtime directly.
+  // TS Runtime now only acts as the initial bytecode loader for TLL VM itself.
+  const vmRunnerPath = path.join(BOOTSTRAP_DIR, 'vm_run.tllbc');
+  if (!fs.existsSync(vmRunnerPath)) {
+    console.error('Error: vm_run.tllbc not found. Generate it first:');
+    console.error('  cd tll-bootstrap && node ..\\tll-compiler\\dist\\src\\cli.js build vm_run.tll');
+    process.exit(1);
+  }
+
+  // Write user bytecode where vm_run.tll expects it (vm_run_target.tllbc in cwd)
+  const targetDir = path.dirname(filePath);
+  const targetPath = path.join(targetDir, 'vm_run_target.tllbc');
+  fs.writeFileSync(targetPath, JSON.stringify(result.bytecode));
+
   const origCwd = process.cwd();
-  process.chdir(path.dirname(filePath));
-  try { runtime.run(); }
-  catch (e) { console.error('Runtime error:', e.message); process.exit(1); }
-  finally { process.chdir(origCwd); }
+  process.chdir(targetDir);
+  try {
+    const vmBytecode = JSON.parse(fs.readFileSync(vmRunnerPath, 'utf8'));
+    const runtime = new Runtime(vmBytecode);
+    runtime.run();
+  } catch (e) {
+    console.error('Runtime error:', e.message);
+    process.exit(1);
+  } finally {
+    process.chdir(origCwd);
+    try { fs.unlinkSync(targetPath); } catch (_) {}
+  }
 }
 
 function cmdBuild(file, output) {
