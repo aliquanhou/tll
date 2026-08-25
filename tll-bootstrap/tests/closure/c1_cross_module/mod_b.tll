@@ -1,0 +1,4 @@
+fn outer() {
+    fn inner() { return 222 }
+    return inner
+}

@@ -1,0 +1,10 @@
+from "./mod_a.tll" import outer
+from "./mod_b.tll" import outer as outerB
+
+fn main() {
+    let fa = outer()
+    let fb = outerB()
+    io.println(fa())
+    io.println(fb())
+}
+main()

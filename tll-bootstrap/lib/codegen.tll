@@ -67,6 +67,7 @@ let cg_tryFinallyPatches: list = []  // JMP instructions to patch to finally pos
 
 // Native maps (map field access is reliable after undefined->null fix)
 let cg_fnMap: map = json.parse("{}")
+let cg_fnDeclMap: map = json.parse("{}")
 let cg_varMap: map = json.parse("{}")
 let cg_globalMap: map = json.parse("{}")
 
@@ -141,6 +142,38 @@ fn cg_resolveVar(name: string) -> map {
     return { index: idx, isGlobal: false }
 }
 
+// ============ Nested function collection ============
+
+// Recursively collect ALL function declarations (top-level + nested)
+// parentName: null for top-level, or internalName of enclosing function
+fn cg_collectFunctions(stmts: auto, parentName: auto) -> void {
+    let i = 0
+    while i < arrays.length(stmts) {
+        let stmt = arrays.get(stmts, i)
+        if stmt != null && stmt.kind == "Fn" {
+            let internalName = ""
+            if parentName == null {
+                internalName = stmt.name
+            } else {
+                internalName = parentName + "__" + stmt.name
+            }
+            stmt.internalName = internalName
+            let fnIdx = arrays.length(cg_functions)
+            cg_fnMapSet(internalName, fnIdx)
+            cg_fnDeclMap[internalName] = stmt
+            let isTop = false
+            if parentName == null { isTop = true }
+            let fnObj = { name: internalName, paramCount: arrays.length(stmt.params), instructions: [], localCount: 0, decl: stmt, isTopLevel: isTop }
+            arrays.push(cg_functions, fnObj)
+            // Recursively collect nested functions
+            if stmt.body != null && stmt.body.statements != null {
+                cg_collectFunctions(stmt.body.statements, internalName)
+            }
+        }
+        i = i + 1
+    }
+}
+
 // ============ Main entry ============
 export fn compile(program: map) -> map {
     cg_instructions = []
@@ -156,12 +189,16 @@ export fn compile(program: map) -> map {
     cg_allFnLocalCounts = []
     cg_currentLocalCount = 0
     cg_fnMap = json.parse("{}")
+    cg_fnDeclMap = json.parse("{}")
     cg_varMap = json.parse("{}")
     cg_globalMap = json.parse("{}")
 
     let stmts = program.statements
 
-    // First pass: collect global variables and function declarations
+    // First pass: recursively collect ALL function declarations (top-level + nested)
+    cg_collectFunctions(stmts, null)
+
+    // Collect global variables from top-level statements
     let globalCounter = 0
     let p1i = 0
     while p1i < arrays.length(stmts) {
@@ -171,26 +208,18 @@ export fn compile(program: map) -> map {
             cg_globalMapSet(stmt.name, globalCounter)
             globalCounter = globalCounter + 1
         }
-        if kind == "Fn" {
-            let fnIdx = arrays.length(cg_functions)
-            cg_fnMapSet(stmt.name, fnIdx)
-            cg_globalMapSet(stmt.name, globalCounter)
-            globalCounter = globalCounter + 1
-            let fnObj = { name: stmt.name, paramCount: arrays.length(stmt.params), instructions: [], localCount: 0 }
-            arrays.push(cg_functions, fnObj)
-        }
-        if kind == "Export" {
-            let decl = stmt.declaration
-            if decl.kind == "Fn" {
-                let fnIdx = arrays.length(cg_functions)
-                cg_fnMapSet(decl.name, fnIdx)
-                cg_globalMapSet(decl.name, globalCounter)
-                globalCounter = globalCounter + 1
-                let fnObj = { name: decl.name, paramCount: arrays.length(decl.params), instructions: [], localCount: 0 }
-                arrays.push(cg_functions, fnObj)
-            }
-        }
         p1i = p1i + 1
+    }
+
+    // Register top-level functions as global variables (nested functions are local)
+    let fgi = 0
+    while fgi < arrays.length(cg_functions) {
+        let fnObj = arrays.get(cg_functions, fgi)
+        if fnObj.isTopLevel == true {
+            cg_globalMapSet(fnObj.name, globalCounter)
+            globalCounter = globalCounter + 1
+        }
+        fgi = fgi + 1
     }
 
     // Create main function
@@ -198,22 +227,14 @@ export fn compile(program: map) -> map {
     let mainFn = { name: "__main__", paramCount: 0, instructions: [], localCount: 0 }
     arrays.push(cg_functions, mainFn)
 
-    // Second pass: compile function bodies
+    // Second pass: compile ALL function bodies (top-level + nested)
     let p2i = 0
-    while p2i < arrays.length(stmts) {
-        let stmt = arrays.get(stmts, p2i)
-        if stmt.kind == "Fn" {
-            cg_compileFunction(stmt)
+    while p2i < arrays.length(cg_functions) {
+        let fnObj = arrays.get(cg_functions, p2i)
+        if p2i != cg_mainFnIndex && fnObj.decl != null {
+            cg_compileFunction(fnObj.decl)
             arrays.push(cg_allFnInstructions, cg_instructions)
             arrays.push(cg_allFnLocalCounts, cg_currentLocalCount)
-        }
-        if stmt.kind == "Export" {
-            let decl = stmt.declaration
-            if decl.kind == "Fn" {
-                cg_compileFunction(decl)
-                arrays.push(cg_allFnInstructions, cg_instructions)
-                arrays.push(cg_allFnLocalCounts, cg_currentLocalCount)
-            }
         }
         p2i = p2i + 1
     }
@@ -226,11 +247,17 @@ export fn compile(program: map) -> map {
     cg_instructions = []
     cg_currentLocalCount = 0
 
-    // Emit function value initialization: create {__fn, fnIdx, env:null} for each top-level function
+    // Emit function value initialization: create {__fn, fnIdx, env:null} for TOP-LEVEL functions only
+    // Nested functions get their Function Value created at runtime in their enclosing function
     let fvi = 0
     while fvi < arrays.length(cg_functions) {
         if fvi != cg_mainFnIndex {
             let func = arrays.get(cg_functions, fvi)
+            // Skip nested functions
+            if func.isTopLevel != true {
+                fvi = fvi + 1
+                continue
+            }
             let gIdx = cg_globalMapGet(func.name)
             // Push key "__fn", value true
             let k1 = cg_allocReg()
@@ -297,8 +324,13 @@ export fn compile(program: map) -> map {
 
 // ============ Function compilation ============
 fn cg_compileFunction(fnDecl: map) -> void {
-    // Search cg_functions list directly (avoid map issues)
-    let fnName = fnDecl.name
+    // Search cg_functions list by internalName
+    let fnName = ""
+    if fnDecl.internalName != null {
+        fnName = fnDecl.internalName
+    } else {
+        fnName = fnDecl.name
+    }
     let fnIdx = -1
     let fi = 0
     while fi < arrays.length(cg_functions) {
@@ -323,11 +355,35 @@ fn cg_compileFunction(fnDecl: map) -> void {
     }
     cg_currentLocalCount = arrays.length(params)
 
+    // Pre-register nested function names as local variables
+    if fnDecl.body != null && fnDecl.body.statements != null {
+        let bodyStmts = fnDecl.body.statements
+        let bsi = 0
+        while bsi < arrays.length(bodyStmts) {
+            let bs = arrays.get(bodyStmts, bsi)
+            if bs != null && bs.kind == "Fn" {
+                if cg_varMapGet(bs.name) == null {
+                    cg_varMapSet(bs.name, cg_currentLocalCount)
+                    cg_currentLocalCount = cg_currentLocalCount + 1
+                }
+            }
+            bsi = bsi + 1
+        }
+    }
+
     cg_compileBlock(fnDecl.body)
 
-    let voidReg = cg_allocReg()
-    cg_emit(OP_LOAD_CONST, [voidReg, cg_addConstant(null)])
-    cg_emit(OP_RET, [voidReg])
+    // Implicit return void only if last instruction is not RET
+    let needImplicitRet = true
+    if arrays.length(cg_instructions) > 0 {
+        let lastInst = arrays.get(cg_instructions, arrays.length(cg_instructions) - 1)
+        if lastInst.op == OP_RET { needImplicitRet = false }
+    }
+    if needImplicitRet {
+        let voidReg = cg_allocReg()
+        cg_emit(OP_LOAD_CONST, [voidReg, cg_addConstant(null)])
+        cg_emit(OP_RET, [voidReg])
+    }
 }
 
 fn cg_compileBlock(block: map) -> void {
@@ -343,6 +399,57 @@ fn cg_compileBlock(block: map) -> void {
 fn cg_compileStatement(stmt: map) -> void {
     if stmt == null { return }
     let kind = stmt.kind
+
+    if kind == "Fn" {
+        // Nested function definition: create Function Value and store in local variable
+        let internalName = ""
+        if stmt.internalName != null {
+            internalName = stmt.internalName
+        } else {
+            internalName = stmt.name
+        }
+        // Find fnIdx
+        let nestedFnIdx = -1
+        let nfi = 0
+        while nfi < arrays.length(cg_functions) {
+            if arrays.get(cg_functions, nfi).name == internalName {
+                nestedFnIdx = nfi
+                nfi = arrays.length(cg_functions)
+            }
+            nfi = nfi + 1
+        }
+        if nestedFnIdx >= 0 {
+            // Create {__fn: true, fnIdx: N, env: null}
+            let k1 = cg_allocReg()
+            cg_emit(OP_LOAD_CONST, [k1, cg_addConstant("__fn")])
+            let v1 = cg_allocReg()
+            cg_emit(OP_LOAD_CONST, [v1, cg_addConstant(true)])
+            cg_emit(OP_PUSH, [k1])
+            cg_emit(OP_PUSH, [v1])
+            let k2 = cg_allocReg()
+            cg_emit(OP_LOAD_CONST, [k2, cg_addConstant("fnIdx")])
+            let v2 = cg_allocReg()
+            cg_emit(OP_LOAD_CONST, [v2, cg_addConstant(nestedFnIdx)])
+            cg_emit(OP_PUSH, [k2])
+            cg_emit(OP_PUSH, [v2])
+            let k3 = cg_allocReg()
+            cg_emit(OP_LOAD_CONST, [k3, cg_addConstant("env")])
+            let v3 = cg_allocReg()
+            cg_emit(OP_LOAD_CONST, [v3, cg_addConstant(null)])
+            cg_emit(OP_PUSH, [k3])
+            cg_emit(OP_PUSH, [v3])
+            let fnValReg = cg_allocReg()
+            cg_emit(OP_MAKE_MAP, [fnValReg, 3])
+            // Store to local variable
+            let resolved = cg_resolveVar(stmt.name)
+            if resolved.isGlobal {
+                cg_emit(OP_STORE_GLOBAL, [resolved.index, fnValReg])
+            } else {
+                cg_emit(OP_STORE_VAR, [resolved.index, fnValReg])
+            }
+        }
+        return
+    }
 
     if kind == "Let" || kind == "Const" {
         let valueReg = cg_compileExpression(stmt.value)

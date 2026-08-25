@@ -473,6 +473,8 @@ fn collectModuleSymbols(ast: map, moduleIndex: int) -> list {
         if stmt.kind == "Fn" {
             let sym = { name: stmt.name, internalName: prefix + stmt.name, kind: "fn" }
             arrays.push(symbols, sym)
+            // Recursively collect nested functions
+            collectNestedFunctions(stmt, prefix + stmt.name, symbols)
         }
         if stmt.kind == "Let" || stmt.kind == "Const" {
             let sym = { name: stmt.name, internalName: prefix + stmt.name, kind: stmt.kind }
@@ -481,6 +483,23 @@ fn collectModuleSymbols(ast: map, moduleIndex: int) -> list {
         i = i + 1
     }
     return symbols
+}
+
+// Recursively collect nested function symbols
+fn collectNestedFunctions(fnDecl: map, parentInternalName: string, symbols: list) -> void {
+    if fnDecl.body == null || fnDecl.body.statements == null { return }
+    let stmts = fnDecl.body.statements
+    let i = 0
+    while i < arrays.length(stmts) {
+        let stmt = arrays.get(stmts, i)
+        if stmt.kind == "Fn" {
+            let internalName = parentInternalName + "__" + stmt.name
+            let sym = { name: stmt.name, internalName: internalName, kind: "fn" }
+            arrays.push(symbols, sym)
+            collectNestedFunctions(stmt, internalName, symbols)
+        }
+        i = i + 1
+    }
 }
 
 // Normalize a module path for comparison: strip ./ prefix, .tll extension, take basename
@@ -765,6 +784,17 @@ fn renameSymbolsInStmt(stmt: map, renameNames: list, renameTargets: list, localS
             let param = arrays.get(stmt.params, pi)
             arrays.push(fnLocalScope, param.name)
             pi = pi + 1
+        }
+        // Add nested function names to localScope (prevents them from being renamed)
+        if stmt.body != null && stmt.body.statements != null {
+            let nsi = 0
+            while nsi < arrays.length(stmt.body.statements) {
+                let ns = arrays.get(stmt.body.statements, nsi)
+                if ns != null && ns.kind == "Fn" {
+                    arrays.push(fnLocalScope, ns.name)
+                }
+                nsi = nsi + 1
+            }
         }
         // Rename function body with function-local scope
         renameSymbolsInBlock(stmt.body, renameNames, renameTargets, fnLocalScope)

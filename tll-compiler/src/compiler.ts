@@ -84,16 +84,14 @@ export class Compiler {
   private variableMap = new Map<string, number>(); // name -> local index
   private globalVariables = new Map<string, number>(); // name -> global index
   private functionMap = new Map<string, number>(); // name -> function index
+  private fnDeclMap = new Map<string, AST.FnDeclaration>(); // internalName -> fn declaration
   private loopContexts: { breakLabel: number; continueLabel: number }[] = [];
   private isInMain = false;
 
-  public compile(program: AST.Program): CompiledProgram {
-    this.constants = [];
-    this.functions = [];
-    this.functionMap = new Map();
-
-    // First pass: collect all function declarations
-    for (const stmt of program.statements) {
+  // Recursively collect all function declarations (top-level + nested)
+  // parentName: null for top-level, or the internalName of the enclosing function
+  private collectFunctions(stmts: AST.Statement[], parentName: string | null): void {
+    for (const stmt of stmts) {
       let fnDecl: AST.FnDeclaration | null = null;
       let isTool = false;
       if (stmt.kind === 'Fn') {
@@ -101,7 +99,6 @@ export class Compiler {
       } else if (stmt.kind === 'Export' && stmt.declaration.kind === 'Fn') {
         fnDecl = stmt.declaration as AST.FnDeclaration;
       } else if (stmt.kind === 'Tool') {
-        // Convert ToolDeclaration to FnDeclaration-like structure
         const tool = stmt as AST.ToolDeclaration;
         fnDecl = {
           kind: 'Fn',
@@ -115,17 +112,34 @@ export class Compiler {
         isTool = true;
       }
       if (fnDecl) {
+        // Generate unique internal name
+        const internalName = parentName ? `${parentName}__${fnDecl.name}` : fnDecl.name;
+        (fnDecl as any).internalName = internalName;
         const idx = this.functions.length;
-        this.functionMap.set(fnDecl.name, idx);
+        this.functionMap.set(internalName, idx);
+        this.fnDeclMap.set(internalName, fnDecl);
         this.functions.push({
-          name: fnDecl.name,
+          name: internalName,
           paramCount: fnDecl.params.length,
           instructions: [],
           localCount: 0,
           isTool,
         });
+        // Recursively collect nested functions from this function's body
+        if (fnDecl.body && fnDecl.body.statements) {
+          this.collectFunctions(fnDecl.body.statements, internalName);
+        }
       }
     }
+  }
+
+  public compile(program: AST.Program): CompiledProgram {
+    this.constants = [];
+    this.functions = [];
+    this.functionMap = new Map();
+
+    // First pass: recursively collect ALL function declarations (top-level + nested)
+    this.collectFunctions(program.statements, null);
 
     // Collect global variables from top-level statements first
     for (const stmt of program.statements) {
@@ -139,7 +153,9 @@ export class Compiler {
 
     // Register top-level functions as global variables (for first-class function support)
     for (const [fnName] of this.functionMap) {
-      if (!this.globalVariables.has(fnName)) {
+      // Only top-level functions (no "__" in name from nesting) get globals
+      // Nested functions are local to their enclosing function
+      if (!fnName.includes('__') && !this.globalVariables.has(fnName)) {
         this.globalVariables.set(fnName, this.globalVariables.size);
       }
     }
@@ -153,30 +169,10 @@ export class Compiler {
       localCount: 0,
     });
 
-    // Second pass: compile function bodies
-    for (let i = 0; i < program.statements.length; i++) {
-      const stmt = program.statements[i];
-      let fnDecl: AST.FnDeclaration | null = null;
-      if (stmt.kind === 'Fn') {
-        fnDecl = stmt;
-      } else if (stmt.kind === 'Export' && stmt.declaration.kind === 'Fn') {
-        fnDecl = stmt.declaration as AST.FnDeclaration;
-      } else if (stmt.kind === 'Tool') {
-        const tool = stmt as AST.ToolDeclaration;
-        fnDecl = {
-          kind: 'Fn',
-          name: tool.name,
-          params: tool.params,
-          returnType: tool.returnType,
-          body: tool.body,
-          line: tool.line,
-          column: tool.column,
-        } as AST.FnDeclaration;
-      }
-      if (fnDecl) {
-        const fnIdx = this.functionMap.get(fnDecl.name)!;
-        this.compileFunction(fnDecl, fnIdx);
-      }
+    // Second pass: compile ALL function bodies (top-level + nested)
+    for (const [internalName, fnDecl] of this.fnDeclMap) {
+      const fnIdx = this.functionMap.get(internalName)!;
+      this.compileFunction(fnDecl, fnIdx);
     }
 
     // Compile top-level statements into main
@@ -186,8 +182,10 @@ export class Compiler {
     this.labelCounter = 0;
     this.isInMain = true;
 
-    // Emit function value initialization: create {__fn, fnIdx, env:null} for each top-level function
+    // Emit function value initialization: create {__fn, fnIdx, env:null} for TOP-LEVEL functions only
+    // Nested functions get their Function Value created at runtime in their enclosing function
     for (const [fnName, fnIdx] of this.functionMap) {
+      if (fnName.includes('__')) continue; // skip nested functions
       const globalIdx = this.globalVariables.get(fnName)!;
       // Push key "__fn", value true
       const k1 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [k1, this.addConstant('__fn')]);
@@ -241,6 +239,19 @@ export class Compiler {
       this.variableMap.set(fn.params[i].name, i);
     }
     this.currentFn.localCount = fn.params.length;
+
+    // Pre-register nested function names as local variables
+    if (fn.body && fn.body.statements) {
+      for (const stmt of fn.body.statements) {
+        if (stmt.kind === 'Fn') {
+          const nestedFn = stmt as AST.FnDeclaration;
+          if (!this.variableMap.has(nestedFn.name)) {
+            this.variableMap.set(nestedFn.name, this.currentFn.localCount);
+            this.currentFn.localCount++;
+          }
+        }
+      }
+    }
 
     this.compileBlock(fn.body);
 
@@ -336,6 +347,35 @@ export class Compiler {
         // Compile the exported declaration (function/const/let/struct)
         this.compileStatement((stmt as AST.ExportStatement).declaration);
         break;
+      case 'Fn': {
+        // Nested function definition: create Function Value and store in local variable
+        const fnDecl = stmt as AST.FnDeclaration;
+        const internalName = (fnDecl as any).internalName || fnDecl.name;
+        const fnIdx = this.functionMap.get(internalName);
+        if (fnIdx === undefined) {
+          break; // Should not happen if collectFunctions worked
+        }
+        // Create {__fn: true, fnIdx: N, env: null}
+        const k1 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [k1, this.addConstant('__fn')]);
+        const v1 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [v1, this.addConstant(true)]);
+        this.emit(OpCode.PUSH, [k1]); this.emit(OpCode.PUSH, [v1]);
+        const k2 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [k2, this.addConstant('fnIdx')]);
+        const v2 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [v2, this.addConstant(fnIdx)]);
+        this.emit(OpCode.PUSH, [k2]); this.emit(OpCode.PUSH, [v2]);
+        const k3 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [k3, this.addConstant('env')]);
+        const v3 = this.allocReg(); this.emit(OpCode.LOAD_CONST, [v3, this.addConstant(null)]);
+        this.emit(OpCode.PUSH, [k3]); this.emit(OpCode.PUSH, [v3]);
+        const fnValReg = this.allocReg();
+        this.emit(OpCode.MAKE_MAP, [fnValReg, 3]);
+        // Store to local variable
+        const { index, isGlobal } = this.resolveVar(fnDecl.name);
+        if (isGlobal) {
+          this.emit(OpCode.STORE_GLOBAL, [index, fnValReg]);
+        } else {
+          this.emit(OpCode.STORE_VAR, [index, fnValReg]);
+        }
+        break;
+      }
       case 'Import':
         // Imports are resolved at link time (multi-file compilation stage 2)
         // For now, record and skip - single-file programs don't need imports
