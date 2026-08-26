@@ -1,0 +1,7 @@
+from "mypkg" import greet, add
+fn main() {
+    io.println(greet("World"))
+    io.println(add(10, 20))
+    io.println("PACKAGE TEST DONE")
+}
+main()

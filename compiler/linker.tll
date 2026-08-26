@@ -127,6 +127,67 @@ fn extractImportsFromSource(source: string) -> list {
     return imports
 }
 
+// Check if a module path is a built-in stdlib module (io, math, etc.)
+fn isStdlibModule(modPath: string) -> bool {
+    let stdlibs: list = ["io", "math", "strings", "arrays", "convert", "fs", "json", "range"]
+    let i = 0
+    while i < arrays.length(stdlibs) {
+        if arrays.get(stdlibs, i) == modPath {
+            return true
+        }
+        i = i + 1
+    }
+    return false
+}
+
+// Resolve a bare package specifier via node_modules-style lookup
+// Returns the resolved entry file path, or "" if not found
+fn resolvePackagePath(currentFile: string, packageName: string) -> string {
+    let dir = getDir(currentFile)
+    // Walk up directory tree looking for node_modules/<packageName>/
+    while true {
+        let candidate = dir + "/node_modules/" + packageName
+        if fs.exists(candidate) {
+            // Read tll.toml for main field
+            let tomlPath = candidate + "/tll.toml"
+            if fs.exists(tomlPath) {
+                let tomlContent = fs.readFile(tomlPath)
+                // Simple parse: look for main = "..."
+                let mainIdx = strings.indexOf(tomlContent, "main")
+                if mainIdx >= 0 {
+                    let afterMain = strings.substring(tomlContent, mainIdx, strings.length(tomlContent))
+                    let quote1 = strings.indexOf(afterMain, "\"")
+                    if quote1 >= 0 {
+                        let rest = strings.substring(afterMain, quote1 + 1, strings.length(afterMain))
+                        let quote2 = strings.indexOf(rest, "\"")
+                        if quote2 >= 0 {
+                            let mainFile = strings.substring(rest, 0, quote2)
+                            return candidate + "/" + mainFile
+                        }
+                    }
+                }
+            }
+            // Fallback: index.tll or main.tll
+            if fs.exists(candidate + "/index.tll") {
+                return candidate + "/index.tll"
+            }
+            if fs.exists(candidate + "/main.tll") {
+                return candidate + "/main.tll"
+            }
+        }
+        // Go up one directory
+        let lastSlash = strings.lastIndexOf(dir, "/")
+        if lastSlash < 0 {
+            break
+        }
+        dir = strings.substring(dir, 0, lastSlash)
+        if strings.length(dir) == 0 {
+            break
+        }
+    }
+    return ""
+}
+
 // Recursively resolve dependencies
 fn load(filePath: string) -> void {
     if isResolved(filePath) {
@@ -150,6 +211,12 @@ fn load(filePath: string) -> void {
         if isRelativeModule(modPath) {
             let depPath = resolveModulePath(filePath, modPath)
             load(depPath)
+        } else if !isStdlibModule(modPath) {
+            // Bare specifier: try package resolution
+            let pkgPath = resolvePackagePath(filePath, modPath)
+            if strings.length(pkgPath) > 0 {
+                load(pkgPath)
+            }
         }
         // Stdlib modules (io, math, etc.) are built-in, skip
         i = i + 1
