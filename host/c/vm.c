@@ -366,15 +366,23 @@ static void tll_vm_exec(TLLVM *vm) {
                 break;
             }
             case OP_LE: {
-                double dx = (regs[b].type==TLL_INT?(double)regs[b].as.integer:regs[b].as.floating);
-                double dy = (regs[c].type==TLL_INT?(double)regs[c].as.integer:regs[c].as.floating);
-                regs[a] = tll_bool(dx <= dy);
+                if (regs[b].type == TLL_STRING && regs[c].type == TLL_STRING)
+                    regs[a] = tll_bool(strcmp(regs[b].as.string, regs[c].as.string) <= 0);
+                else {
+                    double dx = (regs[b].type==TLL_INT?(double)regs[b].as.integer:regs[b].as.floating);
+                    double dy = (regs[c].type==TLL_INT?(double)regs[c].as.integer:regs[c].as.floating);
+                    regs[a] = tll_bool(dx <= dy);
+                }
                 break;
             }
             case OP_GE: {
-                double dx = (regs[b].type==TLL_INT?(double)regs[b].as.integer:regs[b].as.floating);
-                double dy = (regs[c].type==TLL_INT?(double)regs[c].as.integer:regs[c].as.floating);
-                regs[a] = tll_bool(dx >= dy);
+                if (regs[b].type == TLL_STRING && regs[c].type == TLL_STRING)
+                    regs[a] = tll_bool(strcmp(regs[b].as.string, regs[c].as.string) >= 0);
+                else {
+                    double dx = (regs[b].type==TLL_INT?(double)regs[b].as.integer:regs[b].as.floating);
+                    double dy = (regs[c].type==TLL_INT?(double)regs[c].as.integer:regs[c].as.floating);
+                    regs[a] = tll_bool(dx >= dy);
+                }
                 break;
             }
             case OP_AND: regs[a] = tll_bool(tll_truthy(regs[b]) && tll_truthy(regs[c])); break;
