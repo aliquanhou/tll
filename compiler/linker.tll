@@ -195,7 +195,7 @@ fn load(filePath: string) -> void {
     }
     if isVisited(filePath) {
         // Circular dependency: this module is already being processed.
-        // Per spec/MODULE.md §2.2, circular imports are supported —
+        // Per spec/MODULE.md section 2.2, circular imports are supported -
         // all symbols are resolved after full linking in Phase 2/3.
         return
     }
@@ -979,7 +979,7 @@ fn stripExports(source: string) -> string {
 }
 
 export fn linkAndCompile(entryFile: string) -> map {
-    // Resolve dependencies (circular imports are supported per spec/MODULE.md §2.2)
+    // Resolve dependencies (circular imports supported per spec/MODULE.md section 2.2)
     let files = resolveDependencies(entryFile)
 
     // Phase 1: Parse all modules to AST
