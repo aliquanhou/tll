@@ -89,6 +89,7 @@ struct TLLClosureEnv {
     TLLUpvalue **upvalues;
     int count;
     int capacity;
+    int refCount;
 };
 
 /* === Bytecode structures === */

@@ -1,0 +1,113 @@
+// P0-1.13 Closure/Exception/Value Model Conformance Test
+// Covers closure A-H, exception try/catch/finally, value ownership
+
+// A: Function as value
+fn addA(a, b) { return a + b }
+
+// B: Function as parameter
+fn applyB(f, a, b) { return f(a, b) }
+
+// C: Function as return value (immutable capture)
+fn makeAdderC(x) {
+    fn add(y) { return x + y }
+    return add
+}
+
+// D: Mutable closure
+fn makeCounterD() {
+    let n = 0
+    fn inc() { n = n + 1; return n }
+    return inc
+}
+
+// E: Shared upvalue box (sibling closures)
+fn makePairE() {
+    let n = 0
+    fn inc() { n = n + 1; return n }
+    fn get() { return n }
+    return [inc, get]
+}
+
+// F: Closure isolation (independent invocations)
+// uses makeCounterD
+
+// G: Nested closure (flat closure, 3 levels)
+fn outerG(x) {
+    fn middle() {
+        fn inner() { return x }
+        return inner
+    }
+    return middle()
+}
+
+// H: Escaping closure
+// uses makeAdderC
+
+// Exception: try/catch
+fn risky(shouldFail) {
+    if (shouldFail) { throw "intentional error" }
+    return 42
+}
+
+fn testException() {
+    try {
+        risky(true)
+        io.println("SHOULD NOT REACH")
+    } catch e {
+        io.println("caught: " + e)
+    }
+    try {
+        let r = risky(false)
+        io.println("no error: " + r)
+    } catch e {
+        io.println("unexpected: " + e)
+    }
+}
+
+fn main() {
+    io.println("=== A: Function value ===")
+    let f = addA
+    io.println(f(1, 2))
+
+    io.println("=== B: Function param ===")
+    io.println(applyB(addA, 3, 4))
+
+    io.println("=== C: Capture/return ===")
+    io.println(makeAdderC(10)(5))
+
+    io.println("=== D: Mutable closure ===")
+    let c = makeCounterD()
+    io.println(c())
+    io.println(c())
+    io.println(c())
+
+    io.println("=== E: Shared box ===")
+    let pair = makePairE()
+    let incE = pair[0]
+    let getE = pair[1]
+    io.println(incE())
+    io.println(getE())
+    io.println(incE())
+    io.println(getE())
+
+    io.println("=== F: Isolation ===")
+    let c1 = makeCounterD()
+    let c2 = makeCounterD()
+    io.println(c1())
+    io.println(c1())
+    io.println(c2())
+    io.println(c2())
+
+    io.println("=== G: Nested closure ===")
+    io.println(outerG(42)())
+
+    io.println("=== H: Escaping ===")
+    let add100 = makeAdderC(100)
+    io.println(add100(23))
+
+    io.println("=== Exception ===")
+    testException()
+
+    io.println("P0-1.13 TEST DONE")
+}
+main()

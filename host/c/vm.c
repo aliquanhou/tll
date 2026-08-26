@@ -75,9 +75,27 @@ static TLLFrame *pop_frame(TLLVM *vm) {
 }
 
 static void free_frame(TLLFrame *frame) {
+    /* Detach closureEnv first: registers/locals may hold TLL_FUNCTION values
+       whose env == frame->closureEnv.  We must release those before the
+       final closureEnv decref, otherwise a returned closure gets a freed env. */
+    TLLClosureEnv *env = frame->closureEnv;
+    frame->closureEnv = NULL;
+
     for (int i = 0; i < 4096; i++) tll_value_free(frame->registers[i]);
     for (int i = 0; i < frame->localCount; i++) tll_value_free(frame->locals[i]);
     for (int i = 0; i < frame->argStackSize; i++) tll_value_free(frame->argStack[i]);
+
+    if (env && --env->refCount == 0) {
+        for (int i = 0; i < env->count; i++) {
+            TLLUpvalue *box = env->upvalues[i];
+            if (box && --box->refCount == 0) {
+                tll_value_free(box->value);
+                free(box);
+            }
+        }
+        free(env->upvalues);
+        free(env);
+    }
     free(frame->registers);
     free(frame->locals);
     free(frame->argStack);
@@ -138,6 +156,7 @@ static void do_call(TLLVM *vm, TLLFrame *frame, int resultReg, int fnIdx, int ar
                     env = (TLLClosureEnv*)calloc(1, sizeof(TLLClosureEnv));
                     env->capacity = 1;
                     env->upvalues = (TLLUpvalue**)calloc(1, sizeof(TLLUpvalue*));
+                    env->refCount = 1;
                 }
                 possibleFn = tll_function(actualFnIdx, env);
             }
@@ -150,6 +169,7 @@ static void do_call(TLLVM *vm, TLLFrame *frame, int resultReg, int fnIdx, int ar
         if (possibleFn.type == TLL_FUNCTION) {
             int actualFnIdx = possibleFn.as.func.fnIdx;
             TLLClosureEnv *env = possibleFn.as.func.env;
+            if (env) env->refCount++;  /* newFrame shares this env */
             if (actualFnIdx >= 0 && actualFnIdx < vm->program->functionCount) {
                 TLLFunction *fn = &vm->program->functions[actualFnIdx];
                 TLLFrame *newFrame = create_frame(fn, resultReg, env);
@@ -227,6 +247,7 @@ static void tll_vm_exec(TLLVM *vm) {
                     frame->closureEnv = (TLLClosureEnv*)calloc(1, sizeof(TLLClosureEnv));
                     frame->closureEnv->capacity = 8;
                     frame->closureEnv->upvalues = (TLLUpvalue**)calloc(8, sizeof(TLLUpvalue*));
+                    frame->closureEnv->refCount = 1;
                 }
                 while (frame->closureEnv->count <= b) {
                     if (frame->closureEnv->count >= frame->closureEnv->capacity) {
@@ -265,6 +286,7 @@ static void tll_vm_exec(TLLVM *vm) {
                 newEnv->capacity = captureCount > 0 ? captureCount : 1;
                 newEnv->upvalues = (TLLUpvalue**)calloc(newEnv->capacity, sizeof(TLLUpvalue*));
                 newEnv->count = captureCount;
+                newEnv->refCount = 1;
                 if (frame->closureEnv) {
                     for (int i = 0; i < captureCount; i++) {
                         int slot = inst->operands[3 + i];

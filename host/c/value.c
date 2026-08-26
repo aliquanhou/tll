@@ -273,6 +273,7 @@ void tll_value_incref(TLLValue v) {
         case TLL_STRING: (*str_rc(v.as.string))++; break;
         case TLL_ARRAY: v.as.array->refCount++; break;
         case TLL_MAP: v.as.map->refCount++; break;
+        case TLL_FUNCTION: if (v.as.func.env) v.as.func.env->refCount++; break;
         default: break;
     }
 }
@@ -307,6 +308,21 @@ void tll_value_free(TLLValue v) {
                 }
                 free(v.as.map->buckets);
                 free(v.as.map);
+            }
+            break;
+        }
+        case TLL_FUNCTION: {
+            TLLClosureEnv *env = v.as.func.env;
+            if (env && --env->refCount == 0) {
+                for (int i = 0; i < env->count; i++) {
+                    TLLUpvalue *box = env->upvalues[i];
+                    if (box && --box->refCount == 0) {
+                        tll_value_free(box->value);
+                        free(box);
+                    }
+                }
+                free(env->upvalues);
+                free(env);
             }
             break;
         }
