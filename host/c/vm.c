@@ -421,6 +421,20 @@ void tll_vm_run(TLLVM *vm) {
                 regs[a] = map;
                 break;
             }
+            case OP_MAKE_STRUCT: {
+                /* Reserved opcode: struct represented as map.
+                 * Operands: r=result, b=type_index(ignored), c=field_count */
+                TLLValue map = tll_map();
+                for (int i = 0; i < c; i++) {
+                    TLLValue v = pop_arg(frame);
+                    TLLValue k = pop_arg(frame);
+                    char *ks = tll_to_string(k);
+                    map_set(map.as.map, ks, v);
+                    free(ks);
+                }
+                regs[a] = map;
+                break;
+            }
             case OP_INDEX_GET: {
                 TLLValue obj = regs[b];
                 if (obj.type == TLL_ARRAY) {

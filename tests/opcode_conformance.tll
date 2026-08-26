@@ -1,0 +1,136 @@
+// P0-1.11 Opcode Conformance Test
+// Covers 45/46 implemented opcodes (MAKE_STRUCT=27 is reserved/deferred)
+
+// --- Arithmetic: ADD SUB MUL DIV MOD POW NEG ---
+fn test_arithmetic() {
+    let a = 10 + 3       // ADD
+    let b = 10 - 3       // SUB
+    let c = 10 * 3       // MUL
+    let d = 10 / 3       // DIV
+    let e = 10 % 3       // MOD
+    let f = math.pow(2, 8) // POW
+    let g = -5           // NEG
+    io.println(a)
+    io.println(b)
+    io.println(c)
+    io.println(d)
+    io.println(e)
+    io.println(f)
+    io.println(g)
+}
+
+// --- Comparison: EQ NEQ LT GT LE GE ---
+fn test_comparison() {
+    io.println(5 == 5)   // EQ
+    io.println(5 != 3)   // NEQ
+    io.println(3 < 5)    // LT
+    io.println(5 > 3)    // GT
+    io.println(3 <= 3)   // LE
+    io.println(5 >= 5)   // GE
+}
+
+// --- Logic: AND OR NOT ---
+fn test_logic() {
+    io.println(true && true)   // AND
+    io.println(false || true)  // OR
+    io.println(!false)         // NOT
+}
+
+// --- Control flow: JMP JMP_IF_FALSE ---
+fn test_control() {
+    let x = 10
+    if (x > 5) {               // JMP_IF_FALSE + JMP
+        io.println("big")
+    } else {
+        io.println("small")
+    }
+    let i = 0
+    while (i < 3) {            // JMP_IF_FALSE + JMP
+        io.println(i)
+        i = i + 1
+    }
+}
+
+// --- Array: MAKE_ARRAY INDEX_GET INDEX_SET ---
+fn test_array() {
+    let arr = [10, 20, 30]     // MAKE_ARRAY + PUSH
+    io.println(arr[0])         // INDEX_GET
+    arr[1] = 99                // INDEX_SET
+    io.println(arr[1])
+    io.println(arr.length)     // MEMBER_GET
+}
+
+// --- Map: MAKE_MAP INDEX_GET INDEX_SET ---
+fn test_map() {
+    let m = {"a": 1, "b": 2}   // MAKE_MAP + PUSH
+    io.println(m["a"])         // INDEX_GET
+    m["b"] = 42                // INDEX_SET
+    io.println(m["b"])
+}
+
+// --- String: CONCAT ---
+fn test_string() {
+    let s = "Hello" + " " + "World"  // CONCAT
+    io.println(s)
+    io.println(s.length)             // MEMBER_GET
+}
+
+// --- Builtin: LOAD_BUILTIN ---
+fn test_builtin() {
+    io.println(math.abs(-42))   // LOAD_BUILTIN + CALL
+    io.println(math.max(3, 7))
+    io.println(json.stringify([1,2,3]))
+}
+
+// --- Exception: THROW TRY_START TRY_END ---
+fn test_exception() {
+    try {
+        throw "test error"       // THROW
+    } catch e {                  // TRY_START TRY_END
+        io.println("caught: " + e)
+    }
+}
+
+// --- Closure: CLOSURE GET_UPVALUE SET_UPVALUE BOX_LOCAL ---
+fn test_closure() {
+    let n = 0                   // BOX_LOCAL (captured)
+    fn inc() {
+        n = n + 1               // SET_UPVALUE
+        return n                // GET_UPVALUE
+    }
+    io.println(inc())           // CLOSURE + CALL
+    io.println(inc())
+    io.println(inc())
+}
+
+// --- Global: LOAD_GLOBAL STORE_GLOBAL ---
+let global_counter = 100
+
+fn test_global() {
+    io.println(global_counter)  // LOAD_GLOBAL
+    global_counter = 200        // STORE_GLOBAL
+    io.println(global_counter)
+}
+
+// --- Print: PRINT PRINTLN ---
+fn test_print() {
+    io.print("without newline ")   // PRINT
+    io.println("with newline")  // PRINTLN
+}
+
+fn main() {
+    test_arithmetic()
+    test_comparison()
+    test_logic()
+    test_control()
+    test_array()
+    test_map()
+    test_string()
+    test_builtin()
+    test_exception()
+    test_closure()
+    test_global()
+    test_print()
+    io.println("ALL OPCODE TESTS DONE")
+}
+main()
