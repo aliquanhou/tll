@@ -312,8 +312,7 @@ TLLValue tll_call_builtin(TLLVM *vm, int idx, TLLValue *args, int argCount) {
             }
             case 51: { /* push */
                 if (arr) { for (int i = 1; i < argCount; i++) array_push(arr, args[i]); }
-                tll_value_incref(args[0]);
-                return args[0];
+                return tll_int(arr ? arr->length : 0);
             }
             case 52: { /* pop */
                 if (!arr || arr->length == 0) return tll_null();
@@ -334,8 +333,7 @@ TLLValue tll_call_builtin(TLLVM *vm, int idx, TLLValue *args, int argCount) {
                     for (int i = 0; i < n; i++) arr->items[i] = args[n - i];
                     arr->length += n;
                 }
-                tll_value_incref(args[0]);
-                return args[0];
+                return tll_int(arr ? arr->length : 0);
             }
             case 55: { /* concat */
                 TLLValue result = tll_array();
