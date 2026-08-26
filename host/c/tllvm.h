@@ -141,6 +141,7 @@ typedef struct {
     int callStackCapacity;
     TLLValue *globals;
     int globalCount;
+    int invokeTargetStackSize; /* -1 = run until empty, N = stop when callStackSize <= N */
 } TLLVM;
 
 /* === Opcode constants === */
@@ -230,6 +231,7 @@ TLLValue tll_parse_json(const char **json);
 TLLVM *tll_vm_create(TLLProgram *prog);
 void tll_vm_run(TLLVM *vm);
 void tll_vm_free(TLLVM *vm);
+TLLValue tll_vm_invoke(TLLVM *vm, TLLValue fnValue, TLLValue *args, int argCount);
 
 /* Builtin */
 TLLValue tll_call_builtin(TLLVM *vm, int idx, TLLValue *args, int argCount);

@@ -151,7 +151,7 @@ TLLValue tll_call_builtin(TLLVM *vm, int idx, TLLValue *args, int argCount) {
                 const char *sep = (argCount > 1 && args[1].type == TLL_STRING) ? args[1].as.string : "";
                 char *result = strdup("");
                 for (int i = 0; i < arr.as.array->length; i++) {
-                    if (i > 0) { char *t = result; result = strcat(strdup(result), sep); free(t); }
+                    if (i > 0) { char *t = result; result = malloc(strlen(t)+strlen(sep)+1); strcpy(result,t); strcat(result,sep); free(t); }
                     char *elem = tll_to_string(arr.as.array->items[i]);
                     char *t = result;
                     result = (char*)malloc(strlen(result) + strlen(elem) + 1);
@@ -200,7 +200,7 @@ TLLValue tll_call_builtin(TLLVM *vm, int idx, TLLValue *args, int argCount) {
                 const char *p = s;
                 while (1) {
                     const char *found = strstr(p, from);
-                    if (!found) { char *t=result; result=strcat(strdup(result),p); free(t); break; }
+                    if (!found) { char *t=result; result=malloc(strlen(t)+strlen(p)+1); strcpy(result,t); strcat(result,p); free(t); break; }
                     int pos = (int)(found - p);
                     char *tmp = (char*)malloc(strlen(result) + pos + strlen(to) + 1);
                     strcpy(tmp, result);
@@ -216,7 +216,7 @@ TLLValue tll_call_builtin(TLLVM *vm, int idx, TLLValue *args, int argCount) {
             case 38: { /* repeat */
                 int n = (argCount>1)?(int)args[1].as.integer:0;
                 char *r = strdup("");
-                for (int i = 0; i < n; i++) { char *t=r; r=strcat(strdup(r),s); free(t); }
+                for (int i = 0; i < n; i++) { char *t=r; r=malloc(strlen(t)+slen+1); strcpy(r,t); strcat(r,s); free(t); }
                 TLLValue result = tll_string(r); free(r); return result;
             }
             case 39: { /* padStart */
@@ -370,7 +370,7 @@ TLLValue tll_call_builtin(TLLVM *vm, int idx, TLLValue *args, int argCount) {
                 char *result = strdup("");
                 if (arr) {
                     for (int i = 0; i < arr->length; i++) {
-                        if (i > 0) { char *t=result; result=strcat(strdup(result),sep); free(t); }
+                        if (i > 0) { char *t=result; result=malloc(strlen(t)+strlen(sep)+1); strcpy(result,t); strcat(result,sep); free(t); }
                         char *elem = tll_to_string(arr->items[i]);
                         char *t = result;
                         result = malloc(strlen(result)+strlen(elem)+1);
@@ -394,15 +394,95 @@ TLLValue tll_call_builtin(TLLVM *vm, int idx, TLLValue *args, int argCount) {
                         }
                 }
                 return args[0];
-            case 62: /* filter - requires function call, simplified */
-            case 63: /* map */
-            case 64: /* reduce */
-            case 65: /* forEach */
-            case 66: /* find */
-            case 67: /* some */
-            case 68: /* every */
-                /* Higher-order functions require callback support - return array as-is for bootstrap */
-                return args[0];
+            case 62: { /* filter */
+                TLLValue result = tll_array();
+                if (arr && argCount > 1) {
+                    for (int i = 0; i < arr->length; i++) {
+                        TLLValue cbArgs[1] = {arr->items[i]};
+                        TLLValue r = tll_vm_invoke(vm, args[1], cbArgs, 1);
+                        if (tll_truthy(r)) {
+                            tll_value_incref(arr->items[i]);
+                            array_push(result.as.array, arr->items[i]);
+                        }
+                        tll_value_free(r);
+                    }
+                }
+                return result;
+            }
+            case 63: { /* map */
+                TLLValue result = tll_array();
+                if (arr && argCount > 1) {
+                    for (int i = 0; i < arr->length; i++) {
+                        TLLValue cbArgs[1] = {arr->items[i]};
+                        TLLValue r = tll_vm_invoke(vm, args[1], cbArgs, 1);
+                        array_push(result.as.array, r);
+                    }
+                }
+                return result;
+            }
+            case 64: { /* reduce */
+                if (!arr || arr->length == 0) {
+                    if (argCount > 2) { tll_value_incref(args[2]); return args[2]; }
+                    return tll_null();
+                }
+                TLLValue acc;
+                int start;
+                if (argCount > 2) { tll_value_incref(args[2]); acc = args[2]; start = 0; }
+                else { tll_value_incref(arr->items[0]); acc = arr->items[0]; start = 1; }
+                for (int i = start; i < arr->length; i++) {
+                    TLLValue cbArgs[2] = {acc, arr->items[i]};
+                    TLLValue r = tll_vm_invoke(vm, args[1], cbArgs, 2);
+                    tll_value_free(acc);
+                    acc = r;
+                }
+                return acc;
+            }
+            case 65: { /* forEach */
+                if (arr && argCount > 1) {
+                    for (int i = 0; i < arr->length; i++) {
+                        TLLValue cbArgs[1] = {arr->items[i]};
+                        TLLValue r = tll_vm_invoke(vm, args[1], cbArgs, 1);
+                        tll_value_free(r);
+                    }
+                }
+                return tll_null();
+            }
+            case 66: { /* find */
+                if (arr && argCount > 1) {
+                    for (int i = 0; i < arr->length; i++) {
+                        TLLValue cbArgs[1] = {arr->items[i]};
+                        TLLValue r = tll_vm_invoke(vm, args[1], cbArgs, 1);
+                        int found = tll_truthy(r);
+                        tll_value_free(r);
+                        if (found) { tll_value_incref(arr->items[i]); return arr->items[i]; }
+                    }
+                }
+                return tll_null();
+            }
+            case 67: { /* some */
+                if (arr && argCount > 1) {
+                    for (int i = 0; i < arr->length; i++) {
+                        TLLValue cbArgs[1] = {arr->items[i]};
+                        TLLValue r = tll_vm_invoke(vm, args[1], cbArgs, 1);
+                        int found = tll_truthy(r);
+                        tll_value_free(r);
+                        if (found) return tll_bool(1);
+                    }
+                }
+                return tll_bool(0);
+            }
+            case 68: { /* every */
+                if (arr && argCount > 1) {
+                    for (int i = 0; i < arr->length; i++) {
+                        TLLValue cbArgs[1] = {arr->items[i]};
+                        TLLValue r = tll_vm_invoke(vm, args[1], cbArgs, 1);
+                        int ok = tll_truthy(r);
+                        tll_value_free(r);
+                        if (!ok) return tll_bool(0);
+                    }
+                }
+                return tll_bool(1);
+            }
             case 69: { /* flat */
                 TLLValue result = tll_array();
                 int depth = (argCount>1)?(int)args[1].as.integer:1;

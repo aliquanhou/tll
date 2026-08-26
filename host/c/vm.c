@@ -37,6 +37,7 @@ TLLVM *tll_vm_create(TLLProgram *prog) {
     for (int i = 0; i < prog->globalCount; i++) vm->globals[i] = tll_null();
     vm->callStackCapacity = 64;
     vm->callStack = (TLLFrame**)calloc(64, sizeof(TLLFrame*));
+    vm->invokeTargetStackSize = -1;
     return vm;
 }
 
@@ -177,12 +178,9 @@ static void do_call(TLLVM *vm, TLLFrame *frame, int resultReg, int fnIdx, int ar
     }
 }
 
-void tll_vm_run(TLLVM *vm) {
-    TLLFunction *mainFn = &vm->program->functions[vm->program->mainFunctionIndex];
-    TLLFrame *mainFrame = create_frame(mainFn, -1, NULL);
-    push_frame(vm, mainFrame);
-
-    while (vm->callStackSize > 0) {
+static void tll_vm_exec(TLLVM *vm) {
+    int targetStack = (vm->invokeTargetStackSize < 0) ? 0 : vm->invokeTargetStackSize;
+    while (vm->callStackSize > targetStack) {
         TLLFrame *frame = vm->callStack[vm->callStackSize - 1];
         if (frame->pc >= frame->function->instructionCount) {
             TLLFrame *f = pop_frame(vm);
@@ -525,6 +523,63 @@ void tll_vm_run(TLLVM *vm) {
                 exit(1);
         }
     }
+}
+
+void tll_vm_run(TLLVM *vm) {
+    TLLFunction *mainFn = &vm->program->functions[vm->program->mainFunctionIndex];
+    TLLFrame *mainFrame = create_frame(mainFn, -1, NULL);
+    push_frame(vm, mainFrame);
+    tll_vm_exec(vm);
+}
+
+/* Invoke a TLL function from builtin context (synchronous callback).
+ * Uses register 4095 as scratch return slot (last register, unused by programs). */
+TLLValue tll_vm_invoke(TLLVM *vm, TLLValue fnValue, TLLValue *args, int argCount) {
+    int fnIdx = -1;
+    TLLClosureEnv *env = NULL;
+    const int INVOKE_RET_REG = 4095;
+
+    if (fnValue.type == TLL_MAP) {
+        TLLValue fnFlag = map_get(fnValue.as.map, "__fn");
+        if (fnFlag.type == TLL_BOOL && fnFlag.as.boolean) {
+            TLLValue idxVal = map_get(fnValue.as.map, "fnIdx");
+            fnIdx = (idxVal.type == TLL_INT) ? (int)idxVal.as.integer : 0;
+            TLLValue envVal = map_get(fnValue.as.map, "env");
+            if (envVal.type != TLL_NULL) {
+                env = (TLLClosureEnv*)calloc(1, sizeof(TLLClosureEnv));
+                env->capacity = 1;
+                env->upvalues = (TLLUpvalue**)calloc(1, sizeof(TLLUpvalue*));
+            }
+        }
+    } else if (fnValue.type == TLL_FUNCTION) {
+        fnIdx = fnValue.as.func.fnIdx;
+        env = fnValue.as.func.env;
+    }
+
+    if (fnIdx < 0 || fnIdx >= vm->program->functionCount) return tll_null();
+
+    TLLFunction *fn = &vm->program->functions[fnIdx];
+    TLLFrame *parentFrame = vm->callStack[vm->callStackSize - 1];
+
+    tll_value_free(parentFrame->registers[INVOKE_RET_REG]);
+    parentFrame->registers[INVOKE_RET_REG] = tll_null();
+
+    TLLFrame *newFrame = create_frame(fn, INVOKE_RET_REG, env);
+    for (int i = 0; i < argCount && i < fn->paramCount; i++) {
+        tll_value_free(newFrame->locals[i]);
+        tll_value_incref(args[i]);
+        newFrame->locals[i] = args[i];
+    }
+
+    int savedTarget = vm->invokeTargetStackSize;
+    vm->invokeTargetStackSize = vm->callStackSize;
+    push_frame(vm, newFrame);
+    tll_vm_exec(vm);
+    vm->invokeTargetStackSize = savedTarget;
+
+    TLLValue result = parentFrame->registers[INVOKE_RET_REG];
+    tll_value_incref(result);
+    return result;
 }
 
 void tll_vm_free(TLLVM *vm) {

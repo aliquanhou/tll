@@ -1,0 +1,80 @@
+// P0-1.12 Builtin Conformance Test - Part 1: math + convert + strings
+// Covers builtin indices 5-23 (math), 72-78 (convert), 24-48 (strings)
+
+fn test_math() {
+    io.println("=== MATH ===")
+    io.println(math.sqrt(16))       // 5 sqrt -> 4
+    io.println(math.abs(-42))       // 6 abs -> 42
+    io.println(math.floor(3.7))     // 7 floor -> 3
+    io.println(math.ceil(3.2))      // 8 ceil -> 4
+    io.println(math.round(3.5))     // 9 round -> 4
+    io.println(math.min(3, 7))      // 10 min -> 3
+    io.println(math.max(3, 7))      // 11 max -> 7
+    io.println(math.pow(2, 10))     // 12 pow -> 1024
+    io.println(math.sin(0))         // 13 sin -> 0
+    io.println(math.cos(0))         // 14 cos -> 1
+    io.println(math.tan(0))         // 15 tan -> 0
+    io.println(math.log(1))         // 16 log -> 0
+    io.println(math.log2(8))        // 17 log2 -> 3
+    io.println(math.log10(1000))    // 18 log10 -> 3
+    io.println(math.exp(0))         // 19 exp -> 1
+    io.println(math.pi())           // 20 pi -> 3.14159
+    io.println(math.e())            // 21 e -> 2.71828
+    io.println(math.random())       // 22 random -> 0..1
+    io.println(math.randomInt(1, 10)) // 23 randomInt -> 1..10
+}
+
+fn test_convert() {
+    io.println("=== CONVERT ===")
+    io.println(convert.toInt("42"))     // 72 toInt -> 42
+    io.println(convert.toFloat("3.14")) // 73 toFloat -> 3.14
+    io.println(convert.toString(123))   // 74 toString -> "123"
+    io.println(convert.toBool(1))       // 75 toBool -> true
+    io.println(convert.toChar(65))      // 76 toChar -> "A"
+    io.println(convert.charCode("A"))   // 77 charCode -> 65
+    io.println(convert.typeOf(42))      // 78 typeOf -> "int"
+    io.println(convert.typeOf("hello")) // -> "string"
+    io.println(convert.typeOf([1,2]))   // -> "array"
+}
+
+fn test_strings() {
+    io.println("=== STRINGS ===")
+    let s = "  Hello World  "
+    io.println(strings.length(s))       // 24 length -> 15
+    io.println(strings.toUpper("hello")) // 25 toUpper -> "HELLO"
+    io.println(strings.toLower("HELLO")) // 26 toLower -> "hello"
+    io.println(strings.trim(s))         // 27 trim -> "Hello World"
+    io.println(strings.trimStart(s))    // 28 trimStart -> "Hello World  "
+    io.println(strings.trimEnd(s))      // 29 trimEnd -> "  Hello World"
+    let parts = strings.split("a,b,c", ",") // 30 split
+    io.println(parts[0])                // -> "a"
+    io.println(parts[2])                // -> "c"
+    io.println(strings.join(parts, "-")) // 31 join -> "a-b-c"
+    io.println(strings.contains("hello", "ell")) // 32 contains -> true
+    io.println(strings.startsWith("hello", "he")) // 33 startsWith -> true
+    io.println(strings.endsWith("hello", "lo")) // 34 endsWith -> true
+    io.println(strings.substring("hello", 1, 4)) // 35 substring -> "ell"
+    io.println(strings.replace("hello", "l", "r")) // 36 replace -> "herlo"
+    io.println(strings.replaceAll("hello", "l", "r")) // 37 replaceAll -> "herro"
+    io.println(strings.repeat("ab", 3)) // 38 repeat -> "ababab"
+    io.println(strings.padStart("5", 3, "0")) // 39 padStart -> "005"
+    io.println(strings.padEnd("5", 3, "0")) // 40 padEnd -> "500"
+    io.println(strings.charAt("hello", 1)) // 41 charAt -> "e"
+    io.println(strings.charCodeAt("A", 0)) // 42 charCodeAt -> 65
+    io.println(strings.indexOf("hello", "l")) // 43 indexOf -> 2
+    io.println(strings.lastIndexOf("hello", "l")) // 44 lastIndexOf -> 3
+    io.println(strings.isEmpty(""))      // 45 isEmpty -> true
+    io.println(strings.reverse("abc"))   // 46 reverse -> "cba"
+    let lines = strings.lines("a\nb\nc") // 47 lines
+    io.println(lines[1])                 // -> "b"
+    let words = strings.words("hello world") // 48 words
+    io.println(words[0])                 // -> "hello"
+}
+
+fn main() {
+    test_math()
+    test_convert()
+    test_strings()
+    io.println("BUILTIN TEST PART 1 DONE")
+}
+main()

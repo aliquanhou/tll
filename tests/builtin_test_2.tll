@@ -1,0 +1,96 @@
+// P0-1.12 Builtin Conformance Test - Part 2: arrays + fs + io/json
+// Covers builtin indices 49-71 (arrays/range), 79-90 (fs), 0-4 (io/json)
+
+fn test_arrays_simple() {
+    io.println("=== ARRAYS SIMPLE ===")
+    let arr = [10, 20, 30, 40, 50]
+    io.println(arrays.length(arr))     // 49 length -> 5
+    io.println(arrays.get(arr, 2))     // 50 get -> 30
+    io.println(arrays.push(arr, 60))   // 51 push -> 6 (new length)
+    io.println(arrays.pop(arr))        // 52 pop -> 60
+    io.println(arrays.shift(arr))      // 53 shift -> 10
+    io.println(arrays.unshift(arr, 5)) // 54 unshift -> 5 (new length)
+    let a2 = arrays.concat([1,2], [3,4]) // 55 concat
+    io.println(arrays.length(a2))      // -> 4
+    let a3 = arrays.slice([1,2,3,4,5], 1, 3) // 56 slice
+    io.println(arrays.get(a3, 0))      // -> 2
+    io.println(arrays.includes([1,2,3], 2)) // 57 includes -> true
+    io.println(arrays.indexOf([1,2,3], 2)) // 58 indexOf -> 1
+    io.println(arrays.join([1,2,3], "-")) // 59 join -> "1-2-3"
+    let a4 = arrays.reverse([1,2,3])   // 60 reverse
+    io.println(arrays.get(a4, 0))      // -> 3
+    let a5 = arrays.sort([3,1,2])      // 61 sort
+    io.println(arrays.get(a5, 0))      // -> 1
+    let a6 = arrays.flat([[1,2],[3,4]]) // 69 flat
+    io.println(arrays.length(a6))      // -> 4
+    let a7 = arrays.fill([0,0,0], 5)   // 70 fill
+    io.println(arrays.get(a7, 1))      // -> 5
+    let a8 = arrays.range(1, 5)        // 71 range
+    io.println(arrays.length(a8))      // -> 4
+    io.println(arrays.get(a8, 0))      // -> 1
+}
+
+fn isEven(n) { return n % 2 == 0 }
+fn double(n) { return n * 2 }
+fn sum(acc, n) { return acc + n }
+fn printNum(n) { io.println(n) }
+
+fn test_arrays_hof() {
+    io.println("=== ARRAYS HOF ===")
+    let nums = [1, 2, 3, 4, 5, 6]
+    let evens = arrays.filter(nums, isEven) // 62 filter
+    io.println(arrays.length(evens))    // -> 3
+    let doubled = arrays.map(nums, double) // 63 map
+    io.println(arrays.get(doubled, 1))  // -> 4
+    let total = arrays.reduce(nums, sum, 0) // 64 reduce
+    io.println(total)                   // -> 21
+    arrays.forEach(nums, printNum) // 65 forEach
+    let found = arrays.find(nums, isEven) // 66 find
+    io.println(found)                   // -> 2
+    io.println(arrays.some(nums, isEven)) // 67 some -> true
+    io.println(arrays.every(nums, isEven)) // 68 every -> false
+}
+
+fn test_io_json() {
+    io.println("=== IO/JSON ===")
+    io.print("print test ")            // 1 print
+    io.println("println test")         // 0 println
+    let obj = json.parse("{\"a\":1,\"b\":2}") // 3 parse
+    io.println(obj["a"])               // -> 1
+    let s = json.stringify([1,2,3])    // 4 stringify
+    io.println(s)                      // -> [1, 2, 3]
+}
+
+fn test_fs() {
+    io.println("=== FS ===")
+    fs.writeFile("_test_builtin.txt", "hello world") // 80 writeFile
+    io.println(fs.exists("_test_builtin.txt"))       // 82 exists -> true
+    io.println(fs.isFile("_test_builtin.txt"))       // 86 isFile -> true
+    io.println(fs.isDir("_test_builtin.txt"))        // 87 isDir -> false
+    io.println(fs.fileSize("_test_builtin.txt"))     // 88 fileSize -> 11
+    let content = fs.readFile("_test_builtin.txt")   // 79 readFile
+    io.println(content)                              // -> "hello world"
+    fs.appendFile("_test_builtin.txt", "!")          // 81 appendFile
+    let content2 = fs.readFile("_test_builtin.txt")
+    io.println(content2)                             // -> "hello world!"
+    fs.copyFile("_test_builtin.txt", "_test_copy.txt") // 89 copyFile
+    io.println(fs.exists("_test_copy.txt"))          // -> true
+    fs.rename("_test_copy.txt", "_test_renamed.txt") // 90 rename
+    io.println(fs.exists("_test_renamed.txt"))       // -> true
+    fs.remove("_test_builtin.txt")                   // 84 remove
+    fs.remove("_test_renamed.txt")
+    fs.mkdir("_test_dir")                            // 83 mkdir
+    io.println(fs.isDir("_test_dir"))                // -> true
+    let listing = fs.listDir(".")                    // 85 listDir
+    io.println(arrays.length(listing))               // -> some count
+    fs.remove("_test_dir")
+}
+
+fn main() {
+    test_arrays_simple()
+    test_arrays_hof()
+    test_io_json()
+    test_fs()
+    io.println("BUILTIN TEST PART 2 DONE")
+}
+main()
