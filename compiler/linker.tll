@@ -133,8 +133,9 @@ fn load(filePath: string) -> void {
         return
     }
     if isVisited(filePath) {
-        circularDependencyError = "Circular dependency detected: " + filePath
-        io.println("Error: " + circularDependencyError)
+        // Circular dependency: this module is already being processed.
+        // Per spec/MODULE.md §2.2, circular imports are supported —
+        // all symbols are resolved after full linking in Phase 2/3.
         return
     }
     arrays.push(visitedFiles, filePath)
@@ -911,16 +912,8 @@ fn stripExports(source: string) -> string {
 }
 
 export fn linkAndCompile(entryFile: string) -> map {
-    // Resolve dependencies
+    // Resolve dependencies (circular imports are supported per spec/MODULE.md §2.2)
     let files = resolveDependencies(entryFile)
-
-    // Check for circular dependency (must be AFTER resolveDependencies)
-    if circularDependencyError != "" {
-        let err = circularDependencyError
-        circularDependencyError = ""
-        let errorResult = { hasError: true, error: err, functions: [], constants: [], mainFunctionIndex: 0 }
-        return errorResult
-    }
 
     // Phase 1: Parse all modules to AST
     let moduleASTs: list = []

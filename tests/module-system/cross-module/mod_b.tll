@@ -1,0 +1,29 @@
+// Module B: imports from A, exports its own functions
+from "./mod_a" import addA, makeAdderA, getMapA, getArrayA, counterA
+
+fn multiplyB(a, b) { return a * b }
+
+fn useImportedClosureB() {
+    let add10 = makeAdderA(10)
+    return add10(5)
+}
+
+fn useImportedMapB() {
+    let m = getMapA()
+    return m["value"]
+}
+
+fn useImportedArrayB() {
+    let arr = getArrayA()
+    return arr[2]
+}
+
+fn crossModuleCallB() {
+    return addA(3, 4)
+}
+
+export multiplyB
+export useImportedClosureB
+export useImportedMapB
+export useImportedArrayB
+export crossModuleCallB

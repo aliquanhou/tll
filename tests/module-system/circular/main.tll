@@ -1,0 +1,13 @@
+// Test circular import resolution
+from "./circ_a" import getAValue, useB
+from "./circ_b" import getBValue, useA
+
+fn main() {
+    io.println("=== Circular dependency ===")
+    io.println(getAValue())
+    io.println(getBValue())
+    io.println(useB())
+    io.println(useA())
+    io.println("CIRCULAR TEST DONE")
+}
+main()

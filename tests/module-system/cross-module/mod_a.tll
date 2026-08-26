@@ -1,0 +1,25 @@
+// Module A: exports functions, variables, and a closure factory
+fn addA(a, b) { return a + b }
+
+let counterA = 0
+fn incrementA() { counterA = counterA + 1; return counterA }
+
+fn makeAdderA(x) {
+    fn add(y) { return x + y }
+    return add
+}
+
+fn getMapA() {
+    return {"name": "moduleA", "value": 42}
+}
+
+fn getArrayA() {
+    return [1, 2, 3, 4, 5]
+}
+
+export addA
+export incrementA
+export makeAdderA
+export getMapA
+export getArrayA
+export counterA

@@ -1,0 +1,38 @@
+// Main: tests cross-module import/export, calls, return values, closures
+from "./mod_a" import addA, incrementA, makeAdderA, getMapA, getArrayA, counterA
+from "./mod_b" import multiplyB, useImportedClosureB, useImportedMapB, useImportedArrayB, crossModuleCallB
+
+fn main() {
+    io.println("=== 1. Cross-module function call ===")
+    io.println(addA(1, 2))
+    io.println(multiplyB(3, 4))
+
+    io.println("=== 2. Cross-module return: int ===")
+    io.println(crossModuleCallB())
+
+    io.println("=== 3. Cross-module return: map ===")
+    let m = getMapA()
+    io.println(m["name"])
+    io.println(m["value"])
+
+    io.println("=== 4. Cross-module return: array ===")
+    let arr = getArrayA()
+    io.println(arr[0])
+    io.println(arr[4])
+
+    io.println("=== 5. Cross-module closure ===")
+    let add5 = makeAdderA(5)
+    io.println(add5(100))
+    io.println(useImportedClosureB())
+
+    io.println("=== 6. Cross-module mutable global ===")
+    io.println(incrementA())
+    io.println(incrementA())
+
+    io.println("=== 7. B uses A's map/array/closure ===")
+    io.println(useImportedMapB())
+    io.println(useImportedArrayB())
+
+    io.println("CROSS-MODULE TEST DONE")
+}
+main()

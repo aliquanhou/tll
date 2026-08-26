@@ -1,0 +1,9 @@
+// Circular dependency: B imports A
+from "./circ_a" import getAValue
+
+fn getBValue() { return 100 }
+
+fn useA() { return getAValue() }
+
+export getBValue
+export useA
