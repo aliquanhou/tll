@@ -74,9 +74,9 @@ static TLLFrame *pop_frame(TLLVM *vm) {
 }
 
 static void free_frame(TLLFrame *frame) {
-    /* Note: locals and argStack values may be shared with closures/return values.
-     * For bootstrap VM, we leak them to avoid use-after-free.
-     * A production VM would use reference counting. */
+    for (int i = 0; i < 4096; i++) tll_value_free(frame->registers[i]);
+    for (int i = 0; i < frame->localCount; i++) tll_value_free(frame->locals[i]);
+    for (int i = 0; i < frame->argStackSize; i++) tll_value_free(frame->argStack[i]);
     free(frame->registers);
     free(frame->locals);
     free(frame->argStack);
@@ -85,6 +85,7 @@ static void free_frame(TLLFrame *frame) {
 }
 
 static void throw_exception(TLLVM *vm, TLLFrame *frame, TLLValue error) {
+    tll_value_incref(error);
     /* Search current frame's try stack first */
     while (frame->tryStackSize > 0) {
         int catchPc = pop_try(frame);
@@ -109,6 +110,7 @@ static void throw_exception(TLLVM *vm, TLLFrame *frame, TLLValue error) {
     char *msg = tll_to_string(error);
     fprintf(stderr, "Uncaught exception: %s\n", msg);
     free(msg);
+    tll_value_free(error);
     exit(1);
 }
 
@@ -201,20 +203,25 @@ void tll_vm_run(TLLVM *vm) {
 
         switch (inst->op) {
             case OP_LOAD_CONST:
+                tll_value_incref(consts[b]);
                 regs[a] = consts[b];
                 break;
             case OP_LOAD_VAR:
+                tll_value_incref(frame->locals[b]);
                 regs[a] = frame->locals[b];
                 break;
             case OP_STORE_VAR:
                 tll_value_free(frame->locals[a]);
+                tll_value_incref(regs[b]);
                 frame->locals[a] = regs[b];
                 break;
             case OP_LOAD_GLOBAL:
+                tll_value_incref(vm->globals[b]);
                 regs[a] = vm->globals[b];
                 break;
             case OP_STORE_GLOBAL:
                 tll_value_free(vm->globals[a]);
+                tll_value_incref(regs[b]);
                 vm->globals[a] = regs[b];
                 break;
             case OP_BOX_LOCAL: {
@@ -239,6 +246,7 @@ void tll_vm_run(TLLVM *vm) {
             }
             case OP_GET_UPVALUE: {
                 if (frame->closureEnv && b < frame->closureEnv->count && frame->closureEnv->upvalues[b]) {
+                    tll_value_incref(frame->closureEnv->upvalues[b]->value);
                     regs[a] = frame->closureEnv->upvalues[b]->value;
                 } else {
                     regs[a] = tll_null();
@@ -248,6 +256,7 @@ void tll_vm_run(TLLVM *vm) {
             case OP_SET_UPVALUE: {
                 if (frame->closureEnv && a < frame->closureEnv->count && frame->closureEnv->upvalues[a]) {
                     tll_value_free(frame->closureEnv->upvalues[a]->value);
+                    tll_value_incref(regs[b]);
                     frame->closureEnv->upvalues[a]->value = regs[b];
                 }
                 break;
@@ -366,6 +375,7 @@ void tll_vm_run(TLLVM *vm) {
                 int retReg = frame->returnReg;
                 TLLFrame *f = pop_frame(vm);
                 if (vm->callStackSize > 0 && retReg >= 0) {
+                    tll_value_incref(retVal);
                     vm->callStack[vm->callStackSize - 1]->registers[retReg] = retVal;
                 }
                 free_frame(f);
@@ -415,10 +425,14 @@ void tll_vm_run(TLLVM *vm) {
                 TLLValue obj = regs[b];
                 if (obj.type == TLL_ARRAY) {
                     int idx = (regs[c].type == TLL_INT) ? (int)regs[c].as.integer : 0;
-                    regs[a] = array_get(obj.as.array, idx);
+                    TLLValue val = array_get(obj.as.array, idx);
+                    tll_value_incref(val);
+                    regs[a] = val;
                 } else if (obj.type == TLL_MAP) {
                     char *key = tll_to_string(regs[c]);
-                    regs[a] = map_get(obj.as.map, key);
+                    TLLValue val = map_get(obj.as.map, key);
+                    tll_value_incref(val);
+                    regs[a] = val;
                     free(key);
                 } else {
                     regs[a] = tll_null();
@@ -429,9 +443,11 @@ void tll_vm_run(TLLVM *vm) {
                 TLLValue obj = regs[a];
                 if (obj.type == TLL_ARRAY) {
                     int idx = (regs[b].type == TLL_INT) ? (int)regs[b].as.integer : 0;
+                    tll_value_incref(regs[c]);
                     array_set(obj.as.array, idx, regs[c]);
                 } else if (obj.type == TLL_MAP) {
                     char *key = tll_to_string(regs[b]);
+                    tll_value_incref(regs[c]);
                     map_set(obj.as.map, key, regs[c]);
                     free(key);
                 }
@@ -443,7 +459,9 @@ void tll_vm_run(TLLVM *vm) {
                 if (obj.type == TLL_ARRAY && strcmp(propName, "length") == 0) {
                     regs[a] = tll_int(obj.as.array->length);
                 } else if (obj.type == TLL_MAP) {
-                    regs[a] = map_get(obj.as.map, propName);
+                    TLLValue val = map_get(obj.as.map, propName);
+                    tll_value_incref(val);
+                    regs[a] = val;
                 } else if (obj.type == TLL_FUNCTION || obj.type == TLL_BUILTIN) {
                     regs[a] = map_get((obj.type==TLL_MAP)?obj.as.map:NULL, propName);
                 } else {
@@ -455,6 +473,7 @@ void tll_vm_run(TLLVM *vm) {
                 TLLValue obj = regs[a];
                 const char *propName = (consts[b].type == TLL_STRING) ? consts[b].as.string : "";
                 if (obj.type == TLL_MAP) {
+                    tll_value_incref(regs[c]);
                     map_set(obj.as.map, propName, regs[c]);
                 }
                 break;
@@ -464,6 +483,7 @@ void tll_vm_run(TLLVM *vm) {
             case OP_NOP:
                 break;
             case OP_PUSH:
+                tll_value_incref(regs[a]);
                 push_arg(frame, regs[a]);
                 break;
             case OP_CONCAT: {

@@ -306,10 +306,13 @@ TLLValue tll_call_builtin(TLLVM *vm, int idx, TLLValue *args, int argCount) {
             case 49: return tll_int(arr ? arr->length : 0); /* length */
             case 50: { /* get */
                 int i = (argCount>1)?(int)args[1].as.integer:0;
-                return arr ? array_get(arr, i) : tll_null();
+                TLLValue v = arr ? array_get(arr, i) : tll_null();
+                tll_value_incref(v);
+                return v;
             }
             case 51: { /* push */
                 if (arr) { for (int i = 1; i < argCount; i++) array_push(arr, args[i]); }
+                tll_value_incref(args[0]);
                 return args[0];
             }
             case 52: { /* pop */
@@ -331,14 +334,15 @@ TLLValue tll_call_builtin(TLLVM *vm, int idx, TLLValue *args, int argCount) {
                     for (int i = 0; i < n; i++) arr->items[i] = args[n - i];
                     arr->length += n;
                 }
+                tll_value_incref(args[0]);
                 return args[0];
             }
             case 55: { /* concat */
                 TLLValue result = tll_array();
-                if (arr) for (int i = 0; i < arr->length; i++) array_push(result.as.array, arr->items[i]);
+                if (arr) for (int i = 0; i < arr->length; i++) { tll_value_incref(arr->items[i]); array_push(result.as.array, arr->items[i]); }
                 if (argCount > 1 && args[1].type == TLL_ARRAY) {
                     TLLArray *a2 = args[1].as.array;
-                    for (int i = 0; i < a2->length; i++) array_push(result.as.array, a2->items[i]);
+                    for (int i = 0; i < a2->length; i++) { tll_value_incref(a2->items[i]); array_push(result.as.array, a2->items[i]); }
                 }
                 return result;
             }
@@ -349,7 +353,7 @@ TLLValue tll_call_builtin(TLLVM *vm, int idx, TLLValue *args, int argCount) {
                 if (arr) {
                     if (start < 0) start += arr->length;
                     if (end < 0) end += arr->length;
-                    for (int i = start; i < end && i < arr->length; i++) array_push(result.as.array, arr->items[i]);
+                    for (int i = start; i < end && i < arr->length; i++) { tll_value_incref(arr->items[i]); array_push(result.as.array, arr->items[i]); }
                 }
                 return result;
             }

@@ -64,6 +64,7 @@ struct TLLArray {
     TLLValue *items;
     int length;
     int capacity;
+    int refCount;
 };
 
 struct TLLMapEntry {
@@ -76,6 +77,7 @@ struct TLLMap {
     TLLMapEntry **buckets;
     int bucketCount;
     int size;
+    int refCount;
 };
 
 struct TLLUpvalue {
@@ -204,6 +206,7 @@ TLLValue tll_array(void);
 TLLValue tll_map(void);
 TLLValue tll_function(int fnIdx, TLLClosureEnv *env);
 TLLValue tll_builtin(int idx);
+void tll_value_incref(TLLValue v);
 void tll_value_free(TLLValue v);
 char *tll_to_string(TLLValue v);
 int tll_truthy(TLLValue v);

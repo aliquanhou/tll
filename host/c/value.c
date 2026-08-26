@@ -29,19 +29,28 @@ TLLValue tll_float(double val) {
     return v;
 }
 
+/* String allocation with refCount header: [int refCount][char data...] */
+static char *alloc_string_rc(const char *s, int len) {
+    char *buf = (char*)malloc(sizeof(int) + len + 1);
+    *(int*)buf = 1;
+    memcpy(buf + sizeof(int), s, len);
+    buf[sizeof(int) + len] = '\0';
+    return buf + sizeof(int);
+}
+
+static int *str_rc(char *s) { return (int*)(s - sizeof(int)); }
+
 TLLValue tll_string(const char *s) {
     TLLValue v;
     v.type = TLL_STRING;
-    v.as.string = s ? strdup(s) : strdup("");
+    v.as.string = s ? alloc_string_rc(s, (int)strlen(s)) : alloc_string_rc("", 0);
     return v;
 }
 
 TLLValue tll_string_n(const char *s, int len) {
     TLLValue v;
     v.type = TLL_STRING;
-    v.as.string = (char*)malloc(len + 1);
-    memcpy(v.as.string, s, len);
-    v.as.string[len] = '\0';
+    v.as.string = alloc_string_rc(s, len);
     return v;
 }
 
@@ -52,6 +61,7 @@ TLLValue tll_array(void) {
     v.as.array->capacity = 8;
     v.as.array->items = (TLLValue*)calloc(8, sizeof(TLLValue));
     v.as.array->length = 0;
+    v.as.array->refCount = 1;
     return v;
 }
 
@@ -62,6 +72,7 @@ TLLValue tll_map(void) {
     v.as.map->bucketCount = 16;
     v.as.map->buckets = (TLLMapEntry**)calloc(16, sizeof(TLLMapEntry*));
     v.as.map->size = 0;
+    v.as.map->refCount = 1;
     return v;
 }
 
@@ -142,6 +153,7 @@ TLLValue array_get(TLLArray *arr, int idx) {
 
 void array_set(TLLArray *arr, int idx, TLLValue v) {
     while (arr->length <= idx) array_push(arr, tll_null());
+    tll_value_free(arr->items[idx]);
     arr->items[idx] = v;
 }
 
@@ -206,7 +218,7 @@ char *tll_to_string(TLLValue v) {
             /* Build array string */
             char *result = strdup("[");
             for (int i = 0; i < v.as.array->length; i++) {
-                if (i > 0) { char *t = result; result = strcat(strdup(result), ", "); free(t); }
+                if (i > 0) { char *t = result; result = (char*)malloc(strlen(t) + 3); strcpy(result, t); strcat(result, ", "); free(t); }
                 char *elem = tll_to_string(v.as.array->items[i]);
                 char *t = result;
                 result = (char*)malloc(strlen(result) + strlen(elem) + 1);
@@ -229,7 +241,7 @@ char *tll_to_string(TLLValue v) {
             for (int b = 0; b < v.as.map->bucketCount; b++) {
                 TLLMapEntry *e = v.as.map->buckets[b];
                 while (e) {
-                    if (!first) { char *t = result; result = strcat(strdup(result), ", "); free(t); }
+                    if (!first) { char *t = result; result = (char*)malloc(strlen(t) + 3); strcpy(result, t); strcat(result, ", "); free(t); }
                     first = 0;
                     char *val = tll_to_string(e->value);
                     char *tmp = (char*)malloc(strlen(result) + strlen(e->key) + strlen(val) + 8);
@@ -256,28 +268,48 @@ char *tll_to_string(TLLValue v) {
     }
 }
 
+void tll_value_incref(TLLValue v) {
+    switch (v.type) {
+        case TLL_STRING: (*str_rc(v.as.string))++; break;
+        case TLL_ARRAY: v.as.array->refCount++; break;
+        case TLL_MAP: v.as.map->refCount++; break;
+        default: break;
+    }
+}
+
 void tll_value_free(TLLValue v) {
     switch (v.type) {
-        case TLL_STRING: free(v.as.string); break;
-        case TLL_ARRAY:
-            for (int i = 0; i < v.as.array->length; i++) tll_value_free(v.as.array->items[i]);
-            free(v.as.array->items);
-            free(v.as.array);
+        case TLL_STRING: {
+            int *rc = str_rc(v.as.string);
+            if (--(*rc) == 0) free(v.as.string - sizeof(int));
             break;
-        case TLL_MAP:
-            for (int b = 0; b < v.as.map->bucketCount; b++) {
-                TLLMapEntry *e = v.as.map->buckets[b];
-                while (e) {
-                    TLLMapEntry *next = e->next;
-                    free(e->key);
-                    tll_value_free(e->value);
-                    free(e);
-                    e = next;
-                }
+        }
+        case TLL_ARRAY: {
+            if (--v.as.array->refCount == 0) {
+                for (int i = 0; i < v.as.array->length; i++)
+                    tll_value_free(v.as.array->items[i]);
+                free(v.as.array->items);
+                free(v.as.array);
             }
-            free(v.as.map->buckets);
-            free(v.as.map);
             break;
+        }
+        case TLL_MAP: {
+            if (--v.as.map->refCount == 0) {
+                for (int b = 0; b < v.as.map->bucketCount; b++) {
+                    TLLMapEntry *e = v.as.map->buckets[b];
+                    while (e) {
+                        TLLMapEntry *next = e->next;
+                        free(e->key);
+                        tll_value_free(e->value);
+                        free(e);
+                        e = next;
+                    }
+                }
+                free(v.as.map->buckets);
+                free(v.as.map);
+            }
+            break;
+        }
         default: break;
     }
 }
