@@ -268,6 +268,86 @@ char *tll_to_string(TLLValue v) {
     }
 }
 
+/* JSON serialization: strings get quotes, null becomes "null" */
+static char *json_escape_string(const char *s) {
+    int len = (int)strlen(s);
+    char *out = (char*)malloc(len * 2 + 3);
+    int p = 0;
+    out[p++] = '"';
+    for (int i = 0; i < len; i++) {
+        char c = s[i];
+        if (c == '"') { out[p++] = '\\'; out[p++] = '"'; }
+        else if (c == '\\') { out[p++] = '\\'; out[p++] = '\\'; }
+        else if (c == '\n') { out[p++] = '\\'; out[p++] = 'n'; }
+        else if (c == '\r') { out[p++] = '\\'; out[p++] = 'r'; }
+        else if (c == '\t') { out[p++] = '\\'; out[p++] = 't'; }
+        else out[p++] = c;
+    }
+    out[p++] = '"';
+    out[p] = '\0';
+    return out;
+}
+
+char *tll_to_json(TLLValue v) {
+    switch (v.type) {
+        case TLL_NULL: return strdup("null");
+        case TLL_BOOL: return strdup(v.as.boolean ? "true" : "false");
+        case TLL_INT: return int_to_string(v.as.integer);
+        case TLL_FLOAT: return float_to_string(v.as.floating);
+        case TLL_STRING: return json_escape_string(v.as.string);
+        case TLL_ARRAY: {
+            char *result = strdup("[");
+            for (int i = 0; i < v.as.array->length; i++) {
+                if (i > 0) { char *t = result; result = (char*)malloc(strlen(t) + 3); strcpy(result, t); strcat(result, ","); free(t); }
+                char *elem = tll_to_json(v.as.array->items[i]);
+                char *t = result;
+                result = (char*)malloc(strlen(result) + strlen(elem) + 1);
+                strcpy(result, t);
+                strcat(result, elem);
+                free(t);
+                free(elem);
+            }
+            char *t = result;
+            result = (char*)malloc(strlen(result) + 2);
+            strcpy(result, t);
+            strcat(result, "]");
+            free(t);
+            return result;
+        }
+        case TLL_MAP: {
+            char *result = strdup("{");
+            int first = 1;
+            for (int b = 0; b < v.as.map->bucketCount; b++) {
+                TLLMapEntry *e = v.as.map->buckets[b];
+                while (e) {
+                    if (!first) { char *t = result; result = (char*)malloc(strlen(t) + 3); strcpy(result, t); strcat(result, ","); free(t); }
+                    first = 0;
+                    char *key = json_escape_string(e->key);
+                    char *val = tll_to_json(e->value);
+                    char *tmp = (char*)malloc(strlen(result) + strlen(key) + strlen(val) + 3);
+                    strcpy(tmp, result);
+                    strcat(tmp, key);
+                    strcat(tmp, ":");
+                    strcat(tmp, val);
+                    free(result);
+                    free(key);
+                    free(val);
+                    result = tmp;
+                    e = e->next;
+                }
+            }
+            char *t = result;
+            result = (char*)malloc(strlen(result) + 2);
+            strcpy(result, t);
+            strcat(result, "}");
+            free(t);
+            return result;
+        }
+        case TLL_FUNCTION: return strdup("null");
+        default: return strdup("null");
+    }
+}
+
 void tll_value_incref(TLLValue v) {
     switch (v.type) {
         case TLL_STRING: (*str_rc(v.as.string))++; break;

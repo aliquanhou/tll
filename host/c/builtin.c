@@ -59,7 +59,7 @@ TLLValue tll_call_builtin(TLLVM *vm, int idx, TLLValue *args, int argCount) {
     }
     if (idx == 4) { /* stringify */
         if (argCount > 0) {
-            char *s = tll_to_string(args[0]);
+            char *s = tll_to_json(args[0]);
             TLLValue r = tll_string(s);
             free(s);
             return r;

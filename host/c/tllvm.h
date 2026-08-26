@@ -211,6 +211,7 @@ TLLValue tll_builtin(int idx);
 void tll_value_incref(TLLValue v);
 void tll_value_free(TLLValue v);
 char *tll_to_string(TLLValue v);
+char *tll_to_json(TLLValue v);
 int tll_truthy(TLLValue v);
 int tll_equals(TLLValue a, TLLValue b);
 
